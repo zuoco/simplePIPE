@@ -1,0 +1,50 @@
+[workspace]
+name = "qml-vsg-occt"
+version = "0.1.0"
+description = "Pipeline parametric modeling software"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+
+[dependencies]
+cmake = ">=3.24"
+ninja = "*"
+pkg-config = "*"
+nlohmann_json = "*"
+gtest = "*"
+qt6-main = ">=6.5"
+# Vulkan 由系统提供 (vulkan-loader / vulkan-headers 在系统RPM中)
+# vulkan-headers = "*"
+# vulkan-loader = "*"
+glslang = "*"
+spirv-tools = "*"
+
+# OCCT & VSG — 初期使用本地 lib/, 后续迁入 pixi:
+# occt = ">=8.0.0"
+# vulkanscenegraph = ">=1.1.0"
+
+# VTK (CAE工作台，初期不启用)
+# vtk = ">=9.6"
+
+[target.linux-64.dependencies]
+xorg-libx11 = "*"
+xorg-libxcb = "*"
+
+[feature.dev.dependencies]
+clang-format = "*"
+ccache = "*"
+
+[environments.default]
+features = ["dev"]
+
+
+[tasks]
+configure-debug = { cmd = "cmake -B build/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX" }
+configure-release = { cmd = "cmake -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$CONDA_PREFIX" }
+build-debug = { cmd = "cmake --build build/debug", depends-on = ["configure-debug"] }
+build-release = { cmd = "cmake --build build/release", depends-on = ["configure-release"] }
+test = { cmd = "ctest --test-dir build/debug --output-on-failure", depends-on = ["build-debug"] }
+clean = { cmd = "rm -rf build/" }
+
+
+

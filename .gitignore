@@ -1,0 +1,22 @@
+# 构建产物
+build/
+.pixi/
+
+# Python
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# 编译数据库
+compile_commands.json
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+lib
