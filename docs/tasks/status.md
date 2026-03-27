@@ -22,7 +22,7 @@
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
 | T01 | 构建系统搭建 | `done` | — | Sonnet | 2026-03-28 |
-| T02 | Foundation 层 | `ready` | T01 | Sonnet | |
+| T02 | Foundation 层 | `done` | T01 | Sonnet | 2026-03-28 |
 | T03 | OCCT 几何封装 | `ready` | T01 | Sonnet | |
 | T04 | OCCT 网格化 + STEP I/O | `ready` | T01 | Sonnet | |
 | T05 | 核心文档对象 | `pending` | T02 | **Opus** | |
@@ -99,4 +99,60 @@
 - T02/T03/T04 可以并行开始（均 `ready`）
 - 新增 test executable 时，在 `tests/CMakeLists.txt` 加 `add_executable` + `target_link_libraries` + `add_test`
 - 每层的 `.cpp` placeholder 文件在实现该层时替换（不需要保留）
+### T02 — Foundation 层 (2026-03-28)
+
+**产出文件**:
+- `src/foundation/Types.h`
+- `src/foundation/Math.h`
+- `src/foundation/Signal.h`
+- `src/foundation/Log.h`
+- `src/foundation/placeholder.cpp` (更新为引用头文件)
+- `tests/test_foundation.cpp`
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// foundation/Types.h
+namespace foundation {
+    struct UUID { uint8_t data[16]; static UUID generate(); std::string toString(); bool isNull(); };
+    using Variant = std::variant<double, int, std::string>;
+    double variantToDouble(const Variant&);
+    int    variantToInt(const Variant&);
+    const std::string& variantToString(const Variant&);
+    enum class UnitSystem { SI, Imperial };
+}
+
+// foundation/Math.h
+namespace foundation::math {
+    constexpr double PI;
+    double degToRad(double), radToDeg(double);
+    struct Vec3 { double x,y,z; /* +,-,*,/ ops */ };
+    double length(Vec3), dot(Vec3,Vec3), angleBetween(Vec3,Vec3);
+    Vec3   normalize(Vec3), cross(Vec3,Vec3);
+    std::optional<Vec3> lineLineIntersect(Vec3 p1, Vec3 d1, Vec3 p2, Vec3 d2);
+}
+
+// foundation/Signal.h
+namespace foundation {
+    template<typename... Args>
+    class Signal { SlotId connect(Slot); void disconnect(SlotId); void emit(Args...); };
+    using ChangeSignal = Signal<>;
+}
+
+// foundation/Log.h — 宏接口
+LOG_DEBUG(msg); LOG_INFO(msg); LOG_WARN(msg); LOG_ERROR(msg);
+```
+
+**设计决策**:
+- Foundation 层全为 header-only，placeholder.cpp 仅作为库非空占位
+- `Vec3` 是轻量 3D 向量（不依赖 OCCT），供 T07 BendCalculator 使用
+- `lineLineIntersect` 返回两最近点中点（真相交时即为交点），平行时返回 nullopt
+- `Variant = std::variant<double,int,std::string>`，enum 值用 int 存储
+- Signal 实现拷贝槽列表再触发，避免回调中 connect/disconnect 的迭代器失效
+
+**后续任务注意**:
+- T05 DocumentObject 使用 `foundation::UUID` 作为对象 ID
+- T05 PipeSpec 的 fields 使用 `map<string, foundation::Variant>`
+- T07 BendCalculator 使用 `foundation::math::Vec3` 和 `lineLineIntersect`
+- 所有层 include: `#include "foundation/Types.h"` 等（相对于 `${CMAKE_SOURCE_DIR}/src`）
+
 <!-- === COMPLETION LOG END === -->

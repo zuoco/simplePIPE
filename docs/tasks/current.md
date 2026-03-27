@@ -9,40 +9,43 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T02 / T03 / T04 |
-| **任务名** | Foundation 层 / OCCT 几何封装 / OCCT 网格化+STEP I/O |
+| **任务 ID** | T03 / T04 |
+| **任务名** | OCCT 几何封装 / OCCT 网格化+STEP I/O |
 | **推荐模型** | Sonnet |
 | **前置依赖** | T01 ✅ |
-| **前置状态** | ✅ 所有依赖已满足（T02/T03/T04 可并行） |
+| **前置状态** | ✅ 所有依赖已满足（T03/T04 可并行） |
 
 ## 项目进度
 
-- 已完成: 1/22 个任务
+- 已完成: 2/22 个任务
 - 当前阶段: Phase 1 — 基础设施
 
 ## 上一个完成的任务
 
-**T01 — 构建系统搭建 (2026-03-28)**
-- 产出: pixi.toml, CMakeLists.txt, 7层 src/库骨架, tests/, .gitignore
-- 验证: `pixi run build-debug` ✅ 编译通过, `pixi run test` ✅ 1/1 测试通过
+**T02 — Foundation 层 (2026-03-28)**
+- 产出: Types.h / Math.h / Signal.h / Log.h + test_foundation.cpp
+- 验证: `pixi run test` ✅ 2/2 通过
 - 关键接口:
-  - 7个 static lib target: `foundation` / `geometry` / `model` / `engine` / `visualization` / `app` / `ui`
-  - include 路径: `${CMAKE_SOURCE_DIR}/src`，头文件引用方式 `"layer/Header.h"`
-  - OCCT: `${OpenCASCADE_INCLUDE_DIR}`, 各模块库变量见 status.md
-  - VSG: `vsg::vsg`, Qt6: `Qt6::Quick Qt6::Qml`, JSON: `nlohmann_json::nlohmann_json`
+  - `foundation::UUID::generate()` — 随机 v4 UUID
+  - `foundation::Variant = std::variant<double,int,std::string>`
+  - `foundation::math::Vec3` + 向量运算 + `lineLineIntersect`
+  - `foundation::Signal<Args...>` 轻量信号槽
+  - `LOG_DEBUG/INFO/WARN/ERROR(msg)` 日志宏
 
 ## 给 AI 的指令
 
-**建议优先做 T02**（其他任务依赖 T02 的 Types.h/Math.h）：
+**做 T03（OCCT 几何封装）**：
 
-1. 读取 `docs/development-plan.md` 中 **T02** 章节
-2. 读取 `docs/architecture.md` **§1、§3** 中基础类型相关章节
-3. 主要文件路径:
-   - `src/foundation/Types.h` — UUID、Variant、单位枚举
-   - `src/foundation/Math.h` — 向量运算、角度转换、两线交点
-   - `src/foundation/Signal.h` — 轻量信号/槽
-   - `src/foundation/Log.h` — 日志宏
-   - `tests/test_foundation.cpp` — 单元测试
-4. 将 `src/foundation/placeholder.cpp` 替换为真实实现
-5. 完成后运行 `pixi run build-debug && pixi run test`
-6. 验证通过后更新 `docs/tasks/status.md` 和本文件
+1. 读取 `docs/development-plan.md` 中 **T03** 章节
+2. 读取 `lib/occt/AGENTS.md` 获取 OCCT API 使用指南
+3. 前置头文件: `src/foundation/Types.h` (UUID/Variant)
+4. 主要文件路径:
+   - `src/geometry/OcctTypes.h` — Handle 别名、前置声明
+   - `src/geometry/ShapeBuilder.h/cpp` — makeCylinder/makeTorus/makeCone/makePipeShell
+   - `src/geometry/BooleanOps.h/cpp` — cut/fuse
+   - `src/geometry/ShapeTransform.h/cpp` — translate/rotate/transform
+   - `tests/test_geometry.cpp`
+5. OCCT include 路径: `${OpenCASCADE_INCLUDE_DIR}` → `lib/occt/include/opencascade/`
+6. OCCT 目标库已在 `src/geometry/CMakeLists.txt` 中链接好
+7. 完成后运行 `pixi run build-debug && pixi run test`
+8. 验证通过后更新 `docs/tasks/status.md` 和本文件
