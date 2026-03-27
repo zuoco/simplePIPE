@@ -2,6 +2,9 @@ add_library(geometry STATIC
     ShapeBuilder.cpp
     BooleanOps.cpp
     ShapeTransform.cpp
+    ShapeMesher.cpp
+    StepIO.cpp
+    ShapeProperties.cpp
 )
 
 target_include_directories(geometry

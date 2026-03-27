@@ -33,3 +33,15 @@ target_link_libraries(test_geometry
 target_include_directories(test_geometry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_geometry PRIVATE cxx_std_17)
 add_test(NAME Geometry COMMAND test_geometry)
+
+# Mesh + STEP I/O 测试 — T04
+add_executable(test_mesh_step test_mesh_step.cpp)
+target_link_libraries(test_mesh_step
+    PRIVATE
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_mesh_step PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_mesh_step PRIVATE cxx_std_17)
+add_test(NAME MeshStep COMMAND test_mesh_step)

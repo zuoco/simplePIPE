@@ -24,14 +24,14 @@
 | T01 | 构建系统搭建 | `done` | — | Sonnet | 2026-03-28 |
 | T02 | Foundation 层 | `done` | T01 | Sonnet | 2026-03-28 |
 | T03 | OCCT 几何封装 | `done` | T01 | Sonnet | 2026-03-28 |
-| T04 | OCCT 网格化 + STEP I/O | `ready` | T01 | Sonnet | |
+| T04 | OCCT 网格化 + STEP I/O | `done` | T01 | Sonnet | 2026-03-28 |
 | T05 | 核心文档对象 | `ready` | T02 | **Opus** | |
 | T06 | 附属对象与梁 | `pending` | T05 | Sonnet | |
 | T07 | 弯头几何计算器 | `pending` | T05, T02 | **Opus** | |
 | T08 | 管件几何 (Run/Reducer/Tee) | `pending` | T07, T03 | Sonnet | |
 | T09 | 管件几何 (Valve/Flex/Beam) | `pending` | T03, T05 | Sonnet | |
 | T10 | 拓扑管理与约束 | `pending` | T05 | Sonnet | |
-| T11 | OCCT→VSG 网格转换 | `pending` | T04 | Sonnet | |
+| T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
 | T12 | VSG 场景管理 | `pending` | T11 | Sonnet | |
 | T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
 | T14 | 3D 拾取与高亮 | `pending` | T12 | Sonnet | |
@@ -216,4 +216,66 @@ class ShapeTransform {
 - T04 (OCCT 网格化 + STEP I/O) 可直接使用 `geometry` 库的 `TopoDS_Shape`
 - T08/T09 管件几何需要使用 `ShapeBuilder` + `BooleanOps` + `ShapeTransform`
 - 包含 geometry 头文件时需要 `${OpenCASCADE_INCLUDE_DIR}` in include path
+
+### T04 — OCCT 网格化 + STEP I/O (2026-03-28)
+
+**产出文件**:
+- `src/geometry/ShapeMesher.h`
+- `src/geometry/ShapeMesher.cpp`
+- `src/geometry/StepIO.h`
+- `src/geometry/StepIO.cpp`
+- `src/geometry/ShapeProperties.h`
+- `src/geometry/ShapeProperties.cpp`
+- `src/geometry/CMakeLists.txt` (更新，添加 3 个新源文件)
+- `tests/test_mesh_step.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_mesh_step)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// geometry/ShapeMesher.h
+namespace geometry {
+struct MeshData {
+    std::vector<std::array<float,3>> vertices; // XYZ 顶点（世界坐标）
+    std::vector<std::array<float,3>> normals;  // 归一化法线（与 vertices 一一对应）
+    std::vector<uint32_t>            indices;  // 三角面索引（0-based，每组3个）
+};
+class ShapeMesher {
+    static MeshData mesh(const TopoDS_Shape& shape, double deflection = 0.1);
+};
+}
+
+// geometry/StepIO.h
+namespace geometry {
+class StepIO {
+    static bool exportStep(const std::vector<TopoDS_Shape>& shapes, const std::string& filePath);
+    static std::vector<TopoDS_Shape> importStep(const std::string& filePath);
+};
+}
+
+// geometry/ShapeProperties.h
+namespace geometry {
+class ShapeProperties {
+    static double volume(const TopoDS_Shape& shape);
+    static double surfaceArea(const TopoDS_Shape& shape);
+};
+}
+```
+
+**设计决策**:
+- `ShapeMesher::mesh` 使用 `BRepMesh_IncrementalMesh(shape, deflection, isRelative=false, angle=0.5)`
+- 法线通过三角面叉积计算，累加到顶点后归一化（平均法线）
+- 面法线方向由 TopoDS_Face orientation 决定（TopAbs_REVERSED → swap n2/n3）
+- `TopLoc_Location::Transformation()` 返回 `const gp_Trsf&`（OCCT 8.0 直接提供）
+- STEP export 使用 `STEPControl_AsIs` 模式，用 `STEPControl_Writer::Transfer` + `Write`
+- STEP import 用 `TransferRoots()` 然后 `NbShapes()` + `Shape(i)` 枚举
+
+**已知限制**:
+- STEP 写入时会向 stdout 打印统计信息（OCCT 默认行为，无法静默）
+- `ShapeMesher` 法线是平均法线，对于尖锐几何效果有限
+
+**后续任务注意**:
+- T11 (OCCT→VSG 网格转换) 直接使用 `ShapeMesher::mesh()` 获取 `MeshData`
+- T21 (STEP 导出) 使用 `StepIO::exportStep()` 作为底层接口
+- `MeshData.indices` 是 0-based，与 VSG vsg::uintArray 兼容
+
 <!-- === COMPLETION LOG END === -->
