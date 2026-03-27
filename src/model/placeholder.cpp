@@ -1,1 +1,10 @@
-// placeholder — 将在 T05/T06 中替换为 Document Model 实现
+// Model 层编译占位文件 — 确保 header-only 类模板被实例化检查
+#include "model/DocumentObject.h"
+#include "model/SpatialObject.h"
+#include "model/PropertyObject.h"
+#include "model/ContainerObject.h"
+#include "model/PipePoint.h"
+#include "model/PipeSpec.h"
+#include "model/ProjectConfig.h"
+#include "model/Segment.h"
+#include "model/Route.h"

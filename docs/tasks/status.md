@@ -25,12 +25,12 @@
 | T02 | Foundation 层 | `done` | T01 | Sonnet | 2026-03-28 |
 | T03 | OCCT 几何封装 | `done` | T01 | Sonnet | 2026-03-28 |
 | T04 | OCCT 网格化 + STEP I/O | `done` | T01 | Sonnet | 2026-03-28 |
-| T05 | 核心文档对象 | `ready` | T02 | **Opus** | |
-| T06 | 附属对象与梁 | `pending` | T05 | Sonnet | |
-| T07 | 弯头几何计算器 | `pending` | T05, T02 | **Opus** | |
+| T05 | 核心文档对象 | `done` | T02 | **Opus** | 2026-03-28 |
+| T06 | 附属对象与梁 | `ready` | T05 | Sonnet | |
+| T07 | 弯头几何计算器 | `ready` | T05, T02 | **Opus** | |
 | T08 | 管件几何 (Run/Reducer/Tee) | `pending` | T07, T03 | Sonnet | |
-| T09 | 管件几何 (Valve/Flex/Beam) | `pending` | T03, T05 | Sonnet | |
-| T10 | 拓扑管理与约束 | `pending` | T05 | Sonnet | |
+| T09 | 管件几何 (Valve/Flex/Beam) | `ready` | T03, T05 | Sonnet | |
+| T10 | 拓扑管理与约束 | `ready` | T05 | Sonnet | |
 | T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
 | T12 | VSG 场景管理 | `pending` | T11 | Sonnet | |
 | T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
@@ -277,5 +277,123 @@ class ShapeProperties {
 - T11 (OCCT→VSG 网格转换) 直接使用 `ShapeMesher::mesh()` 获取 `MeshData`
 - T21 (STEP 导出) 使用 `StepIO::exportStep()` 作为底层接口
 - `MeshData.indices` 是 0-based，与 VSG vsg::uintArray 兼容
+
+### T05 — 核心文档对象 (2026-03-28)
+
+**产出文件**:
+- `src/model/DocumentObject.h`
+- `src/model/SpatialObject.h`
+- `src/model/PropertyObject.h`
+- `src/model/ContainerObject.h`
+- `src/model/PipeSpec.h`
+- `src/model/PipePoint.h`
+- `src/model/ProjectConfig.h`
+- `src/model/Segment.h`
+- `src/model/Route.h`
+- `src/model/placeholder.cpp` (更新，include 所有头文件)
+- `tests/test_model.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_model)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// model/DocumentObject.h — 所有文档对象的基类
+namespace model {
+class DocumentObject {
+    foundation::UUID id() const;      // 自动生成 v4 UUID
+    std::string name() const;
+    void setName(const std::string&); // 值变化时 emit changed
+    foundation::ChangeSignal changed; // 变更信号
+    virtual ~DocumentObject();        // 虚析构
+};
+}
+
+// model/SpatialObject.h — 带 3D 坐标的对象
+class SpatialObject : public DocumentObject {
+    gp_Pnt position() const;
+    void setPosition(const gp_Pnt&);  // gp_Pnt::IsEqual(pos, 1e-12) 去重
+};
+
+// model/PropertyObject.h — 带可扩展字段字典的对象
+class PropertyObject : public DocumentObject {
+    bool hasField(const std::string& key) const;
+    foundation::Variant field(const std::string& key) const;
+    void setField(const std::string& key, const foundation::Variant& value);
+    void removeField(const std::string& key);
+    std::map<std::string, foundation::Variant> fields() const;
+};
+
+// model/ContainerObject.h — 管理子对象集合
+class ContainerObject : public DocumentObject {
+    void addChild(std::shared_ptr<DocumentObject> child);
+    bool removeChild(const foundation::UUID& id);
+    std::shared_ptr<DocumentObject> findChild(const foundation::UUID& id) const;
+    size_t childCount() const;
+};
+
+// model/PipePoint.h — 管道拓扑节点（核心领域对象）
+enum class PipePointType { Run, Bend, Reducer, Tee, Valve, FlexJoint };
+class PipePoint : public SpatialObject {
+    PipePointType type() const;
+    void setType(PipePointType);
+    std::shared_ptr<PipeSpec> pipeSpec() const;
+    void setPipeSpec(std::shared_ptr<PipeSpec>);
+    std::map<std::string, foundation::Variant> typeParams() const;
+    void setTypeParam(const std::string& key, const foundation::Variant& value);
+};
+
+// model/PipeSpec.h — 管道规格
+class PipeSpec : public PropertyObject {
+    double od() const;            void setOd(double);
+    double wallThickness() const; void setWallThickness(double);
+    std::string material() const; void setMaterial(const std::string&);
+};
+
+// model/Segment.h — 有序 PipePoint 序列
+class Segment : public ContainerObject {
+    void addPoint(std::shared_ptr<PipePoint>);
+    void insertPoint(size_t index, std::shared_ptr<PipePoint>);
+    bool removePoint(const foundation::UUID& id);
+    std::shared_ptr<PipePoint> pointAt(size_t index) const;
+    size_t pointCount() const;
+};
+
+// model/Route.h — Segment 集合
+class Route : public ContainerObject {
+    void addSegment(std::shared_ptr<Segment>);
+    bool removeSegment(const foundation::UUID& id);
+    std::shared_ptr<Segment> segmentAt(size_t index) const;
+    size_t segmentCount() const;
+};
+
+// model/ProjectConfig.h — 项目配置
+class ProjectConfig : public PropertyObject {
+    std::string projectName() const; void setProjectName(const std::string&);
+    std::string author() const;      void setAuthor(const std::string&);
+    std::string standard() const;    void setStandard(const std::string&);
+    foundation::UnitSystem unitSystem() const;
+    void setUnitSystem(foundation::UnitSystem);
+};
+```
+
+**设计决策**:
+- 全部 header-only 实现，`placeholder.cpp` 仅作为编译验证
+- 继承层次: DocumentObject → SpatialObject / PropertyObject / ContainerObject → 领域类
+- PipePoint 使用 `map<string, Variant> typeParams_` 存储类型特定参数（如 bendMultiplier, valveType）
+- Signal 只在值真正变化时才触发（setName/setPosition/setType 均有去重判断）
+- PipePoint 持有 `shared_ptr<PipeSpec>` 引用，多个 PipePoint 可共享同一规格
+- 拷贝构造函数已删除（DocumentObject 不可复制）
+
+**已知限制**:
+- ContainerObject 的子对象管理是简单 vector，大量子对象时 removeChild 为 O(n)
+- 目前无序列化支持（T20 JSON 序列化将添加）
+- PipePoint.typeParams 无 schema 校验（依赖调用方正确设置）
+
+**后续任务注意**:
+- T06 (附属对象与梁) 需继承 DocumentObject/SpatialObject 体系
+- T07 (弯头几何计算器) 需读取 PipePoint 的 type()==Bend 及 typeParams["bendMultiplier"]
+- T09 (Valve/Flex/Beam) 需读取 PipePoint 的 type() 和对应 typeParams
+- T10 (拓扑管理) 需操作 Segment/Route 的增删改查接口
+- T16 (应用层核心) 需使用 ProjectConfig + Route + Segment + PipePoint 构建文档模型
+- T20 (JSON 序列化) 需遍历所有对象的 fields/typeParams/children
 
 <!-- === COMPLETION LOG END === -->

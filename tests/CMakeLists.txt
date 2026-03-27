@@ -45,3 +45,15 @@ target_link_libraries(test_mesh_step
 target_include_directories(test_mesh_step PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_mesh_step PRIVATE cxx_std_17)
 add_test(NAME MeshStep COMMAND test_mesh_step)
+
+# Model 层测试 — T05
+add_executable(test_model test_model.cpp)
+target_link_libraries(test_model
+    PRIVATE
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_model PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_model PRIVATE cxx_std_17)
+add_test(NAME Model COMMAND test_model)
