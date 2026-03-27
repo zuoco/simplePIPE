@@ -1,4 +1,4 @@
-add_library(engine STATIC placeholder.cpp)
+add_library(engine STATIC BendCalculator.cpp)
 
 target_include_directories(engine
     PUBLIC

@@ -57,3 +57,15 @@ target_link_libraries(test_model
 target_include_directories(test_model PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_model PRIVATE cxx_std_17)
 add_test(NAME Model COMMAND test_model)
+
+# Engine 层测试 — T07
+add_executable(test_engine test_engine.cpp)
+target_link_libraries(test_engine
+    PRIVATE
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_engine PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_engine PRIVATE cxx_std_17)
+add_test(NAME Engine COMMAND test_engine)

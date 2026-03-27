@@ -27,8 +27,8 @@
 | T04 | OCCT 网格化 + STEP I/O | `done` | T01 | Sonnet | 2026-03-28 |
 | T05 | 核心文档对象 | `done` | T02 | **Opus** | 2026-03-28 |
 | T06 | 附属对象与梁 | `ready` | T05 | Sonnet | |
-| T07 | 弯头几何计算器 | `ready` | T05, T02 | **Opus** | |
-| T08 | 管件几何 (Run/Reducer/Tee) | `pending` | T07, T03 | Sonnet | |
+| T07 | 弯头几何计算器 | `done` | T05, T02 | **Opus** | 2026-03-28 |
+| T08 | 管件几何 (Run/Reducer/Tee) | `ready` | T07, T03 | Sonnet | |
 | T09 | 管件几何 (Valve/Flex/Beam) | `ready` | T03, T05 | Sonnet | |
 | T10 | 拓扑管理与约束 | `ready` | T05 | Sonnet | |
 | T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
@@ -36,7 +36,7 @@
 | T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
 | T14 | 3D 拾取与高亮 | `pending` | T12 | Sonnet | |
 | T15 | VSG-QML 桥接 | `pending` | T12, T13 | **Opus** | |
-| T16 | 应用层核心 | `pending` | T05, T07 | **Opus** | |
+| T16 | 应用层核心 | `ready` | T05, T07 | **Opus** | |
 | T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
 | T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
@@ -395,5 +395,60 @@ class ProjectConfig : public PropertyObject {
 - T10 (拓扑管理) 需操作 Segment/Route 的增删改查接口
 - T16 (应用层核心) 需使用 ProjectConfig + Route + Segment + PipePoint 构建文档模型
 - T20 (JSON 序列化) 需遍历所有对象的 fields/typeParams/children
+
+### T07 — 弯头几何计算器 (2026-03-28)
+
+**产出文件**:
+- `src/engine/BendCalculator.h`
+- `src/engine/BendCalculator.cpp`
+- `src/engine/CMakeLists.txt` (更新，placeholder.cpp→BendCalculator.cpp)
+- `tests/test_engine.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_engine)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// engine/BendCalculator.h
+namespace engine {
+
+struct BendResult {
+    gp_Pnt nearPoint;   // N点 — 弯弧起点
+    gp_Pnt midPoint;    // M点 — 弯弧中点
+    gp_Pnt farPoint;    // F点 — 弯弧终点
+    gp_Pnt arcCenter;   // 弯弧圆心
+    double bendAngle;   // 弯曲角度 (rad), 范围 (0, π)
+    double bendRadius;  // 弯曲半径 (mm) = OD × multiplier
+};
+
+class BendCalculator {
+    static std::optional<BendResult> calculateBend(
+        const gp_Pnt& prevPoint,       // A05
+        const gp_Pnt& intersectPoint,  // A06 (交点)
+        const gp_Pnt& nextPoint,       // A07
+        double outerDiameter,          // OD (mm)
+        double bendMultiplier          // 1.5 | 2.0 | 5.0
+    );
+};
+
+} // namespace engine
+```
+
+**设计决策**:
+- θ = angle(d1, d2) 其中 d1=normalize(A06-A05), d2=normalize(A07-A06)；等价于 π - 顶点内角
+- tangentLength = R × tan(θ/2)；N = A06 - d1×tanLen, F = A06 + d2×tanLen
+- 弧圆心通过弯弧平面法线(d1×d2)和 d1 的垂直方向计算：C = N + cross(normal, d1) × R
+- 弧中点 M = C + normalize(A06 - C) × R（利用交点在弧角平分方向上的几何性质）
+- θ < 1e-6 rad（直线）或 θ > π-1e-6 rad（U-turn）或输入点重合时返回 nullopt
+- 使用 OCCT gp_Pnt/gp_Vec 直接计算，不依赖 foundation::math::Vec3
+
+**已知限制**:
+- 不支持 θ = 0（直线）和 θ = π（U-turn）退化情况
+- 不生成 OCCT BRep 几何（弯头 3D 实体由 T08 实现）
+- 未考虑管壁厚度对弯弧偏移的影响
+
+**后续任务注意**:
+- T08 (Run/Reducer/Tee) 使用 BendResult.nearPoint/farPoint 确定直管段端点
+- T08 需要 BendResult 来生成弯头 BRep（TopoDS_Shape）：用 arcCenter + R + bendAngle 构建 torus 截段
+- T16 (应用层核心) 调用 BendCalculator::calculateBend() 进行几何推导
+- BendResult 的 N/F 点是管段中心线上的切点，管件实体的实际端面由 OD/wallThickness 决定
 
 <!-- === COMPLETION LOG END === -->
