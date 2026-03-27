@@ -23,9 +23,9 @@
 |----|--------|------|------|---------|---------|
 | T01 | 构建系统搭建 | `done` | — | Sonnet | 2026-03-28 |
 | T02 | Foundation 层 | `done` | T01 | Sonnet | 2026-03-28 |
-| T03 | OCCT 几何封装 | `ready` | T01 | Sonnet | |
+| T03 | OCCT 几何封装 | `done` | T01 | Sonnet | 2026-03-28 |
 | T04 | OCCT 网格化 + STEP I/O | `ready` | T01 | Sonnet | |
-| T05 | 核心文档对象 | `pending` | T02 | **Opus** | |
+| T05 | 核心文档对象 | `ready` | T02 | **Opus** | |
 | T06 | 附属对象与梁 | `pending` | T05 | Sonnet | |
 | T07 | 弯头几何计算器 | `pending` | T05, T02 | **Opus** | |
 | T08 | 管件几何 (Run/Reducer/Tee) | `pending` | T07, T03 | Sonnet | |
@@ -154,5 +154,66 @@ LOG_DEBUG(msg); LOG_INFO(msg); LOG_WARN(msg); LOG_ERROR(msg);
 - T05 PipeSpec 的 fields 使用 `map<string, foundation::Variant>`
 - T07 BendCalculator 使用 `foundation::math::Vec3` 和 `lineLineIntersect`
 - 所有层 include: `#include "foundation/Types.h"` 等（相对于 `${CMAKE_SOURCE_DIR}/src`）
+### T03 — OCCT 几何封装 (2026-03-28)
 
+**产出文件**:
+- `src/geometry/OcctTypes.h`
+- `src/geometry/ShapeBuilder.h`
+- `src/geometry/ShapeBuilder.cpp`
+- `src/geometry/BooleanOps.h`
+- `src/geometry/BooleanOps.cpp`
+- `src/geometry/ShapeTransform.h`
+- `src/geometry/ShapeTransform.cpp`
+- `src/geometry/CMakeLists.txt` (更新，移除 placeholder.cpp)
+- `tests/test_geometry.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_geometry)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// geometry/OcctTypes.h
+namespace geometry { using OcctShape = TopoDS_Shape; }
+// 包含: TopoDS_Shape.hxx, gp_Pnt/Vec/Dir/Ax1/Trsf.hxx, Standard_Handle.hxx
+
+// geometry/ShapeBuilder.h
+namespace geometry {
+class ShapeBuilder {
+    static TopoDS_Shape makeCylinder(double radius, double height);
+    static TopoDS_Shape makeTorus(double majorR, double minorR, double angle = 2*PI);
+    static TopoDS_Shape makeCone(double r1, double r2, double height);
+    static TopoDS_Shape makePipeShell(const TopoDS_Wire& spine, double radius);
+};
+}
+
+// geometry/BooleanOps.h
+namespace geometry {
+class BooleanOps {
+    static TopoDS_Shape cut(const TopoDS_Shape& s1, const TopoDS_Shape& s2);  // s1-s2
+    static TopoDS_Shape fuse(const TopoDS_Shape& s1, const TopoDS_Shape& s2); // s1∪s2
+};
+}
+
+// geometry/ShapeTransform.h
+namespace geometry {
+class ShapeTransform {
+    static TopoDS_Shape translate(const TopoDS_Shape& shape, const gp_Vec& vec);
+    static TopoDS_Shape rotate(const TopoDS_Shape& shape, const gp_Ax1& axis, double angle);
+    static TopoDS_Shape transform(const TopoDS_Shape& shape, const gp_Trsf& trsf);
+};
+}
+```
+
+**设计决策**:
+- `ShapeBuilder::makePipeShell` 使用 `BRepOffsetAPI_MakePipeShell` + `Geom_Circle` 圆截面轮廓
+- Boolean ops (`BRepAlgoAPI_Cut/Fuse`) 失败时返回 `TopoDS_Shape()`（空形体），调用方可用 `IsNull()` 检查
+- `ShapeTransform::transform` 使用 `copy=true` 保证原始形体不被修改
+- geometry 库链接 OCCT 四个分组：FoundationClasses, ModelingData, ModelingAlgorithms, DataExchange
+
+**已知限制**:
+- 目前无异常处理；OCCT 内部错误会直接抛出 `Standard_Failure`
+- `makePipeShell` 仅支持圆截面，异形截面需额外实现
+
+**后续任务注意**:
+- T04 (OCCT 网格化 + STEP I/O) 可直接使用 `geometry` 库的 `TopoDS_Shape`
+- T08/T09 管件几何需要使用 `ShapeBuilder` + `BooleanOps` + `ShapeTransform`
+- 包含 geometry 头文件时需要 `${OpenCASCADE_INCLUDE_DIR}` in include path
 <!-- === COMPLETION LOG END === -->

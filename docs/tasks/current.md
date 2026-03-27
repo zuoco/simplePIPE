@@ -9,43 +9,50 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T03 / T04 |
-| **任务名** | OCCT 几何封装 / OCCT 网格化+STEP I/O |
-| **推荐模型** | Sonnet |
-| **前置依赖** | T01 ✅ |
-| **前置状态** | ✅ 所有依赖已满足（T03/T04 可并行） |
+| **任务 ID** | T04 / T05 |
+| **任务名** | OCCT 网格化+STEP I/O / 核心文档对象 |
+| **推荐模型** | Sonnet (T04) / **Opus** (T05) |
+| **前置依赖** | T04←T01 ✅ / T05←T02 ✅ |
+| **前置状态** | ✅ 两个任务均可立即开始（可并行） |
 
 ## 项目进度
 
-- 已完成: 2/22 个任务
+- 已完成: 3/22 个任务
 - 当前阶段: Phase 1 — 基础设施
 
 ## 上一个完成的任务
 
-**T02 — Foundation 层 (2026-03-28)**
-- 产出: Types.h / Math.h / Signal.h / Log.h + test_foundation.cpp
-- 验证: `pixi run test` ✅ 2/2 通过
+**T03 — OCCT 几何封装 (2026-03-28)**
+- 产出: OcctTypes.h / ShapeBuilder / BooleanOps / ShapeTransform + test_geometry.cpp
+- 验证: `pixi run test` ✅ 3/3 套件通过，13/13 测试通过
 - 关键接口:
-  - `foundation::UUID::generate()` — 随机 v4 UUID
-  - `foundation::Variant = std::variant<double,int,std::string>`
-  - `foundation::math::Vec3` + 向量运算 + `lineLineIntersect`
-  - `foundation::Signal<Args...>` 轻量信号槽
-  - `LOG_DEBUG/INFO/WARN/ERROR(msg)` 日志宏
+  - `geometry::ShapeBuilder::makeCylinder/makeTorus/makeCone/makePipeShell`
+  - `geometry::BooleanOps::cut/fuse`
+  - `geometry::ShapeTransform::translate/rotate/transform`
+  - OCCT 头文件路径: `lib/occt/include/opencascade/`，用 `<BRepXxx.hxx>` 风格包含
 
 ## 给 AI 的指令
 
-**做 T03（OCCT 几何封装）**：
+**做 T04（OCCT 网格化 + STEP I/O）**：
 
-1. 读取 `docs/development-plan.md` 中 **T03** 章节
-2. 读取 `lib/occt/AGENTS.md` 获取 OCCT API 使用指南
-3. 前置头文件: `src/foundation/Types.h` (UUID/Variant)
+1. 读取 `docs/development-plan.md` 中 **T04** 章节
+2. 读取 `lib/occt/AGENTS.md`
+3. 前置代码: `src/geometry/ShapeBuilder.h` / `BooleanOps.h` / `ShapeTransform.h`
 4. 主要文件路径:
-   - `src/geometry/OcctTypes.h` — Handle 别名、前置声明
-   - `src/geometry/ShapeBuilder.h/cpp` — makeCylinder/makeTorus/makeCone/makePipeShell
-   - `src/geometry/BooleanOps.h/cpp` — cut/fuse
-   - `src/geometry/ShapeTransform.h/cpp` — translate/rotate/transform
-   - `tests/test_geometry.cpp`
-5. OCCT include 路径: `${OpenCASCADE_INCLUDE_DIR}` → `lib/occt/include/opencascade/`
-6. OCCT 目标库已在 `src/geometry/CMakeLists.txt` 中链接好
+   - `src/geometry/Tessellator.h/cpp` — tessellateMesh(shape, deflection)
+   - `src/geometry/StepIO.h/cpp` — exportStep / importStep
+5. OCCT 网格化: `BRepMesh_IncrementalMesh`, 遍历用 `TopExp_Explorer`
+6. STEP I/O: `STEPControl_Writer` / `STEPControl_Reader`
 7. 完成后运行 `pixi run build-debug && pixi run test`
+8. 验证通过后更新 `docs/tasks/status.md` 和本文件
+
+**做 T05（核心文档对象）**（Opus 推荐）：
+
+1. 读取 `docs/development-plan.md` 中 **T05** 章节
+2. 读取 `docs/architecture.md` §3 数据模型相关章节
+3. 前置代码: `src/foundation/Types.h` / `foundation/Signal.h`
+4. 主要文件路径:
+   - `src/model/DocumentObject.h/cpp` — 基类, UUID, properties map
+   - `src/model/PipeSpec.h/cpp` — 管道规格数据
+5. 完成后运行 `pixi run build-debug && pixi run test`
 8. 验证通过后更新 `docs/tasks/status.md` 和本文件

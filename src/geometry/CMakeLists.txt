@@ -1,4 +1,8 @@
-add_library(geometry STATIC placeholder.cpp)
+add_library(geometry STATIC
+    ShapeBuilder.cpp
+    BooleanOps.cpp
+    ShapeTransform.cpp
+)
 
 target_include_directories(geometry
     PUBLIC

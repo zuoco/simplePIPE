@@ -21,3 +21,15 @@ target_link_libraries(test_foundation
 )
 target_compile_features(test_foundation PRIVATE cxx_std_17)
 add_test(NAME Foundation COMMAND test_foundation)
+
+# Geometry 层测试 — T03
+add_executable(test_geometry test_geometry.cpp)
+target_link_libraries(test_geometry
+    PRIVATE
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_geometry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_geometry PRIVATE cxx_std_17)
+add_test(NAME Geometry COMMAND test_geometry)
