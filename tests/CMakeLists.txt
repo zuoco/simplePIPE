@@ -151,3 +151,14 @@ target_link_libraries(test_camera_furniture
 )
 target_compile_features(test_camera_furniture PRIVATE cxx_std_17)
 add_test(NAME CameraFurniture COMMAND test_camera_furniture)
+
+# VSG-QML 桥接测试 — T15
+add_executable(test_vsg_qml_bridge test_vsg_qml_bridge.cpp)
+target_link_libraries(test_vsg_qml_bridge
+    PRIVATE
+        ui
+        Qt6::Test
+        GTest::GTest
+)
+target_compile_features(test_vsg_qml_bridge PRIVATE cxx_std_17)
+add_test(NAME VsgQmlBridge COMMAND test_vsg_qml_bridge)

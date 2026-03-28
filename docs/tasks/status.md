@@ -35,7 +35,7 @@
 | T12 | VSG 场景管理 | `done` | T11 | Sonnet | 2026-03-28 |
 | T13 | 相机控制与场景基础设施 | `done` | T12 | Sonnet | 2026-03-28 |
 | T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
-| T15 | VSG-QML 桥接 | `ready` | T12, T13 | **Opus** | |
+| T15 | VSG-QML 桥接 | `done` | T12, T13 | **Opus** | 2026-03-28 |
 | T16 | 应用层核心 | `ready` | T05, T07 | **Opus** | |
 | T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
@@ -986,5 +986,77 @@ class SceneFurniture {
   auto ctrl = CameraController(camera, trackball);
   viewer->addEventHandler(ctrl.trackball());
   ```
+
+### T15 — VSG-QML 桥接 (2026-03-28)
+
+**产出文件**:
+- `src/ui/VsgQuickItem.h`
+- `src/ui/VsgQuickItem.cpp`
+- `src/ui/CMakeLists.txt` (更新，添加 VsgQuickItem.cpp)
+- `tests/test_vsg_qml_bridge.cpp` (28 个测试)
+- `tests/CMakeLists.txt` (更新，添加 test_vsg_qml_bridge)
+- `CMakeLists.txt` (更新，添加 Qt6::Test 组件)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// ui/VsgQuickItem.h
+namespace ui {
+class VsgQuickItem : public QQuickItem {
+    Q_OBJECT
+    Q_PROPERTY(bool gridVisible READ isGridVisible WRITE setGridVisible NOTIFY gridVisibleChanged)
+public:
+    explicit VsgQuickItem(QQuickItem* parent = nullptr);
+
+    // 场景管理（非拥有指针）
+    void setSceneManager(visualization::SceneManager* mgr);
+    void setCameraController(visualization::CameraController* ctrl);
+    void setSceneFurniture(visualization::SceneFurniture* furniture);
+    visualization::SceneManager* sceneManager() const;
+    visualization::CameraController* cameraController() const;
+    visualization::SceneFurniture* sceneFurniture() const;
+
+    bool isGridVisible() const;
+    void setGridVisible(bool visible);
+
+    Q_INVOKABLE void fitAll();
+    Q_INVOKABLE void setViewPreset(int preset); // 0=Front,1=Right,2=Top,3=Iso
+    Q_INVOKABLE void toggleGrid();
+    Q_INVOKABLE void requestRender();
+
+    // 事件转换工具（public，供测试和外部使用）
+    static vsg::ButtonMask qtButtonToVsgMask(Qt::MouseButton btn);
+    static vsg::ButtonMask qtButtonsToVsgMask(Qt::MouseButtons btns);
+    static vsg::KeyModifier qtModifiersToVsg(Qt::KeyboardModifiers mods);
+    static vsg::KeySymbol qtKeyToVsg(int qtKey);
+
+signals:
+    void gridVisibleChanged();
+    void deleteRequested();   // Delete 键
+    void renderRequested();   // 场景需要重绘
+};
+} // namespace ui
+```
+
+**设计决策**:
+- 使用 QQuickItem 而非 QQuickFramebufferObject 作为基类，因为后者仅支持 OpenGL 后端，而 VSG 使用 Vulkan
+- Qt 鼠标事件转换为 VSG ButtonPressEvent/ButtonReleaseEvent/MoveEvent/ScrollWheelEvent，通过 `event->accept(*trackball)` 直接分派
+- 键盘快捷键: F=FitAll, Delete=发信号, G=切换网格, Numpad 1/3/7/0=视图预设
+- 未处理的键盘事件转发给 Trackball（支持 WASD 移动等 Trackball 内置功能）
+- VsgQuickItem 持有非拥有指针（SceneManager*/CameraController*/SceneFurniture*），生命期由外部管理
+- currentMask_ 跟踪当前按下的鼠标按钮组合，用于 VSG 事件的 mask 字段
+- geometryChange() 自动更新 Camera ViewportState 以匹配 QML 项大小
+- updatePaintNode() 目前返回背景色矩形占位节点，实际 VSG 离屏渲染→纹理在 T17 应用入口集成
+
+**已知限制**:
+- updatePaintNode() 当前为占位实现（纯色背景），实际 Vulkan 离屏渲染需在 T17 集成 Viewer 后完成
+- 事件转发给 Trackball 时 Window 参数为 nullptr；Trackball 在 windowOffsets 为空时接受所有事件
+- Qt numpad 数字键需通过 KeypadModifier 区分，非 numpad 数字键不触发视图预设
+
+**后续任务注意**:
+- T17 (工作台 + QML 桥接) 需要: 在 main.cpp 中 `qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport")`
+- T17 需要创建 SceneManager、CameraController、SceneFurniture 实例并通过 setter 注入 VsgQuickItem
+- T17 需要完成 updatePaintNode() 的实际渲染：创建 VSG Viewer → 离屏渲染 → readback → QSGTexture
+- T14 (拾取) 可扩展 VsgQuickItem 的鼠标事件处理，添加 PickHandler 调用
+- CMakeLists.txt 已添加 Qt6::Test 组件供测试使用
 
 <!-- === COMPLETION LOG END === -->

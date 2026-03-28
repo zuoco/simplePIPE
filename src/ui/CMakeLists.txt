@@ -1,4 +1,7 @@
-add_library(ui STATIC placeholder.cpp)
+add_library(ui STATIC
+    placeholder.cpp
+    VsgQuickItem.cpp
+)
 
 target_include_directories(ui
     PUBLIC

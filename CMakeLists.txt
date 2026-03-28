@@ -16,7 +16,7 @@ list(APPEND CMAKE_PREFIX_PATH
 # 第三方库
 find_package(OpenCASCADE REQUIRED)
 find_package(vsg REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Quick Qml)
+find_package(Qt6 REQUIRED COMPONENTS Quick Qml Test)
 find_package(nlohmann_json REQUIRED)
 
 # 源码
