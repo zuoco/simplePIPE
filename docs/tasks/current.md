@@ -9,16 +9,16 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T16 |
-| **任务名** | 应用层核心 (Document + Transaction + DependencyGraph) |
-| **推荐模型** | **Opus** |
-| **前置依赖** | T05 ✅, T07 ✅ |
+| **任务 ID** | T17 |
+| **任务名** | 工作台 + QML 桥接 |
+| **推荐模型** | Sonnet |
+| **前置依赖** | T16 ✅ |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 15/22 个任务（T01-T13, T15）
-- 当前阶段: Phase 4 — 可视化层 + Phase 5 — 应用层
+- 已完成: 16/22 个任务（T01-T13, T15, T16）
+- 当前阶段: Phase 5 — 应用层
 
 ## 其他 ready 任务
 
@@ -30,31 +30,29 @@
 
 ## 上一个完成的任务
 
-**T15 — VSG-QML 桥接 (2026-03-28)**
+**T16 — 应用层核心 (2026-03-28)**
 - 产出:
-  - `src/ui/VsgQuickItem.h/cpp` — QQuickItem 子类，桥接 VSG 与 QML
-  - `tests/test_vsg_qml_bridge.cpp` — 28 个测试全部通过
+  - `src/app/Document.h/cpp` — 文档容器模型
+  - `src/app/DependencyGraph.h/cpp` — 图拓扑顺序依赖管理与标脏
+  - `src/app/TransactionManager.h/cpp` — 集中事务处理及 Undo/Redo
+  - `src/engine/RecomputeEngine.h/cpp` — 聚合对象依赖图进行统一几何推算
+  - `tests/test_app_core.cpp` — 单元测试
 - 关键接口:
-  - `VsgQuickItem` = QQuickItem + SceneManager/CameraController/SceneFurniture 管理
-  - `setGridVisible(bool)` / `fitAll()` / `setViewPreset(int)` / `toggleGrid()`
-  - 鼠标事件 → VSG ButtonPress/Release/Move/ScrollWheel 转发给 Trackball
-  - 键盘: F=FitAll, Delete=信号, G=网格, Numpad=视图预设
-  - 信号: `gridVisibleChanged()`, `deleteRequested()`, `renderRequested()`
+  - `Document` 全量数据操作：`addObject` / `allSegments` / `findByType<T>`
+  - `DependencyGraph` 进行脏对象重排及遍历标脏图 `markDirty(uuid)` → 传递
+  - `TransactionManager` 处理字段变化： `open()` → `recordChange()` → `commit()` 支持撤销与重做。
 - 注意事项:
-  - updatePaintNode() 为占位实现，实际渲染需 T17 集成 VSG Viewer
-  - VsgQuickItem 持有非拥有指针，T17 需创建并注入依赖对象
-  - CMakeLists.txt 已添加 Qt6::Test 组件
+  - 设计了解耦方式：`RecomputeEngine` 提供 `setSceneUpdateCallback( (uuid, TopoDS_Shape)->... )`
+  - T17 需实现该回调内联，并结合 `OcctToVsg::convert(shape)` 用其产生的 `Node` 同步给 `SceneManager` 更新模型视角。
 
-## 给 AI 的指令（T16）
+## 给 AI 的指令（T17）
 
-1. 读取 `docs/development-plan.md` 中 **T16** 章节获取交付物和验收标准
-2. 读取 `docs/architecture.md` 中 §7 事务管理机制 相关章节
-3. 读取前置代码:
-   - `src/model/DocumentObject.h` (T05 产出)
-   - `src/model/PipePoint.h` (T05 产出)
-   - `src/model/PipeSpec.h` (T05 产出)
-   - `src/model/Segment.h` / `Route.h` (T05 产出)
-   - `src/engine/GeometryDeriver.h` (T08 产出)
-   - `src/visualization/SceneManager.h` (T12 产出)
-4. 完成后运行: `pixi run build-debug && pixi run test`
-5. 验证通过后更新 `docs/tasks/status.md` 和本文件
+1. 读取 `docs/development-plan.md` 中 **T17** 章节获取交付物和验收标准
+2. 读取前置代码:
+   - `src/app/Document.h`
+   - `src/app/Workbench.h` (本次将新增/实现)
+   - `src/ui/VsgQuickItem.h`
+   - `src/visualization/SceneManager.h`
+   - `src/engine/RecomputeEngine.h`
+3. 完成后运行: `pixi run build-debug && pixi run test`
+4. 验证通过后更新 `docs/tasks/status.md` 和本文件

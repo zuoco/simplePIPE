@@ -1,8 +1,15 @@
-add_library(app STATIC placeholder.cpp)
+add_library(app STATIC
+    placeholder.cpp
+    Document.cpp
+    DependencyGraph.cpp
+    TransactionManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp
+)
 
 target_include_directories(app
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src
+        ${OpenCASCADE_INCLUDE_DIR}
 )
 
 target_compile_features(app PUBLIC cxx_std_17)

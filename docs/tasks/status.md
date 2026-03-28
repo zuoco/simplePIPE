@@ -36,8 +36,8 @@
 | T13 | 相机控制与场景基础设施 | `done` | T12 | Sonnet | 2026-03-28 |
 | T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
 | T15 | VSG-QML 桥接 | `done` | T12, T13 | **Opus** | 2026-03-28 |
-| T16 | 应用层核心 | `ready` | T05, T07 | **Opus** | |
-| T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
+| T16 | 应用层核心 | `done` | T05, T07 | **Opus** | 2026-03-28 |
+| T17 | 工作台 + QML 桥接 | `ready` | T16 | Sonnet | |
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
 | T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
 | T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
@@ -1058,5 +1058,54 @@ signals:
 - T17 需要完成 updatePaintNode() 的实际渲染：创建 VSG Viewer → 离屏渲染 → readback → QSGTexture
 - T14 (拾取) 可扩展 VsgQuickItem 的鼠标事件处理，添加 PickHandler 调用
 - CMakeLists.txt 已添加 Qt6::Test 组件供测试使用
+
+### T16 — 应用层核心 (2026-03-28)
+
+**产出文件**:
+- `src/app/Document.h/cpp`
+- `src/app/DependencyGraph.h/cpp`
+- `src/app/TransactionManager.h/cpp`
+- `src/engine/RecomputeEngine.h/cpp`
+- `tests/test_app_core.cpp`
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// Document 负责管理所有的 DocumentObject
+app::Document doc;
+doc.addObject(std::make_shared<model::PipeSpec>("Spec1"));
+auto* spec = doc.findObject(uuid);
+auto specs = doc.findByType<model::PipeSpec>();
+
+// DependencyGraph 维护对象间的依赖以供标脏传播和拓扑排序
+app::DependencyGraph graph;
+graph.addDependency(pointId, specId); // point 依赖 spec
+graph.markDirty(specId);              // spec 变脏，级联标脏 point
+auto dirtyIds = graph.collectDirty(); // 按拓扑排序返回脏对象列表
+
+// TransactionManager 处理属性变更的事务，支持 undo/redo
+app::TransactionManager tm(doc, graph);
+tm.open("修改OD");
+tm.recordChange(specId, "OD", 200.0, 219.1);
+tm.commit(); // 触发 DependencyGraph 标脏，并调用 recompute 回调
+
+// RecomputeEngine 进行脏对象的最终几何重算
+engine::RecomputeEngine engine(doc, graph);
+engine.setSceneUpdateCallback([&](const std::string& uuid, const TopoDS_Shape& shape){
+    // sceneMgr.updateNode(uuid, node);
+});
+tm.setRecomputeCallback([&](const std::vector<foundation::UUID>& dirtyIds){
+    engine.recompute(dirtyIds);
+});
+```
+
+**设计决策**:
+- **层级依赖调整**: 为避免 `app` 和 `visualization` 层的双向依赖问题，决定将 `RecomputeEngine.cpp` 从 `engine` 移除并纳入 `app` 层的库统一编译中进行调用。后由于设计清晰度，只使用回调 `SceneUpdateCallback` 解耦，重算后直接通过此回调传出生成的 `TopoDS_Shape` 通知外层(T17)去调用 `SceneManager` 或 `OcctToVsg`。
+- **存储拓扑顺序**: `collectDirty()` 返回脏对象 UUID 时，直接利用字符串来重构存储（因为当前用字符串作 map 键）。
+
+**已知限制**:
+- `RecomputeEngine` 当前通过简单的线性查找计算所有管点的前后邻居位置；由于 `GeometryDeriver` 需要 `std::shared_ptr` 进行调用，`Document` 提供的是裸指针时需再倒查一次。目前实现虽然能跑过，但性能有优化的空间。若点位对象激增可加入缓存或直接传 `std::shared_ptr`。
+
+**后续任务注意**:
+- T17 可以全面介入并实现 `GeometryDeriver` 结合 `OcctToVsg` 和 `SceneManager` 的更新逻辑：在回调中直接转换形状至场景节点。
 
 <!-- === COMPLETION LOG END === -->

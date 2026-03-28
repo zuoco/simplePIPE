@@ -162,3 +162,15 @@ target_link_libraries(test_vsg_qml_bridge
 )
 target_compile_features(test_vsg_qml_bridge PRIVATE cxx_std_17)
 add_test(NAME VsgQmlBridge COMMAND test_vsg_qml_bridge)
+
+# 应用层核心测试 — T16
+add_executable(test_app_core test_app_core.cpp)
+target_link_libraries(test_app_core
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_app_core PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_app_core PRIVATE cxx_std_17)
+add_test(NAME AppCore COMMAND test_app_core)
