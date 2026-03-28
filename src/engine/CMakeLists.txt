@@ -4,6 +4,10 @@ add_library(engine STATIC
     BendBuilder.cpp
     ReducerBuilder.cpp
     TeeBuilder.cpp
+    ValveBuilder.cpp
+    FlexJointBuilder.cpp
+    BeamBuilder.cpp
+    AccessoryBuilder.cpp
     GeometryDeriver.cpp
 )
 

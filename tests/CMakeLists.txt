@@ -81,3 +81,15 @@ target_link_libraries(test_pipe_geometry
 target_include_directories(test_pipe_geometry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_pipe_geometry PRIVATE cxx_std_17)
 add_test(NAME PipeGeometry COMMAND test_pipe_geometry)
+
+# 阀门/柔性接头/型钢梁/附件测试 — T09
+add_executable(test_valve_flex_beam test_valve_flex_beam.cpp)
+target_link_libraries(test_valve_flex_beam
+    PRIVATE
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_valve_flex_beam PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_valve_flex_beam PRIVATE cxx_std_17)
+add_test(NAME ValveFlexBeam COMMAND test_valve_flex_beam)

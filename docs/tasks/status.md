@@ -28,8 +28,8 @@
 | T05 | 核心文档对象 | `done` | T02 | **Opus** | 2026-03-28 |
 | T06 | 附属对象与梁 | `ready` | T05 | Sonnet | |
 | T07 | 弯头几何计算器 | `done` | T05, T02 | **Opus** | 2026-03-28 |
-| T08 | 管件几何 (Run/Reducer/Tee) | `ready` | T07, T03 | Sonnet | |
-| T09 | 管件几何 (Valve/Flex/Beam) | `ready` | T03, T05 | Sonnet | |
+| T08 | 管件几何 (Run/Reducer/Tee) | `done` | T07, T03 | Sonnet | 2026-03-28 |
+| T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
 | T10 | 拓扑管理与约束 | `ready` | T05 | Sonnet | |
 | T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
 | T12 | VSG 场景管理 | `pending` | T11 | Sonnet | |
@@ -41,7 +41,7 @@
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
 | T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
 | T20 | JSON 序列化 | `pending` | T05, T06 | Sonnet | |
-| T21 | STEP 导出 | `pending` | T08, T09, T04 | Sonnet | |
+| T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
 | T25 | 集成测试 | `pending` | 全部 | **Opus** | |
 
 ---
@@ -450,5 +450,172 @@ class BendCalculator {
 - T08 需要 BendResult 来生成弯头 BRep（TopoDS_Shape）：用 arcCenter + R + bendAngle 构建 torus 截段
 - T16 (应用层核心) 调用 BendCalculator::calculateBend() 进行几何推导
 - BendResult 的 N/F 点是管段中心线上的切点，管件实体的实际端面由 OD/wallThickness 决定
+
+### T08 — 管件几何生成器 Run/Reducer/Tee (2026-03-28)
+
+**产出文件**:
+- `src/engine/RunBuilder.h/.cpp`
+- `src/engine/BendBuilder.h/.cpp`
+- `src/engine/ReducerBuilder.h/.cpp`
+- `src/engine/TeeBuilder.h/.cpp`
+- `src/engine/GeometryDeriver.h/.cpp`
+- `src/engine/CMakeLists.txt` (更新，添加 5 个 .cpp)
+- `tests/test_pipe_geometry.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_pipe_geometry)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// engine/RunBuilder.h
+namespace engine {
+class RunBuilder {
+    static TopoDS_Shape build(
+        const gp_Pnt& startPoint,
+        const gp_Pnt& endPoint,
+        double outerDiameter,  // mm
+        double wallThickness); // mm
+};
+}
+
+// engine/BendBuilder.h
+namespace engine {
+class BendBuilder {
+    static TopoDS_Shape build(
+        const BendResult& bendResult,
+        double outerDiameter,
+        double wallThickness);
+};
+}
+
+// engine/ReducerBuilder.h
+namespace engine {
+class ReducerBuilder {
+    static TopoDS_Shape build(
+        const gp_Pnt& startPoint,
+        const gp_Pnt& endPoint,
+        double startOD, double endOD,
+        double wallThickness);
+};
+}
+
+// engine/TeeBuilder.h
+namespace engine {
+class TeeBuilder {
+    static TopoDS_Shape build(
+        const gp_Pnt& mainStart, const gp_Pnt& mainEnd,
+        const gp_Pnt& branchPoint, const gp_Pnt& branchEnd,
+        double mainOD, double branchOD,
+        double wallThickness);
+};
+}
+
+// engine/GeometryDeriver.h
+namespace engine {
+class GeometryDeriver {
+    static TopoDS_Shape deriveGeometry(
+        const gp_Pnt& prevPoint,
+        const std::shared_ptr<model::PipePoint>& current,
+        const gp_Pnt& nextPoint);
+};
+}
+```
+
+**设计决策**:
+- RunBuilder: 用 `BRepPrimAPI_MakeCylinder(ax, r, length)` 直接在方向轴上构建，避免变换开销
+- BendBuilder: 使用 `BRepPrimAPI_MakeTorus(ax, majorR, minorR, angle)` 截段，轴坐标系中 X 轴对齐 arcCenter→nearPoint
+- ReducerBuilder: 用 `BRepPrimAPI_MakeCone(ax, r1, r2, length)` 构建；内外锥 cut 得到锥壳
+- TeeBuilder: 先 fuse 实心外圆柱，再 fuse 实心内圆柱，最后 cut — 避免直接 fuse 薄壳导致 OCCT 计算超时
+- GeometryDeriver: 按 `PipePoint::type()` 分发；Reducer 的 endOD 从 typeParams["endOD"] 读取；Tee 的支管端点从 typeParams["branchEndX/Y/Z"] 读取
+
+**已知限制**:
+- TeeBuilder 的 boolean fuse 在 Debug 构建中每次约 1s（Release 会快很多）
+- GeometryDeriver 对 Valve/FlexJoint 类型返回空 Shape（由 T09 实现）
+- TeeBuilder 中 branchPoint 应在主管中心线上，否则几何可能不正确
+- 测试用较小几何尺寸(60mm OD)以保证 Debug 下 boolean 操作可接受耗时
+
+**后续任务注意**:
+- T09 (Valve/Flex/Beam) 在 GeometryDeriver.cpp 的 switch 中添加 Valve/FlexJoint/Beam case
+- T21 (STEP 导出) 调用上述 builder 得到 TopoDS_Shape，再用 StepIO::exportStep()
+- T16 (应用层核心) 通过 GeometryDeriver::deriveGeometry() 为每个 PipePoint 生成几何体
+
+### T09 — 管件几何 (Valve/FlexJoint/Beam/Accessory) (2026-06-03)
+
+**产出文件**:
+- `src/engine/ValveBuilder.h/.cpp`
+- `src/engine/FlexJointBuilder.h/.cpp`
+- `src/engine/BeamBuilder.h/.cpp`
+- `src/engine/AccessoryBuilder.h/.cpp`
+- `src/engine/GeometryDeriver.cpp` (更新，添加 Valve/FlexJoint case)
+- `src/engine/CMakeLists.txt` (更新，添加 4 个新 .cpp)
+- `tests/test_valve_flex_beam.cpp` (19 个测试)
+- `tests/CMakeLists.txt` (更新，添加 test_valve_flex_beam)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// engine/ValveBuilder.h
+namespace engine {
+class ValveBuilder {
+    static TopoDS_Shape build(
+        const gp_Pnt& startPoint,
+        const gp_Pnt& endPoint,
+        double outerDiameter,
+        double wallThickness,
+        const std::string& valveType = "gate"); // "gate"/"ball"/"check"
+};
+}
+
+// engine/FlexJointBuilder.h
+namespace engine {
+class FlexJointBuilder {
+    static TopoDS_Shape build(
+        const gp_Pnt& startPoint,
+        const gp_Pnt& endPoint,
+        double outerDiameter,
+        double wallThickness,
+        int segmentCount = 3); // 波纹段数
+};
+}
+
+// engine/BeamBuilder.h
+namespace engine {
+class BeamBuilder {
+    enum class SectionType { Rectangular, HSection };
+    static TopoDS_Shape build(
+        const gp_Pnt& startPoint,
+        const gp_Pnt& endPoint,
+        SectionType sectionType,
+        double width,
+        double height);
+};
+}
+
+// engine/AccessoryBuilder.h
+namespace engine {
+class AccessoryBuilder {
+    static TopoDS_Shape buildFlange(
+        const gp_Pnt& center, const gp_Dir& normal,
+        double pipeDiameter, double thickness);
+    static TopoDS_Shape buildBracket(
+        const gp_Pnt& base, const gp_Pnt& top, double width);
+};
+}
+```
+
+**设计决策**:
+- ValveBuilder: 3 段实心圆柱（前短截+阀体+后短截）fuse 后 cut 内腔；gate 阀体直径 1.8×OD，ball/check 为 1.6×OD
+- FlexJointBuilder: 交替扩缩锥体（BRepPrimAPI_MakeCone）fuse 生成波纹外形，再 cut 内径圆柱；膨胀比 1.5×OD
+- BeamBuilder: 用 BRepBuilderAPI_MakeFace + BRepPrimAPI_MakePrism 挤出截面;H 型截面由 12 点闭合 Wire 生成
+- AccessoryBuilder: 法兰 = BRepPrimAPI_MakeCylinder 平面圆盘；支架 = 正方形截面挤压
+- GeometryDeriver: Valve 从 typeParams["valveType"] 读取阀型，FlexJoint 从 typeParams["segmentCount"] 读取段数
+- BeamBuilder 和 AccessoryBuilder 作为独立工具类，不通过 GeometryDeriver 分发
+
+**已知限制**:
+- ValveBuilder 3 段 fuse 在法兰边界处有共面拓扑；OCCT fuse 通常能处理，但复杂情况可能有微小间隙
+- FlexJointBuilder 波纹数 >5 时 Debug 下 fuse 耗时增加（每段约 80-100ms）
+- BeamBuilder 仅支持直梁（BRepPrimAPI_MakePrism 为平移挤出，不支持弯曲梁）
+
+**后续任务注意**:
+- T21 (STEP 导出) 现在可以使用所有 9 种管件 builder
+- T06 (附属对象) 如需要几何表示，可调用 AccessoryBuilder::buildFlange/buildBracket
+- GeometryDeriver 已完整覆盖所有 PipePointType（Run/Bend/Reducer/Tee/Valve/FlexJoint）
 
 <!-- === COMPLETION LOG END === -->

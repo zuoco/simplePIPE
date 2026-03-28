@@ -4,6 +4,8 @@
 #include "engine/BendCalculator.h"
 #include "engine/ReducerBuilder.h"
 #include "engine/TeeBuilder.h"
+#include "engine/ValveBuilder.h"
+#include "engine/FlexJointBuilder.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
 #include "foundation/Types.h"
@@ -66,8 +68,21 @@ TopoDS_Shape GeometryDeriver::deriveGeometry(
         return TeeBuilder::build(
             prevPoint, nextPoint, current->position(), branchEnd, od, branchOD, wt);
     }
+    case model::PipePointType::Valve: {
+        std::string valveType = "gate";
+        if (current->hasParam("valveType")) {
+            valveType = foundation::variantToString(current->param("valveType"));
+        }
+        return ValveBuilder::build(prevPoint, nextPoint, od, wt, valveType);
+    }
+    case model::PipePointType::FlexJoint: {
+        int segments = 3;
+        if (current->hasParam("segmentCount")) {
+            segments = foundation::variantToInt(current->param("segmentCount"));
+        }
+        return FlexJointBuilder::build(prevPoint, nextPoint, od, wt, segments);
+    }
     default:
-        // Valve, FlexJoint — handled by T09
         return {};
     }
 }
