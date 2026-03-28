@@ -30,7 +30,7 @@
 | T07 | 弯头几何计算器 | `done` | T05, T02 | **Opus** | 2026-03-28 |
 | T08 | 管件几何 (Run/Reducer/Tee) | `done` | T07, T03 | Sonnet | 2026-03-28 |
 | T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
-| T10 | 拓扑管理与约束 | `ready` | T05 | Sonnet | |
+| T10 | 拓扑管理与约束 | `done` | T05 | Sonnet | 2026-03-28 |
 | T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
 | T12 | VSG 场景管理 | `pending` | T11 | Sonnet | |
 | T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
@@ -713,5 +713,89 @@ class PipePoint : public SpatialObject {
 - T20 (JSON 序列化) 需遍历新增对象的字段：Accessory/FixedPoint/Support/Flange/Gasket/SealRing/Beam
 - T09 的 engine/AccessoryBuilder 和 engine/BeamBuilder 已提供几何生成，可与这些 model 对象配合使用
 - 所有新类继承 DocumentObject，有唯一 UUID 和 changed 信号
+
+### T10 — 拓扑管理与约束 (2026-03-28)
+
+**产出文件**:
+- `src/engine/TopologyManager.h`
+- `src/engine/TopologyManager.cpp`
+- `src/engine/ConstraintSolver.h`
+- `src/engine/ConstraintSolver.cpp`
+- `src/engine/PipelineValidator.h`
+- `src/engine/PipelineValidator.cpp`
+- `src/engine/CMakeLists.txt` (更新：添加 3 个新 .cpp，添加 OCCT include 路径，链接 ModelingAlgorithms)
+- `tests/test_topology.cpp` (22 个测试)
+- `tests/CMakeLists.txt` (更新，添加 test_topology)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// engine/TopologyManager.h
+namespace engine {
+class TopologyManager {
+    // 追加管点；Tee 类型自动创建分支 Segment 并返回其 shared_ptr
+    std::shared_ptr<model::Segment> appendPoint(
+        model::Route&, model::Segment&, std::shared_ptr<model::PipePoint>);
+    // 插入管点；Tee 同上
+    std::shared_ptr<model::Segment> insertPoint(
+        model::Route&, model::Segment&, std::size_t index, std::shared_ptr<model::PipePoint>);
+    // 删除管点；Tee 同时删除其分支 Segment；空 Segment 自动清理（保留≥1个）
+    bool removePoint(model::Route&, const foundation::UUID& pointId);
+    // 查询包含该管点的所有 Segment（原始指针）
+    std::vector<model::Segment*> segmentsContaining(const model::Route&, const foundation::UUID&) const;
+    // 查询 Tee 对应分支 Segment 的 ID 字符串
+    std::string branchSegmentId(const foundation::UUID& teeId) const;
+};
+}
+
+// engine/ConstraintSolver.h
+namespace engine {
+struct ConstraintError { std::string pointId; std::string message; };
+class ConstraintSolver {
+    // 检查段内相邻非 Reducer 点的 OD 一致性
+    std::vector<ConstraintError> checkDiameterConsistency(const model::Segment&) const;
+    // 检查段内 Bend 点的角度合法性 (0° < bendAngle < 180°)
+    std::vector<ConstraintError> checkBendAngles(const model::Segment&) const;
+    // 对整条管路运行所有约束检查
+    std::vector<ConstraintError> checkAll(const model::Route&) const;
+};
+}
+
+// engine/PipelineValidator.h
+namespace engine {
+struct ValidationWarning {
+    enum class Severity { Warning, Error };
+    Severity severity; std::string objectId; std::string message;
+};
+class PipelineValidator {
+    // 管段少于 2 个管点时报 Warning
+    std::vector<ValidationWarning> checkUnconnectedPorts(const model::Route&) const;
+    // 逐对检查形体最小距离，< tolerance 时报 Error（使用 BRepExtrema_DistShapeShape）
+    std::vector<ValidationWarning> checkInterference(
+        const std::vector<TopoDS_Shape>&, const std::vector<std::string>& objectIds,
+        double tolerance = 1e-3) const;
+    // 运行所有结构校验（不含干涉检测）
+    std::vector<ValidationWarning> validateAll(const model::Route&) const;
+};
+}
+```
+
+**设计决策**:
+- TopologyManager 内部用 `unordered_map<string, string>` 维护 Tee UUID→分支 Segment UUID 映射
+- 创建分支 Segment 时命名为 "Branch_<TeeName>"，空分支（无管点）由调用方按需填充
+- ConstraintSolver 用 `gp_Vec` 计算三点夹角，bendAngle ≠ theta（夹角）：bendAngle = π - theta
+- 相邻点含 Reducer 时跳过 OD 检查（Reducer 负责异径过渡），未设置 PipeSpec 时亦跳过
+- PipelineValidator 干涉检测需要预计算形体列表，结构校验（checkUnconnectedPorts）无需 OCCT
+- engine CMakeLists.txt 现在 PUBLIC 暴露 `${OpenCASCADE_INCLUDE_DIR}`，并 PRIVATE 链接 ModelingAlgorithms
+
+**已知限制**:
+- TopologyManager 不维护 Segment→Tee 的反向映射，如需查询分支父节点需全量扫描
+- 删除 Tee 时同时删除整个分支 Segment（含其下所有管点），不可部分保留
+- ConstraintSolver 弯角检测依赖管点坐标，坐标未更新时结果可能无效
+
+**后续任务注意**:
+- T16 (应用层核心) 可直接使用 `TopologyManager` 作为文档操作的底层，管理 Route/Segment 一致性
+- T21 (STEP 导出) 生成形体列表后可调用 `PipelineValidator::checkInterference()` 做校验
+- `ConstraintSolver::checkAll()` 是管道设计校验的主要入口，T16 可在提交时调用
+- engine 的 CMakeLists 现已添加 OCCT 包含路径（PUBLIC），T21/T16 等的 engine 下游无需再次添加
 
 <!-- === COMPLETION LOG END === -->

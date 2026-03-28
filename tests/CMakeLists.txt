@@ -105,3 +105,15 @@ target_link_libraries(test_accessory_beam
 target_include_directories(test_accessory_beam PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_accessory_beam PRIVATE cxx_std_17)
 add_test(NAME AccessoryBeam COMMAND test_accessory_beam)
+
+# 拓扑管理与约束测试 — T10
+add_executable(test_topology test_topology.cpp)
+target_link_libraries(test_topology
+    PRIVATE
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_topology PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_topology PRIVATE cxx_std_17)
+add_test(NAME Topology COMMAND test_topology)
