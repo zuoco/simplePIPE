@@ -5,54 +5,33 @@
 
 ---
 
-## 下一个任务（推荐）
+## 下一个任务
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T17 |
-| **任务名** | 工作台 + QML 桥接 |
+| **任务 ID** | T14 |
+| **任务名** | 3D 拾取与高亮 |
 | **推荐模型** | Sonnet |
-| **前置依赖** | T16 ✅ |
+| **前置依赖** | T12 |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 16/22 个任务（T01-T13, T15, T16）
-- 当前阶段: Phase 5 — 应用层
-
-## 其他 ready 任务
-
-| 任务 | 推荐模型 | 说明 |
-|------|---------|------|
-| T14 | Sonnet | 3D 拾取与高亮（依赖 T12 ✅） |
-| T20 | Sonnet | JSON 序列化（依赖 T05 ✅, T06 ✅） |
-| T21 | Sonnet | STEP 导出（依赖 T08 ✅, T09 ✅, T04 ✅） |
+- 已完成: 17/22 个任务
+- 当前阶段: Phase 5 — 应用层 / UI 桥接
 
 ## 上一个完成的任务
 
-**T16 — 应用层核心 (2026-03-28)**
-- 产出:
-  - `src/app/Document.h/cpp` — 文档容器模型
-  - `src/app/DependencyGraph.h/cpp` — 图拓扑顺序依赖管理与标脏
-  - `src/app/TransactionManager.h/cpp` — 集中事务处理及 Undo/Redo
-  - `src/engine/RecomputeEngine.h/cpp` — 聚合对象依赖图进行统一几何推算
-  - `tests/test_app_core.cpp` — 单元测试
-- 关键接口:
-  - `Document` 全量数据操作：`addObject` / `allSegments` / `findByType<T>`
-  - `DependencyGraph` 进行脏对象重排及遍历标脏图 `markDirty(uuid)` → 传递
-  - `TransactionManager` 处理字段变化： `open()` → `recordChange()` → `commit()` 支持撤销与重做。
-- 注意事项:
-  - 设计了解耦方式：`RecomputeEngine` 提供 `setSceneUpdateCallback( (uuid, TopoDS_Shape)->... )`
-  - T17 需实现该回调内联，并结合 `OcctToVsg::convert(shape)` 用其产生的 `Node` 同步给 `SceneManager` 更新模型视角。
+T17 — 工作台系统 + C++→QML 桥接 (2026-03-28)
+- 产出: `Workbench` / `WorkbenchManager` / `CadWorkbench` / `SelectionManager`，`AppController` / `WorkbenchController`，`src/main.cpp`，`ui/main.qml`，`tests/test_workbench_bridge.cpp`
+- 关键接口: `WorkbenchManager::switchWorkbench()`、`SelectionManager::setSelectionChangedCallback()`、`WorkbenchController::activePanels`、`AppController::selectedUuids`
+- 注意事项: Qt `emit` 宏会污染 `foundation::Signal::emit`，头文件包含顺序需保持“先 app/model，后 Qt”
 
-## 给 AI 的指令（T17）
+## 给 AI 的指令
 
-1. 读取 `docs/development-plan.md` 中 **T17** 章节获取交付物和验收标准
-2. 读取前置代码:
-   - `src/app/Document.h`
-   - `src/app/Workbench.h` (本次将新增/实现)
-   - `src/ui/VsgQuickItem.h`
-   - `src/visualization/SceneManager.h`
-   - `src/engine/RecomputeEngine.h`
-3. 完成后运行: `pixi run build-debug && pixi run test`
-4. 验证通过后更新 `docs/tasks/status.md` 和本文件
+1. 读取 `docs/development-plan.md` 中 **T14** 章节
+2. 读取 `docs/architecture.md` 中 3D 拾取与高亮相关章节
+3. 读取前置代码: `src/ui/VsgQuickItem.h`、`src/ui/VsgQuickItem.cpp`、`src/visualization/SceneManager.h`、`src/visualization/CameraController.h`
+4. 如需库指南: 读取 `lib/vsg/AGENTS.md`
+5. 完成后运行 `pixi run build-debug && pixi run test`
+6. 验证通过后更新 `docs/tasks/status.md` 和本文件

@@ -37,8 +37,8 @@
 | T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
 | T15 | VSG-QML 桥接 | `done` | T12, T13 | **Opus** | 2026-03-28 |
 | T16 | 应用层核心 | `done` | T05, T07 | **Opus** | 2026-03-28 |
-| T17 | 工作台 + QML 桥接 | `ready` | T16 | Sonnet | |
-| T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
+| T17 | 工作台 + QML 桥接 | `done` | T16 | Sonnet | 2026-03-28 |
+| T18 | QML 表格模型层 | `ready` | T17 | Sonnet | |
 | T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
 | T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
 | T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
@@ -1107,5 +1107,101 @@ tm.setRecomputeCallback([&](const std::vector<foundation::UUID>& dirtyIds){
 
 **后续任务注意**:
 - T17 可以全面介入并实现 `GeometryDeriver` 结合 `OcctToVsg` 和 `SceneManager` 的更新逻辑：在回调中直接转换形状至场景节点。
+
+### T17 — 工作台系统 + C++→QML 桥接 (2026-03-28)
+
+**产出文件**:
+- `src/app/Workbench.h`
+- `src/app/WorkbenchManager.h`
+- `src/app/WorkbenchManager.cpp`
+- `src/app/CadWorkbench.h`
+- `src/app/CadWorkbench.cpp`
+- `src/app/SelectionManager.h`
+- `src/app/SelectionManager.cpp`
+- `src/ui/AppController.h`
+- `src/ui/AppController.cpp`
+- `src/ui/WorkbenchController.h`
+- `src/ui/WorkbenchController.cpp`
+- `src/main.cpp`
+- `ui/main.qml`
+- `tests/test_workbench_bridge.cpp`
+- `src/app/CMakeLists.txt` (更新)
+- `src/ui/CMakeLists.txt` (更新)
+- `src/CMakeLists.txt` (更新)
+- `tests/CMakeLists.txt` (更新)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// app/Workbench.h
+enum class ViewportType { Vsg, Vtk };
+struct ToolbarAction { std::string id; std::string label; };
+class Workbench {
+public:
+    virtual std::string name() const = 0;
+    virtual void activate(Document& document) = 0;
+    virtual void deactivate(Document& document) = 0;
+    virtual std::vector<ToolbarAction> toolbarActions() const = 0;
+    virtual std::vector<std::string> panelIds() const = 0;
+    virtual ViewportType viewportType() const = 0;
+};
+
+// app/WorkbenchManager.h
+class WorkbenchManager {
+public:
+    using WorkbenchChangedCallback = std::function<void(const Workbench*)>;
+    void registerWorkbench(std::unique_ptr<Workbench> workbench);
+    bool switchWorkbench(const std::string& name);
+    Workbench* activeWorkbench() const;
+    std::vector<std::string> workbenchNames() const;
+    void setWorkbenchChangedCallback(WorkbenchChangedCallback cb);
+};
+
+// app/SelectionManager.h
+class SelectionManager {
+public:
+    using SelectionChangedCallback =
+        std::function<void(const std::vector<foundation::UUID>&)>;
+    bool select(const foundation::UUID& id);
+    bool deselect(const foundation::UUID& id);
+    void clear();
+    bool isSelected(const foundation::UUID& id) const;
+    const std::vector<foundation::UUID>& selected() const;
+    void setSelectionChangedCallback(SelectionChangedCallback cb);
+};
+
+// ui/AppController.h
+class AppController : public QObject {
+    Q_PROPERTY(QString documentName READ documentName WRITE setDocumentName NOTIFY documentNameChanged)
+    Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
+    Q_PROPERTY(QStringList selectedUuids READ selectedUuids NOTIFY selectionChanged)
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY transactionStateChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY transactionStateChanged)
+};
+
+// ui/WorkbenchController.h
+class WorkbenchController : public QObject {
+    Q_PROPERTY(QString activeWorkbench READ activeWorkbench NOTIFY activeWorkbenchChanged)
+    Q_PROPERTY(QStringList activePanels READ activePanels NOTIFY activeWorkbenchChanged)
+    Q_PROPERTY(QStringList toolbarActions READ toolbarActions NOTIFY activeWorkbenchChanged)
+    Q_PROPERTY(QStringList workbenchNames READ workbenchNames CONSTANT)
+    Q_INVOKABLE bool switchWorkbench(const QString& name);
+};
+```
+
+**设计决策**:
+- `WorkbenchManager` 使用 `Document&` 注入 + 回调通知方式，不把 Qt 依赖引入 `app` 层，保持层间解耦。
+- `SelectionManager` 使用 `std::vector<UUID>` 保持稳定选择顺序，便于后续 T18/T19 做表格和树视图联动。
+- `AppController`/`WorkbenchController` 负责把纯 C++ 管理器转换为 QML 可消费的 `Q_PROPERTY` / `Q_INVOKABLE` 接口。
+- 应用入口 `main.cpp` 完成了 T15 留下的桥接要求：`qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport")`，并注入 `SceneManager` / `CameraController` / `SceneFurniture`。
+- `RecomputeEngine::SceneUpdateCallback` 在入口层连接 `OcctToVsg + createComponentNode + SceneManager`，实现重算到场景节点的闭环。
+
+**已知限制**:
+- `VsgQuickItem::updatePaintNode()` 仍为占位色块渲染，尚未实现 Vulkan 离屏渲染 readback → `QSGTexture` 的完整路径。
+- 当前 `ui/main.qml` 为最小可启动骨架布局，详细业务面板将在 T18/T19 继续细化。
+
+**后续任务注意**:
+- T18 可直接消费 `AppController` 与 `SelectionManager` 的选择状态接口，实现表格/树与 3D 选择联动。
+- T18/T19 在新增 Qt 源文件时，注意与 `foundation::Signal::emit` 的命名冲突：应优先包含 `app/...` 头，再包含 Qt 头，避免 Qt `emit` 宏污染。
+- 应用可执行目标为 `pipecad_app`，QML 入口由 `PIPECAD_QML_MAIN` 编译宏指定为 `ui/main.qml`。
 
 <!-- === COMPLETION LOG END === -->

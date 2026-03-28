@@ -3,6 +3,9 @@ add_library(app STATIC
     Document.cpp
     DependencyGraph.cpp
     TransactionManager.cpp
+    WorkbenchManager.cpp
+    CadWorkbench.cpp
+    SelectionManager.cpp
     ${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp
 )
 

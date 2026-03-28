@@ -174,3 +174,14 @@ target_link_libraries(test_app_core
 target_include_directories(test_app_core PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_app_core PRIVATE cxx_std_17)
 add_test(NAME AppCore COMMAND test_app_core)
+
+# 工作台系统 + QML 桥接测试 — T17
+add_executable(test_workbench_bridge test_workbench_bridge.cpp)
+target_link_libraries(test_workbench_bridge
+    PRIVATE
+        ui
+        Qt6::Test
+        GTest::GTest
+)
+target_compile_features(test_workbench_bridge PRIVATE cxx_std_17)
+add_test(NAME WorkbenchBridge COMMAND test_workbench_bridge)

@@ -1,6 +1,8 @@
 add_library(ui STATIC
     placeholder.cpp
     VsgQuickItem.cpp
+    AppController.cpp
+    WorkbenchController.cpp
 )
 
 target_include_directories(ui
