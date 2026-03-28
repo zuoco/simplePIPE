@@ -152,6 +152,17 @@ target_link_libraries(test_camera_furniture
 target_compile_features(test_camera_furniture PRIVATE cxx_std_17)
 add_test(NAME CameraFurniture COMMAND test_camera_furniture)
 
+# 3D 拾取与高亮测试 — T14
+add_executable(test_pick_highlight test_pick_highlight.cpp)
+target_link_libraries(test_pick_highlight
+    PRIVATE
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_pick_highlight PRIVATE cxx_std_17)
+add_test(NAME PickHighlight COMMAND test_pick_highlight)
+
 # VSG-QML 桥接测试 — T15
 add_executable(test_vsg_qml_bridge test_vsg_qml_bridge.cpp)
 target_link_libraries(test_vsg_qml_bridge

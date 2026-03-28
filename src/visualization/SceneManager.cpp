@@ -68,6 +68,20 @@ vsg::ref_ptr<vsg::Node> SceneManager::findNode(const std::string& uuid) const {
     return (it != nodeMap_.end()) ? it->second : vsg::ref_ptr<vsg::Node>{};
 }
 
+std::string SceneManager::findUuidByNode(const vsg::Node* node) const {
+    if (!node) {
+        return {};
+    }
+
+    for (const auto& [uuid, mappedNode] : nodeMap_) {
+        if (mappedNode.get() == node) {
+            return uuid;
+        }
+    }
+
+    return {};
+}
+
 bool SceneManager::hasNode(const std::string& uuid) const {
     return nodeMap_.count(uuid) > 0;
 }

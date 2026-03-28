@@ -34,7 +34,7 @@
 | T11 | OCCT→VSG 网格转换 | `done` | T04 | Sonnet | 2026-03-28 |
 | T12 | VSG 场景管理 | `done` | T11 | Sonnet | 2026-03-28 |
 | T13 | 相机控制与场景基础设施 | `done` | T12 | Sonnet | 2026-03-28 |
-| T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
+| T14 | 3D 拾取与高亮 | `done` | T12 | Sonnet | 2026-03-28 |
 | T15 | VSG-QML 桥接 | `done` | T12, T13 | **Opus** | 2026-03-28 |
 | T16 | 应用层核心 | `done` | T05, T07 | **Opus** | 2026-03-28 |
 | T17 | 工作台 + QML 桥接 | `done` | T16 | Sonnet | 2026-03-28 |
@@ -1203,5 +1203,83 @@ class WorkbenchController : public QObject {
 - T18 可直接消费 `AppController` 与 `SelectionManager` 的选择状态接口，实现表格/树与 3D 选择联动。
 - T18/T19 在新增 Qt 源文件时，注意与 `foundation::Signal::emit` 的命名冲突：应优先包含 `app/...` 头，再包含 Qt 头，避免 Qt `emit` 宏污染。
 - 应用可执行目标为 `pipecad_app`，QML 入口由 `PIPECAD_QML_MAIN` 编译宏指定为 `ui/main.qml`。
+
+### T14 — 3D 拾取与高亮 (2026-03-28)
+
+**产出文件**:
+- `src/visualization/PickHandler.h`
+- `src/visualization/PickHandler.cpp`
+- `src/visualization/SelectionHighlight.h`
+- `src/visualization/SelectionHighlight.cpp`
+- `src/visualization/SceneManager.h` (更新，新增节点反查 UUID 接口)
+- `src/visualization/SceneManager.cpp` (更新)
+- `src/visualization/CMakeLists.txt` (更新，添加新源文件)
+- `tests/test_pick_highlight.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_pick_highlight)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// visualization/SceneManager.h
+class SceneManager {
+public:
+    // ...existing...
+    std::string findUuidByNode(const vsg::Node* node) const;
+};
+
+// visualization/PickHandler.h
+class PickHandler {
+public:
+    using SelectionCallback = std::function<void(const std::optional<std::string>&)>;
+    using ContextMenuCallback =
+        std::function<void(const vsg::dvec3&, const std::optional<std::string>&)>;
+
+    explicit PickHandler(const SceneManager* sceneManager = nullptr);
+    void setSceneManager(const SceneManager* sceneManager);
+    void setSelectionCallback(SelectionCallback callback);
+    void setContextMenuCallback(ContextMenuCallback callback);
+
+    std::optional<std::string> pick(const vsg::Camera& camera,
+                                    vsg::ref_ptr<vsg::Node> sceneRoot,
+                                    int32_t x, int32_t y,
+                                    vsg::dvec3* worldPosition = nullptr) const;
+
+    void handleLeftClick(const vsg::Camera& camera,
+                         vsg::ref_ptr<vsg::Node> sceneRoot,
+                         int32_t x, int32_t y) const;
+    void handleRightClick(const vsg::Camera& camera,
+                          vsg::ref_ptr<vsg::Node> sceneRoot,
+                          int32_t x, int32_t y) const;
+};
+
+// visualization/SelectionHighlight.h
+class SelectionHighlight {
+public:
+    static constexpr const char* kHighlightColorKey = "pipecad.highlightColor";
+    explicit SelectionHighlight(SceneManager* sceneManager = nullptr);
+
+    bool setSelected(const std::string& uuid);
+    bool clear();
+    const std::string& selectedUuid() const;
+
+    void setHighlightColor(const vsg::vec4& color);
+    const vsg::vec4& highlightColor() const;
+};
+```
+
+**设计决策**:
+- 拾取实现采用 `vsg::LineSegmentIntersector(camera, x, y)`，并选择最近命中（最小 `ratio`）。
+- 通过命中结果的 `nodePath` 逆序遍历 + `SceneManager::findUuidByNode()` 反查文档 UUID，保持可视化层内闭环，不引入 app 层依赖。
+- 左键拾取通过 `SelectionCallback(optional<string>)` 通知选择结果；命中空白时回调 `nullopt` 用于清空选择。
+- 右键拾取通过 `ContextMenuCallback(worldPos, optional<string>)` 回传拾取位置和可选 UUID，供上下文菜单定位。
+- 高亮当前阶段使用节点元数据键 `pipecad.highlightColor` 存储高亮色（#0078D4），并在取消选中时恢复原值，避免提前耦合未落地的渲染管线细节。
+
+**已知限制**:
+- 当前高亮是材质颜色的“数据标记层”实现；真正 shader/material 替换需在后续渲染集成阶段读取该 key 并绑定到 pipeline。
+- `SceneManager::findUuidByNode()` 是精确指针匹配（匹配注册根节点），依赖命中路径中包含被注册节点。
+
+**后续任务注意**:
+- T18/T19 做三方联动时，可把 `PickHandler::SelectionCallback` 直接桥接到 `SelectionManager::clear/select`。
+- T19 的右键菜单可直接消费 `ContextMenuCallback` 返回的 `worldPos` 作为菜单锚点或对象属性面板跳转输入。
+- 若后续实现真正渲染高亮，建议在渲染阶段读取 `SelectionHighlight::kHighlightColorKey` 并切换材质/描述符。
 
 <!-- === COMPLETION LOG END === -->

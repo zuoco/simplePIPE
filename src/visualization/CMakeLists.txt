@@ -7,6 +7,8 @@ add_library(visualization STATIC
     SceneManager.cpp
     CameraController.cpp
     SceneFurniture.cpp
+    PickHandler.cpp
+    SelectionHighlight.cpp
 )
 
 target_include_directories(visualization

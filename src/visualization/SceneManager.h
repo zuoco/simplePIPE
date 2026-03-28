@@ -54,6 +54,9 @@ public:
     /// 按 UUID 查找节点（不存在时返回空 ref_ptr）
     vsg::ref_ptr<vsg::Node> findNode(const std::string& uuid) const;
 
+    /// 按节点指针反查 UUID（不存在时返回空字符串）
+    std::string findUuidByNode(const vsg::Node* node) const;
+
     /// 是否存在指定 UUID 的节点
     bool hasNode(const std::string& uuid) const;
 
