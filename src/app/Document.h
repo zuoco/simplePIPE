@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 #include <functional>
+#include <map>
 
 namespace app {
 
@@ -35,13 +36,41 @@ public:
     /// 按 UUID 查找对象，不存在返回 nullptr
     model::DocumentObject* findObject(const foundation::UUID& id) const;
 
-    /// 按类型查找所有对象
+    /// 按 UUID 查找对象，返回 shared_ptr
+    std::shared_ptr<model::DocumentObject> findObjectShared(const foundation::UUID& id) const;
+
+    /// 按名称查找对象，返回 shared_ptr（同名返回第一个匹配）
+    std::shared_ptr<model::DocumentObject> findByName(const std::string& name) const;
+
+    /// 按类型查找所有对象（裸指针数组）
     template<typename T>
     std::vector<T*> findByType() const {
         std::vector<T*> result;
         for (auto& [id, obj] : objects_) {
             if (auto* ptr = dynamic_cast<T*>(obj.get()))
                 result.push_back(ptr);
+        }
+        return result;
+    }
+
+    /// 按类型查找，返回 map<UUID字符串, shared_ptr>
+    template<typename T>
+    std::map<std::string, std::shared_ptr<T>> findByTypeIdMap() const {
+        std::map<std::string, std::shared_ptr<T>> result;
+        for (auto& [id, obj] : objects_) {
+            if (auto ptr = std::dynamic_pointer_cast<T>(obj))
+                result.emplace(id, ptr);
+        }
+        return result;
+    }
+
+    /// 按类型查找，返回 map<名称, shared_ptr>
+    template<typename T>
+    std::map<std::string, std::shared_ptr<T>> findByTypeNameMap() const {
+        std::map<std::string, std::shared_ptr<T>> result;
+        for (auto& [id, obj] : objects_) {
+            if (auto ptr = std::dynamic_pointer_cast<T>(obj))
+                result.emplace(obj->name(), ptr);
         }
         return result;
     }

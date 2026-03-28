@@ -1,3 +1,4 @@
+#include "app/Application.h"
 #include "app/CadWorkbench.h"
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
@@ -26,17 +27,21 @@
 
 int main(int argc, char* argv[])
 {
-    QGuiApplication app(argc, argv);
+    QGuiApplication qtApp(argc, argv);
 
     qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport");
 
-    app::Document document;
-    document.setName("Untitled");
+    // 初始化中央单例（线程安全）
+    app::Application::init();
+    auto& appSingleton = app::Application::instance();
 
-    app::DependencyGraph dependencyGraph;
-    app::TransactionManager transactionManager(document, dependencyGraph);
-    app::SelectionManager selectionManager;
-    app::WorkbenchManager workbenchManager(document);
+    auto& document           = appSingleton.document();
+    auto& dependencyGraph    = appSingleton.dependencyGraph();
+    auto& transactionManager = appSingleton.transactionManager();
+    auto& selectionManager   = appSingleton.selectionManager();
+    auto& workbenchManager   = appSingleton.workbenchManager();
+
+    document.setName("Untitled");
     workbenchManager.registerWorkbench(std::make_unique<app::CadWorkbench>());
     workbenchManager.switchWorkbench("CAD");
 
@@ -85,7 +90,7 @@ int main(int argc, char* argv[])
     const QUrl mainQmlUrl = QUrl::fromLocalFile(QStringLiteral("ui/main.qml"));
 #endif
 
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &qtApp,
                      [&](QObject* obj, const QUrl& objUrl) {
                          if (!obj || objUrl != mainQmlUrl) {
                              return;
@@ -107,5 +112,5 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    return app.exec();
+    return qtApp.exec();
 }

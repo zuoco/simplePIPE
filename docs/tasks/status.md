@@ -29,7 +29,7 @@
 | T06 | 附属对象与梁 | `done` | T05 | Sonnet | 2026-03-28 |
 | T07 | 弯头几何计算器 | `done` | T05, T02 | **Opus** | 2026-03-28 |
 | T08 | 管件几何 (Run/Reducer/Tee) | `done` | T07, T03 | Sonnet | 2026-03-28 |
-| T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
+| T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-03-28 |
 | T10 | 拓扑管理与约束 | `done` | T05 | Sonnet | 2026-03-28 |
 | T11 | OCCT→VSG 网格转换 | `done` | T04 | Sonnet | 2026-03-28 |
 | T12 | VSG 场景管理 | `done` | T11 | Sonnet | 2026-03-28 |
@@ -43,6 +43,27 @@
 | T20 | JSON 序列化 | `done` | T05, T06 | Sonnet | 2026-03-28 |
 | T21 | STEP 导出 | `done` | T08, T09, T04 | Sonnet | 2026-03-28 |
 | T25 | 集成测试 | `done` | 全部 | **Opus** | 2026-03-28 |
+
+### 二期任务 (Phase 2)
+
+| ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
+|----|--------|------|------|---------|---------|
+| T30 | ViewManager 视图管理器 | `done` | — | Sonnet | 2026-03-29 |
+| T31 | ComponentCatalog 参数化构件模板 | `ready` | — | **Opus** | — |
+| T32 | Load 载荷数据模型 | `ready` | — | Sonnet | — |
+| T33 | LoadCase 与 LoadCombination | `pending` | T32 | Sonnet | — |
+| T34 | DesignWorkbench 工作台 | `pending` | T31 | Sonnet | — |
+| T35 | SpecWorkbench 工作台 | `pending` | T31 | Sonnet | — |
+| T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | Sonnet | — |
+| T37 | OCCT→VTK 网格转换 | `pending` | T32 | Sonnet | — |
+| T38 | VTK 场景管理 | `pending` | T37 | Sonnet | — |
+| T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Opus** | — |
+| T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
+| T41 | ComponentToolStrip 元件插入 | `pending` | T31, T36 | Sonnet | — |
+| T42 | VTK-QML 桥接 | `pending` | T38 | **Opus** | — |
+| T43 | 序列化扩展 (Load/LoadCase) | `pending` | T33 | Sonnet | — |
+| T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
+| T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
 
 ---
 
@@ -537,7 +558,7 @@ class GeometryDeriver {
 - T21 (STEP 导出) 调用上述 builder 得到 TopoDS_Shape，再用 StepIO::exportStep()
 - T16 (应用层核心) 通过 GeometryDeriver::deriveGeometry() 为每个 PipePoint 生成几何体
 
-### T09 — 管件几何 (Valve/FlexJoint/Beam/Accessory) (2026-06-03)
+### T09 — 管件几何 (Valve/FlexJoint/Beam/Accessory) (2026-03-28)
 
 **产出文件**:
 - `src/engine/ValveBuilder.h/.cpp`
@@ -1533,5 +1554,65 @@ public:
 **后续任务注意**:
 - 所有 22 个任务均已完成，项目进入维护/扩展阶段。
 - 全量测试（22 tests）执行约 11 秒，其中集成测试约 5.7 秒。
+
+### T30 — ViewManager 视图管理器 (2026-03-29)
+
+**产出文件**:
+- `src/visualization/ViewManager.h`
+- `src/visualization/ViewManager.cpp`
+- `src/visualization/CMakeLists.txt` (更新，添加 ViewManager.cpp)
+- `tests/test_view_manager.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_view_manager)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace visualization {
+class ViewManager {
+public:
+    enum class ActiveViewport { VSG, VTK };
+    enum class RenderMode { Solid, Wireframe, SolidWithEdges, Beam };
+    enum class Category { PipePoints, Segments, Accessories, Supports, Beams,
+                          Annotations, LoadArrows, StressContour };
+    enum class LodLevel { Draft, Normal, Fine };
+    struct CameraState { vsg::dvec3 eye, center, up; };
+
+    void setVsgComponents(SceneManager*, CameraController*, SceneFurniture*);
+    void setActiveViewport(ActiveViewport vp);
+    ActiveViewport activeViewport() const;
+    void fitAll();
+    void setViewPreset(ViewPreset preset);
+    void saveViewState(const std::string& workbenchId);
+    void restoreViewState(const std::string& workbenchId);
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+    void setCategoryVisible(Category cat, bool visible);
+    bool isCategoryVisible(Category cat) const;
+    void setGridVisible(bool visible);
+    void setTriadVisible(bool visible);
+    void setLodLevel(LodLevel level);
+    LodLevel lodLevel() const;
+    void setMouseWorldPos(const gp_Pnt& pos);
+    gp_Pnt currentMouseWorldPos() const;
+    bool captureImage(const std::string& path);
+};
+}
+```
+
+**设计决策**:
+- 采用非拥有指针注入方式 (`setVsgComponents`)，ViewManager 不拥有底层 VSG 组件的生命周期
+- VTK 指针预留为注释，待 T38/T42 时启用
+- captureImage 当前返回 false（预留），待 VTK 集成后实现
+- 相机状态缓存 (`viewStateCache_`) 以 workbenchId 为 key，支持任意数量工作台
+- 所有 Category 默认可见
+
+**已知限制**:
+- captureImage 为空实现（预留）
+- VTK 分支尚未实现（需等 T37/T38/T42）
+- Triad 显隐仅记录状态，SceneFurniture 当前无 Switch 包装坐标轴节点
+
+**后续任务注意**:
+- T39(工作台切换): 需通过 `vm.saveViewState() → vm.setActiveViewport() → vm.restoreViewState()` 流程切换
+- T42(VTK-QML桥接): 需为 ViewManager 添加 `setVtkComponents(VtkSceneManager*)` 方法
+- T40(StatusBar): 可通过 `vm.currentMouseWorldPos()` 获取鼠标 3D 坐标
 
 <!-- === COMPLETION LOG END === -->

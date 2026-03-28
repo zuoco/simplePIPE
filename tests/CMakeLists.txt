@@ -255,3 +255,15 @@ target_link_libraries(test_integration
 target_include_directories(test_integration PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_integration PRIVATE cxx_std_17)
 add_test(NAME Integration COMMAND test_integration)
+
+# ViewManager 视图管理器测试 — T30
+add_executable(test_view_manager test_view_manager.cpp)
+target_link_libraries(test_view_manager
+    PRIVATE
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_view_manager PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_view_manager PRIVATE cxx_std_17)
+add_test(NAME ViewManager COMMAND test_view_manager)

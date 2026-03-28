@@ -19,6 +19,19 @@ model::DocumentObject* Document::findObject(const foundation::UUID& id) const {
     return (it != objects_.end()) ? it->second.get() : nullptr;
 }
 
+std::shared_ptr<model::DocumentObject> Document::findObjectShared(const foundation::UUID& id) const {
+    auto it = objects_.find(id.toString());
+    return (it != objects_.end()) ? it->second : nullptr;
+}
+
+std::shared_ptr<model::DocumentObject> Document::findByName(const std::string& name) const {
+    for (auto& [id, obj] : objects_) {
+        if (obj->name() == name)
+            return obj;
+    }
+    return nullptr;
+}
+
 std::vector<model::PipePoint*> Document::allPipePoints() const {
     return findByType<model::PipePoint>();
 }

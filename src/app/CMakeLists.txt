@@ -1,5 +1,6 @@
 add_library(app STATIC
     placeholder.cpp
+    Application.cpp
     Document.cpp
     ProjectSerializer.cpp
     StepExporter.cpp

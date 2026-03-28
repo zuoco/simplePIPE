@@ -1,6 +1,6 @@
 # 开发计划 — 任务分解与分配指南
 
-> **版本**: 0.1.0 | **日期**: 2026-03-27  
+> **版本**: 0.2.0 | **日期**: 2026-03-29  
 > **参考**: [architecture.md](architecture.md) — 架构设计文档
 
 ---
@@ -807,3 +807,546 @@ Week 11:  T25 (集成测试 + Bug修复)
 ## 验收标准
 [粘贴 T07 验收标准列表]
 ```
+
+---
+---
+
+# 二期开发计划 (Phase 2)
+
+> **版本**: 0.2.0 | **日期**: 2026-03-29
+>
+> 一期 (T01-T25) 已全部完成。二期聚焦：参数化构件模板、ViewManager、三工作台拆分、载荷分析、VTK 集成。
+>
+> **编号即执行顺序**：严格从 T30 → T31 → ... → T45 依次执行，每个任务只依赖编号更小的任务。
+
+---
+
+## 二期执行顺序与依赖
+
+```
+执行顺序    任务                              依赖（均为编号更小的任务）
+────────    ────                              ──────────────────────
+T30         ViewManager 视图管理器             —（一期已完成）
+T31         ComponentCatalog 参数化构件模板     —
+T32         Load 载荷数据模型                  —
+T33         LoadCase 与 LoadCombination        T32
+T34         DesignWorkbench 工作台             T31
+T35         SpecWorkbench 工作台               T31
+T36         DesignTree + ParameterPanel 重构   T34
+T37         OCCT→VTK 网格转换                  T32
+T38         VTK 场景管理                       T37
+T39         工作台切换 + QML 面板动态加载        T34, T35
+T40         StatusBar + 右键菜单 + 框选         T36
+T41         ComponentToolStrip 元件插入         T31, T36
+T42         VTK-QML 桥接                       T38
+T43         序列化扩展 (Load/LoadCase)          T33
+T44         AnalysisWorkbench 工作台            T33, T39, T42
+T45         端到端集成测试                      T41, T43, T44
+```
+
+---
+
+## T30 — ViewManager 视图管理器
+
+**Phase**: 8 — 核心重构  
+**依赖**: T12(场景管理), T13(相机控制) — 已完成  
+**推荐模型**: Sonnet  
+**预计规模**: ~300 行  
+
+**参考**: architecture.md §10.4
+
+### 交付物
+- `src/visualization/ViewManager.h`
+- `src/visualization/ViewManager.cpp`
+- `tests/test_view_manager.cpp`
+
+### 接口定义
+```cpp
+class ViewManager {
+    enum class ActiveViewport { VSG, VTK };
+    enum class RenderMode { Solid, Wireframe, SolidWithEdges, Beam };
+    enum class Category { PipePoints, Segments, Accessories, Supports, Beams, Annotations, LoadArrows, StressContour };
+    enum class LodLevel { Draft, Normal, Fine };
+
+    void setActiveViewport(ActiveViewport vp);
+    void fitAll();
+    void setViewPreset(ViewPreset preset);
+    void saveViewState(const std::string& workbenchId);
+    void restoreViewState(const std::string& workbenchId);
+    void setRenderMode(RenderMode mode);
+    void setCategoryVisible(Category cat, bool visible);
+    void setGridVisible(bool visible);
+    void setTriadVisible(bool visible);
+    void setLodLevel(LodLevel level);
+    gp_Pnt currentMouseWorldPos() const;
+    bool captureImage(const std::string& path);
+};
+```
+
+### 验收标准
+1. 构造 ViewManager，注入 SceneManager + CameraController
+2. setActiveViewport 切换活跃视口
+3. fitAll/setViewPreset 转发给当前活跃视口的 CameraController
+4. saveViewState/restoreViewState 正确缓存和恢复相机状态
+5. setRenderMode/setCategoryVisible 状态管理正确
+6. 单元测试全部通过
+
+---
+
+## T31 — ComponentCatalog 参数化构件模板库
+
+**Phase**: 8 — 核心重构  
+**依赖**: T08(管件几何), T09(阀门/附件几何) — 已完成  
+**推荐模型**: **Opus**  
+**预计规模**: ~800 行  
+
+**参考**: architecture.md §3.7
+
+### 交付物
+- `src/engine/ComponentTemplate.h` — 模板基类
+- `src/engine/ComponentCatalog.h` / `ComponentCatalog.cpp` — 注册表单例
+- `src/engine/templates/PipeTemplate.h/cpp`
+- `src/engine/templates/ElbowTemplate.h/cpp`
+- `src/engine/templates/TeeTemplate.h/cpp`
+- `src/engine/templates/ReducerTemplate.h/cpp`
+- `src/engine/templates/GateValveTemplate.h/cpp`
+- `src/engine/templates/WeldNeckFlangeTemplate.h/cpp`
+- `src/engine/templates/RigidSupportTemplate.h/cpp`
+- `src/engine/templates/SpringHangerTemplate.h/cpp`
+- 更新 `GeometryDeriver` 改为通过 Catalog 查表
+- `tests/test_component_catalog.cpp`
+
+### 接口定义
+```cpp
+class ComponentTemplate {
+    virtual std::string templateId() const = 0;
+    virtual ComponentParams deriveParams(double od, double wt) const = 0;
+    virtual TopoDS_Shape buildShape(const ComponentParams& p) const = 0;
+};
+
+class ComponentCatalog {
+    static ComponentCatalog& instance();
+    void registerTemplate(std::unique_ptr<ComponentTemplate> tpl);
+    ComponentTemplate* getTemplate(const std::string& templateId) const;
+    std::vector<std::string> allTemplateIds() const;
+};
+```
+
+### 验收标准
+1. 至少 8 种模板注册成功
+2. 每种模板通过 OD=168.3mm 和 OD=323.8mm 两组参数验证几何生成
+3. GeometryDeriver 通过 Catalog 查表生成几何，不再硬编码分发
+4. 单元测试: 每种模板 buildShape 返回非空 Shape，体积 > 0
+
+---
+
+## T32 — Load 载荷数据模型
+
+**Phase**: 9 — 载荷数据模型  
+**依赖**: T05(核心文档对象) — 已完成  
+**推荐模型**: Sonnet  
+**预计规模**: ~500 行  
+
+**参考**: architecture.md §6.9.1, §6.9.2
+
+### 交付物
+- `src/model/Load.h` / `Load.cpp` — 载荷基类
+- `src/model/DeadWeightLoad.h/cpp`
+- `src/model/ThermalLoad.h/cpp`
+- `src/model/PressureLoad.h/cpp`
+- `src/model/WindLoad.h/cpp`
+- `src/model/SeismicLoad.h/cpp`
+- `src/model/DisplacementLoad.h/cpp`
+- `src/model/UserDefinedLoad.h/cpp`
+- `tests/test_load_model.cpp`
+
+### 接口定义
+```cpp
+class Load : public DocumentObject {
+    virtual std::string loadType() const = 0;
+    virtual std::vector<UUID> affectedObjects() const;
+    void addAffectedObject(const UUID& id);
+    void removeAffectedObject(const UUID& id);
+};
+
+class ThermalLoad : public Load {
+    double installTemp() const;
+    double operatingTemp() const;
+    void setInstallTemp(double t);
+    void setOperatingTemp(double t);
+};
+// ... 其他 6 种子类类似
+```
+
+### 验收标准
+1. 7 种载荷子类均可构造，loadType() 返回正确字符串
+2. affectedObjects 增删正确
+3. 每种载荷的特有参数 getter/setter 正常
+4. 所有载荷继承 DocumentObject 的 UUID 和 name
+5. 单元测试全部通过
+
+---
+
+## T33 — LoadCase 与 LoadCombination
+
+**Phase**: 9 — 载荷数据模型  
+**依赖**: T32(Load 数据模型)  
+**推荐模型**: Sonnet  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §6.9.3, §6.9.4, §6.9.5
+
+### 交付物
+- `src/model/LoadCase.h` / `LoadCase.cpp`
+- `src/model/LoadCombination.h` / `LoadCombination.cpp`
+- `tests/test_loadcase.cpp`
+
+### 接口定义
+```cpp
+struct LoadEntry { UUID loadId; double factor; };
+
+class LoadCase : public DocumentObject {
+    const std::string& caseName() const;
+    void addEntry(const LoadEntry& entry);
+    void removeEntry(const UUID& loadId);
+    const std::vector<LoadEntry>& entries() const;
+};
+
+enum class CombineMethod { Algebraic, Absolute, SRSS, Envelope };
+enum class StressCategory { Sustained, Expansion, Occasional, Operating, Hydrotest };
+
+struct CaseEntry { UUID caseId; double factor; };
+
+class LoadCombination : public DocumentObject {
+    StressCategory category() const;
+    CombineMethod method() const;
+    void addCaseEntry(const CaseEntry& entry);
+    const std::vector<CaseEntry>& caseEntries() const;
+};
+```
+
+### 验收标准
+1. LoadCase 可添加/删除 LoadEntry，entries 正确
+2. LoadCombination 可设置 CombineMethod 和 StressCategory
+3. 支持 B31.3 典型组合配置 (SUS/EXP/OPE/OCC)
+4. 依赖关系: LoadCombination → LoadCase → Load 严格 DAG
+5. 单元测试全部通过
+
+---
+
+## T34 — DesignWorkbench 工作台实现
+
+**Phase**: 10 — 工作台拆分  
+**依赖**: T31(ComponentCatalog), T17(工作台+QML桥接) — 已完成  
+**推荐模型**: Sonnet  
+**预计规模**: ~300 行  
+
+**参考**: architecture.md §6.5
+
+### 交付物
+- `src/app/DesignWorkbench.h` / `DesignWorkbench.cpp` — 替代 CadWorkbench
+- 更新 `main.cpp` 注册 DesignWorkbench
+- `tests/test_design_workbench.cpp`
+
+### 接口定义
+```cpp
+class DesignWorkbench : public Workbench {
+    std::string name() override;            // "Design"
+    void activate(Document&) override;
+    void deactivate(Document&) override;
+    std::vector<ToolbarAction> toolbarActions() override;  // new-segment, add-point, measure, export-step
+    std::vector<std::string> panelIds() override;          // DesignTree, Viewport3D, ComponentToolStrip, ParameterPanel
+    ViewportType viewportType() override;   // Vsg
+};
+```
+
+### 验收标准
+1. DesignWorkbench 正确替代 CadWorkbench
+2. toolbarActions 返回正确的 4 项
+3. panelIds 返回 4 个面板 ID
+4. viewportType 返回 Vsg
+5. activate/deactivate 生命周期正确
+
+---
+
+## T35 — SpecWorkbench 工作台实现
+
+**Phase**: 10 — 工作台拆分  
+**依赖**: T31(ComponentCatalog), T17(工作台+QML桥接) — 已完成  
+**推荐模型**: Sonnet  
+**预计规模**: ~250 行  
+
+**参考**: architecture.md §6.4
+
+### 交付物
+- `src/app/SpecWorkbench.h` / `SpecWorkbench.cpp`
+- `tests/test_spec_workbench.cpp`
+
+### 接口定义
+```cpp
+class SpecWorkbench : public Workbench {
+    std::string name() override;            // "Specification"
+    void activate(Document&) override;
+    void deactivate(Document&) override;
+    std::vector<ToolbarAction> toolbarActions() override;  // new-spec, import-code, add-material, add-component, validate
+    std::vector<std::string> panelIds() override;          // SpecTree, MaterialTable, ComponentTable, PropertyPanel
+    ViewportType viewportType() override;   // Vsg
+};
+```
+
+### 验收标准
+1. toolbarActions 返回 5 项
+2. panelIds 返回 4 个面板 ID
+3. activate/deactivate 生命周期正确
+
+---
+
+## T36 — DesignTree + ParameterPanel QML 重构
+
+**Phase**: 13 — UI 完善  
+**依赖**: T34(DesignWorkbench)  
+**推荐模型**: Sonnet  
+**预计规模**: ~500 行  
+
+**参考**: architecture.md §9.2, §9.3
+
+### 交付物
+- `ui/panels/DesignTree.qml` — 左侧可折叠设计树
+- `ui/panels/ParameterPanel.qml` — 右侧可折叠，含管点表格+属性面板+模式切换按钮
+- `ui/panels/PropertyPanel.qml` — 动态属性面板（分组+编辑/只读模式切换）
+- `ui/panels/PipePointTable.qml` — 管点表格（嵌入 ParameterPanel）
+- 更新 `ui/main.qml` — DesignWorkbench 布局适配
+
+### 验收标准
+1. 设计树可折叠/展开，层级显示 Route→Segment→PipePoint→Accessory
+2. 参数化面板可折叠/展开，独立于设计树
+3. 属性面板支持编辑模式/只读模式切换（底部按钮）
+4. 选中管点时属性面板动态切换内容
+5. 管点表格可直接编辑坐标值
+
+---
+
+## T37 — OCCT→VTK 网格转换
+
+**Phase**: 11 — VTK 可视化  
+**依赖**: T04(OCCT 网格化) — 已完成, T32(Load 模型,用于 VTK 中显示载荷箭头)  
+**推荐模型**: Sonnet  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §12 Step 20, lib/vtk/AGENTS.md
+
+### 交付物
+- `src/vtk-visualization/OcctToVtk.h` / `OcctToVtk.cpp`
+- `src/vtk-visualization/BeamMeshBuilder.h` / `BeamMeshBuilder.cpp`
+- `src/vtk-visualization/CMakeLists.txt`
+- `tests/test_occt_to_vtk.cpp`
+
+### 接口定义
+```cpp
+namespace vtk_vis {
+    vtkSmartPointer<vtkPolyData> toVtkPolyData(const TopoDS_Shape& shape);
+    vtkSmartPointer<vtkPolyData> buildBeamMesh(const std::vector<gp_Pnt>& centerline);
+}
+```
+
+### 验收标准
+1. TopoDS_Shape (圆柱/弯管) → vtkPolyData 转换成功，点数/面数 > 0
+2. BeamMeshBuilder 从管路中心线生成 vtkPolyLine
+3. 单元测试通过，不依赖 GPU
+
+---
+
+## T38 — VTK 场景管理
+
+**Phase**: 11 — VTK 可视化  
+**依赖**: T37(OCCT→VTK)  
+**推荐模型**: Sonnet  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §8 vtk-visualization/
+
+### 交付物
+- `src/vtk-visualization/VtkSceneManager.h` / `VtkSceneManager.cpp`
+- `tests/test_vtk_scene.cpp`
+
+### 接口定义
+```cpp
+class VtkSceneManager {
+    void addActor(const std::string& uuid, vtkSmartPointer<vtkActor> actor);
+    void removeActor(const std::string& uuid);
+    void updateActor(const std::string& uuid, vtkSmartPointer<vtkActor> actor);
+    void setRenderMode(RenderMode mode);  // Solid ↔ Beam 切换 Actor 可见性
+    vtkSmartPointer<vtkRenderer> renderer() const;
+};
+```
+
+### 验收标准
+1. 增删 Actor 正常工作
+2. Solid/Beam 模式切换通过 Actor 可见性控制
+3. renderer() 返回有效 vtkRenderer
+
+---
+
+## T39 — 工作台切换 + QML 面板动态加载
+
+**Phase**: 10 — 工作台拆分  
+**依赖**: T34(DesignWorkbench), T35(SpecWorkbench)  
+**推荐模型**: **Opus**  
+**预计规模**: ~500 行  
+
+**参考**: architecture.md §6.7, §9.6
+
+### 交付物
+- 更新 `ui/panels/TopBar.qml` — 三工作台切换标签
+- 更新 `ui/main.qml` — 根据 panelIds 动态加载/卸载面板
+- 更新 `src/ui/WorkbenchController.h/cpp` — 桥接三工作台
+- `tests/test_workbench_switch.cpp`
+
+### 验收标准
+1. TopBar 显示 Specification / Design / Analysis 三个标签
+2. 切换工作台时工具栏自动更换
+3. 切换工作台时面板动态加载/卸载（不崩溃）
+4. Design → Analysis 切换时视口引擎从 VSG 切到 VTK（通过 ViewManager）
+5. 文档数据在切换后保持不变
+
+---
+
+## T40 — StatusBar + 右键菜单 + 框选
+
+**Phase**: 13 — UI 完善  
+**依赖**: T36(DesignTree+ParameterPanel)  
+**推荐模型**: Sonnet  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §9.6, §10.1.2, §10.3
+
+### 交付物
+- `ui/panels/StatusBar.qml` — 三区状态栏（选中对象信息 | 鼠标3D坐标 | 缩放）
+- `ui/components/ContextMenu.qml` — 右键菜单（修改/查看/删除）
+- 更新 `src/visualization/PickHandler` — 管点/管段选择 + 框选逻辑
+
+### 验收标准
+1. StatusBar 左区显示选中管件名称、类型、坐标
+2. StatusBar 中区显示鼠标 3D 世界坐标
+3. 右键菜单显示修改/查看/删除三个选项
+4. 修改 → 参数化面板编辑模式，查看 → 只读模式
+5. 左拖框选: 左→右 = Window，右→左 = Crossing
+
+---
+
+## T41 — ComponentToolStrip 元件插入工具条
+
+**Phase**: 13 — UI 完善  
+**依赖**: T31(ComponentCatalog), T36(DesignTree+ParameterPanel)  
+**推荐模型**: Sonnet  
+**预计规模**: ~300 行  
+
+**参考**: architecture.md §6.5.1
+
+### 交付物
+- `ui/components/ComponentToolStrip.qml` — 双列图标条
+- 更新 `src/ui/AppController` — 处理元件插入动作
+
+### 验收标准
+1. Fittings 列 6 个图标 + Accessories 列 5 个图标
+2. 点击图标触发对应的管件/附件插入流程
+3. Fittings 列贴近视口，Accessories 列贴近参数面板
+
+---
+
+## T42 — VTK-QML 桥接
+
+**Phase**: 11 — VTK 可视化  
+**依赖**: T38(VTK 场景管理)  
+**推荐模型**: **Opus**  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §8, lib/vtk/AGENTS.md
+
+### 交付物
+- `src/vtk-visualization/VtkViewport.h` / `VtkViewport.cpp`
+- `ui/panels/VtkViewport.qml`
+- `tests/test_vtk_qml.cpp`
+
+### 验收标准
+1. VTK 渲染嵌入 QML 窗口，画面正确
+2. 鼠标交互（旋转/平移/缩放）正常
+3. AnalysisWorkbench 切换时 VTK 视口正确加载
+
+---
+
+## T43 — 序列化扩展 (Load/LoadCase)
+
+**Phase**: 14 — 集成 & 序列化  
+**依赖**: T33(LoadCase/Combo), T20(JSON序列化) — 已完成  
+**推荐模型**: Sonnet  
+**预计规模**: ~400 行  
+
+**参考**: architecture.md §6.9
+
+### 交付物
+- 更新 `src/app/ProjectSerializer.h/cpp` — 支持 Load/LoadCase/LoadCombination 的 JSON 读写
+- 更新 `src/app/DependencyGraph` — Load→LoadCase→LoadCombination 依赖链
+- `tests/test_load_serialization.cpp`
+
+### 验收标准
+1. 7 种 Load 子类均可序列化/反序列化
+2. LoadCase + LoadCombination round-trip 正确
+3. 依赖图扩展: Load 变更 → 标脏 LoadCase → 标脏 LoadCombination
+4. Undo/Redo 对载荷操作正确
+
+---
+
+## T44 — AnalysisWorkbench 工作台实现
+
+**Phase**: 12 — AnalysisWorkbench  
+**依赖**: T39(工作台切换), T42(VTK-QML桥接), T33(LoadCase/Combo)  
+**推荐模型**: **Opus**  
+**预计规模**: ~600 行  
+
+**参考**: architecture.md §6.6
+
+### 交付物
+- `src/app/AnalysisWorkbench.h` / `AnalysisWorkbench.cpp`
+- `ui/panels/AnalysisTree.qml`
+- `ui/panels/LoadTable.qml`
+- `ui/panels/LoadCaseTable.qml`
+- `tests/test_analysis_workbench.cpp`
+
+### 接口定义
+```cpp
+class AnalysisWorkbench : public Workbench {
+    std::string name() override;            // "Analysis"
+    ViewportType viewportType() override;   // Vtk
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+};
+```
+
+### 验收标准
+1. AnalysisWorkbench 注册并可激活
+2. toolbarActions 包含 toggle-render-mode, add-load, manage-loadcase 等
+3. 分析树 (AnalysisTree) 显示 Loads/LoadCases/Combinations 三级树
+4. LoadTable 和 LoadCaseTable 可编辑
+5. Solid/Beam 渲染模式切换正常
+6. 从 Design 切换到 Analysis 不崩溃
+
+---
+
+## T45 — 端到端集成测试
+
+**Phase**: 14 — 集成 & 序列化  
+**依赖**: T44(AnalysisWorkbench), T41(ComponentToolStrip), T43(序列化扩展)  
+**推荐模型**: **Opus**  
+**预计规模**: ~600 行  
+
+### 交付物
+- `tests/test_phase2_integration.cpp`
+
+### 验收标准
+1. **Spec→Design→Analysis 全流程**: 创建 PipeSpec → 设计管路(多个管点+弯头) → 添加载荷 → 创建工况组合
+2. **工作台切换**: Design ↔ Analysis 来回切换，数据和视口状态正确恢复
+3. **序列化 round-trip**: 保存→加载→所有对象(含载荷/工况)完整恢复
+4. **Undo/Redo**: 跨工作台操作的事务回退正确
+5. **渲染模式切换**: Solid ↔ Beam 切换不崩溃
+6. **编译零错误零警告**

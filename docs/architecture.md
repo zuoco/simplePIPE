@@ -1,12 +1,12 @@
 # 管道系统参数化建模软件 — 架构设计文档
 
-> **版本**: 0.1.0 | **日期**: 2026-03-27 | **状态**: 初始设计
+> **版本**: 0.2.0 | **日期**: 2026-03-28 | **状态**: 二期设计更新
 
 ---
 
 ## 1. 概述
 
-基于 **OCCT**(几何内核) + **VSG**(Vulkan 渲染) + **QML**(UI 框架) 构建海上油气/风电平台管道系统参数化建模软件。
+基于 **OCCT**(几何内核) + **VSG**(Vulkan 渲染) + **VTK**(分析可视化) + **QML**(UI 框架) 构建海上油气/风电平台管道系统参数化建模与应力分析软件。
 
 **核心设计理念**: 以 **管点(PipePoint)** 为中心的数据模型 — 管点是带坐标和类型的文档对象，管件几何由管点序列 + 管线特性(PipeSpec) 推导生成。管点按段(Segment)组织，段按树状结构组成路由(Route)。
 
@@ -30,7 +30,8 @@
 | **连接方式** | 仅法兰连接 |
 | **UI** | QML (表格输入管点) + VSG 渲染到纹理(FBO) |
 | **数据格式** | 工程文件用 JSON(只存参数); STEP 仅作为几何导出格式 |
-| **VTK** | 架构预留 CAE 后处理，初期不集成 |
+| **VTK** | AnalysisWorkbench 采用 VTK 渲染，支持实体/线条(梁单元)双渲染模式 |
+| **工作台** | 三工作台: Specification(规格管理) / Design(路由设计) / Analysis(应力分析) |
 | **规模** | 海上平台, 5k-30k 构件 |
 | **单位制** | 初期全公制(mm/deg/MPa)，内部统一公制存储，单位转换后续增加 |
 
@@ -45,18 +46,26 @@ DocumentObject (基类: ID + name, 无坐标)
   │
   ├─── SpatialObject (有坐标基类: + position:gp_Pnt)
   │      ├── PipePoint       管点 (类型枚举 + PipeSpec引用 + 类型参数)
-  │      ├── Accessory       附属构件基类 (关联管点引用 + offset)
-  │      │    ├── FixedPoint 固定点
-  │      │    ├── Support    支架
-  │      │    ├── Flange     法兰
-  │      │    ├── Gasket     垫片
-  │      │    └── SealRing   密封圈
+  │      ├── Accessory       附属构件基类 (关联管点引用 + offset + subType)
+  │      │    ├── Support    支撑件 (subType: Rigid/Spring/Constant/Shoe/Trunnion/Guide)
+  │      │    ├── Restraint  限位件 (subType: Anchor/LineStop/Snubber)
+  │      │    ├── Flange     法兰   (subType: WeldNeck/SlipOn/Blind)
+  │      │    └── Gasket     密封件 (subType: SpiralWound/RingJoint)
   │      └── Beam            梁 (双端管点引用 + 截面参数)
   │
   ├─── PropertyObject (无坐标基类: 属性/配置文档)
   │      ├── PipeSpec        管线特性 (可扩展字段: OD/WT/材料...)
   │      ├── ProjectConfig   工程配置 (名称/作者/标准/单位制/重力方向)
-  │      └── (后续扩展: 载荷定义/材料库/标准规格...)
+  │      ├── Load            载荷基类 (作用范围 + 载荷类型标识)
+  │      │    ├── DeadWeightLoad    自重载荷
+  │      │    ├── ThermalLoad       热载荷 (安装温度/操作温度)
+  │      │    ├── PressureLoad      压力载荷 (内压/外压)
+  │      │    ├── WindLoad          风载荷 (风速/方向)
+  │      │    ├── SeismicLoad       地震载荷 (加速度/方向)
+  │      │    ├── DisplacementLoad  位移载荷 (强制位移/转角)
+  │      │    └── UserDefinedLoad   自定义载荷 (集中力/力矩)
+  │      ├── LoadCase        基本工况 (一种物理状态下的载荷集合)
+  │      └── LoadCombination 组合工况 (按规范对基本工况进行代数运算)
   │
   └─── ContainerObject (无坐标: 组织容器, 关联起始管点)
          ├── Segment         段 (有序管点列表 + 段ID + 关联起始管点)
@@ -99,6 +108,8 @@ A06F = Far端(靠近A07)
 弯头角度 θ = π - angle(A05→A06, A06→A07)
 ```
 
+**关键特性**: 弯头上的 4 个管点(A06/A06N/A06M/A06F)都是 **可选择的 SpatialObject**，各自拥有精确坐标。这对 AnalysisWorkbench 至关重要 — 弯头上的每个管点可以独立添加载荷（如在 A06N 上施加集中力、在 A06M 上挂载支撑等）。在 3D 视口中，这 4 个管点均可被拾取和高亮。
+
 ### 3.4 管线特性(PipeSpec)
 
 ```
@@ -137,8 +148,133 @@ ProjectConfig {
 | **Bend** | 弯管壳, R=OD×mult, 角度由交点和前后方向计算, N/M/F由R和角度导出 |
 | **Reducer** | 锥壳, 大端OD=前段PipeSpec.OD, 小端OD=后段PipeSpec.OD |
 | **Tee** | 主管+支管融合, 主管OD=当前PipeSpec.OD, 支管OD=分支段PipeSpec.OD |
-| **Valve** | 参数化阀体, 端口OD=PipeSpec.OD, 阀体尺寸由valveType+OD决定 |
+| **Valve** | 参数化阀体, 端口OD=PipeSpec.OD, 阀体尺寸由valveSubType+OD查ComponentCatalog模板生成 |
 | **FlexJoint** | 波纹管壳, OD=PipeSpec.OD, 长度=两点距离 |
+
+### 3.7 参数化构件模板库 (ComponentCatalog)
+
+管道软件与通用 CAD 的核心差异：构件形状拓扑固定，尺寸按管径参数化缩放。不需要草图系统或 STEP 文件库，而是**参数化生成规则的代码库**。
+
+```
+ComponentCatalog (单例, Layer 4: engine/)
+  │
+  ├── FittingTemplate (管线构件模板基类)
+  │     ├── PipeTemplate          直管 — 圆柱壳
+  │     ├── ElbowTemplate         弯头 — 弯管壳
+  │     ├── TeeTemplate           三通 — 主管+支管融合
+  │     ├── ReducerTemplate       异径管 — 锥壳
+  │     ├── ValveTemplate         阀门
+  │     │     ├── GateValve       闸阀 — 阀体+手轮
+  │     │     ├── GlobeValve      截止阀 — 球形阀体
+  │     │     ├── BallValve       球阀 — 扁圆阀体+操作手柄
+  │     │     ├── CheckValve      止回阀 — 非对称阀体
+  │     │     └── ButterflyValve  蝶阀 — 薄盘片阀体
+  │     └── FlangeTemplate        法兰
+  │           ├── WeldNeckFlange  对焘法兰
+  │           ├── SlipOnFlange    平焘法兰
+  │           └── BlindFlange     盲板法兰
+  │
+  └── AccessoryTemplate (附属构件模板基类)
+        ├── SupportTemplate       支撑件
+        │     ├── RigidSupport    刚性支撑 — 简单底板+立柱
+        │     ├── SpringHanger    弹簧支吊架 — 弹簧体+吊杆
+        │     ├── ConstantHanger  恒力支吊架 — 恒力机构
+        │     ├── PipeShoe        管鞋/管托 — U形或鞍形
+        │     ├── Trunnion        耳轴 — 圆管+底板
+        │     └── Guide           导向 — 两侧挡板
+        ├── RestraintTemplate     限位
+        │     ├── Anchor          锚固 — 全约束块
+        │     ├── LineStop        限位挡 — 单向/双向挡板
+        │     └── Snubber         减振器 — 液压缸体
+        └── GasketTemplate       密封
+              ├── SpiralWound     缠绕垫片 — 扁环
+              └── RingJoint       环连接垫片 — 八角截面环
+```
+
+#### 3.7.1 模板的核心职责
+
+每个模板定义三样东西:
+
+**1. 参数表** — 由管径 OD 驱动，所有尺寸都是 OD 的函数:
+```cpp
+struct ComponentParams {
+    double od;              // 管外径 (mm) — 主驱动参数
+    double wallThickness;   // 壁厚 (mm)
+    double bodyLength;      // 构件长度
+    double bodyWidth;       // 构件宽度
+    double bodyHeight;      // 构件高度
+    // ... 各类型有不同参数
+};
+```
+
+**2. 尺寸比例规则** — 保证任何管径下构件外观协调:
+```cpp
+// 示例: 闸阀的参数化规则
+ComponentParams GateValveTemplate::deriveParams(double od, double wt) {
+    return {
+        .od = od,
+        .wallThickness = wt,
+        .bodyLength  = od * 1.2,      // 阀体长 ≈ 1.2×OD
+        .bodyWidth   = od * 1.5,      // 阀体宽 ≈ 1.5×OD
+        .bodyHeight  = od * 3.0,      // 含手轮高 ≈ 3.0×OD
+        .stemDia     = od * 0.15,     // 阀杆直径
+        .handwheelDia = od * 1.8,     // 手轮直径
+    };
+}
+```
+
+**3. 固定拓扑的几何生成** — 形状拓扑写死，尺寸参数化:
+```cpp
+class ComponentTemplate {
+public:
+    virtual ~ComponentTemplate() = default;
+    virtual std::string templateId() const = 0;
+    virtual ComponentParams deriveParams(double od, double wt) const = 0;
+    virtual TopoDS_Shape buildShape(const ComponentParams& p) const = 0;
+};
+```
+
+#### 3.7.2 ComponentCatalog 注册表
+
+```cpp
+class ComponentCatalog {
+public:
+    static ComponentCatalog& instance();
+    void registerTemplate(std::unique_ptr<ComponentTemplate> tpl);
+    ComponentTemplate* getTemplate(const std::string& templateId) const;
+    std::vector<std::string> allTemplateIds() const;
+};
+```
+
+初始化时注册所有内置模板，`GeometryDeriver` 通过 templateId 查表获取对应模板:
+```
+用户操作: 插入闸阀  →  PipePoint.type=Valve, valveSubType="GateValve"
+  → GeometryDeriver: catalog.getTemplate("GateValve")
+  → deriveParams(OD=168.3, WT=7.11)
+  → buildShape(params) → TopoDS_Shape
+  → OcctToVsg → 3D 渲染
+```
+
+#### 3.7.3 与现有 Builder 的关系
+
+现有的 `*Builder` 类是模板的雏形。演进路径:
+
+| 现状 | 演进后 |
+|------|--------|
+| `ValveBuilder::build(point, spec)` — 生成一种阀门 | `ComponentCatalog::getTemplate("GateValve") → buildShape(params)` |
+| `AccessoryBuilder::build(acc)` — 生成一种支撑 | `ComponentCatalog::getTemplate("SpringHanger") → buildShape(params)` |
+| 参数硬编码在 Builder 里 | 提取为独立的 `deriveParams()` 规则 |
+| 无统一注册/查询机制 | `ComponentCatalog` 单例查表 |
+
+`GeometryDeriver` 仍为统一入口，内部从 `ComponentCatalog` 获取模板而非硬编码分发。
+
+#### 3.7.4 方案对比
+
+| 方案 | 适合场景 | 本项目选择 |
+|------|---------|----------|
+| **STEP 文件库** — 预存各种尺寸的 3D 文件 | 通用零件库(McMaster-Carr) | ✘ 组合爆炸 |
+| **参数化代码模板** — 代码写死拓扑，运行时按 OD 生成 | PDS/PDMS/E3D 的标准做法 | ✔ 采用 |
+| **脚本化模板** — DSL/Python 定义构件 | 需要用户自定义构件时 | 后续可扩展 |
 
 ---
 
@@ -153,7 +289,7 @@ ProjectConfig {
 │  (文档管理/Undo-Redo/选择管理/工作台系统)      │
 ├─────────────────────────────────────────────┤
 │     Layer 5: Visualization Bridge           │
-│  (OCCT Mesh→VSG SceneGraph / 拾取 / LOD)    │
+│  (ViewManager/VSG场景/VTK场景/拾取/LOD)      │
 ├─────────────────────────────────────────────┤
 │     Layer 4: Pipeline Domain Engine         │
 │  (几何推导/路由拓扑/约束求解/校验)            │
@@ -315,24 +451,36 @@ pixi shell                      # 进入pixi环境
 
 ### 6.1 设计理念
 
-类似 FreeCAD 的 Workbench 机制 — 每个工作台定义自己的工具栏、面板组合和 3D 渲染模式。切换工作台改变 UI 工具集和面板布局，但**文档模型(Layer 3)共享**。
+类似 FreeCAD 的 Workbench 机制 — 每个工作台定义自己的工具栏、面板组合和 3D 渲染模式。切换工作台改变 UI 工具集、面板布局和视口引擎，但**文档模型(Layer 3)共享**。
 
 ### 6.2 工作台列表
 
-| 工作台 | 状态 | 职责 | 视口引擎 |
-|--------|------|------|----------|
-| **CAD** | 当前开发 | 管道系统参数化建模 | VSG (Vulkan) |
-| **CAE** | 未来阶段 | 有限元分析后处理 | VTK |
+| 内部类名 | 中文专业名 | 英文名 | `name()` 返回值 | 视口引擎 |
+|----------|-----------|--------|-----------------|----------|
+| `SpecWorkbench` | 管线规格管理 | Piping Specification | `"Specification"` | VSG (可选预览) |
+| `DesignWorkbench` | 管线路由设计 | Piping Routing & Layout | `"Design"` | VSG (Vulkan) |
+| `AnalysisWorkbench` | 管道应力分析 | Pipe Stress Analysis | `"Analysis"` | VTK |
+
+**命名说明**:
+- **Specification** 是管道行业通用术语（对应 ASME/EN 的 Piping Spec 概念），涵盖规范选择、参数管理、Pipe Class 定义
+- **Design** 是主力建模工作台，"Piping Routing & Layout" 是行业标准说法
+- **Pipe Stress Analysis** 是管道应力分析的行业标准叫法（CAESAR II、AutoPIPE、ROHR2 等均采用），管道行业做的是梁单元应力分析
 
 ### 6.3 核心抽象
 
 ```cpp
+// 视口引擎类型
+enum class ViewportType { Vsg, Vtk };
+
+// 渲染模式（仅 AnalysisWorkbench 使用）
+enum class RenderMode { Solid, Beam };
+
 // Workbench (abstract, Layer 6: app/)
 class Workbench {
     virtual string name() = 0;
-    virtual void activate(Document&, AppContext&) = 0;
-    virtual void deactivate() = 0;
-    virtual vector<Action> toolbarActions() = 0;
+    virtual void activate(Document&) = 0;
+    virtual void deactivate(Document&) = 0;
+    virtual vector<ToolbarAction> toolbarActions() = 0;
     virtual vector<string> panelIds() = 0;
     virtual ViewportType viewportType() = 0;  // VSG | VTK
 };
@@ -340,26 +488,313 @@ class Workbench {
 // WorkbenchManager (Layer 6: app/)
 class WorkbenchManager {
     void registerWorkbench(unique_ptr<Workbench>);
-    void switchWorkbench(string name);
+    bool switchWorkbench(string name);
     Workbench* activeWorkbench();
     vector<string> workbenchNames();
 };
-
-// CadWorkbench : Workbench
-//   panelIds = {StructureTree, Viewport3D, PipePointTable, PropertyPanel, PipeSpecEditor}
-//   toolbarActions = {新建段/添加管点/添加附属/测量/STEP导出}
-//   viewportType = VSG
-
-// CaeWorkbench : Workbench (未来)
-//   panelIds = {ResultTree, VtkViewport, ColorMapPanel, CutPlanePanel}
-//   viewportType = VTK
 ```
 
-### 6.4 切换机制
+### 6.4 SpecWorkbench — 管线规格管理
 
-- TopBar 显示工作台切换标签（CAD / CAE）
-- 切换时: `WorkbenchManager::switchWorkbench()` → 旧工作台 `deactivate()` + 新工作台 `activate()` → `workbenchChanged` 信号 → QML 根据 `panelIds()` 动态加载/卸载面板
+管理行业规范、企业标准、自定义参数、管线等级(Pipe Class)定义。作为全系统的规则与参数源头。当前支持自定义参数，后续接入行业规范标准。
+
+**工具栏**:
+
+| ID | 标签 | 说明 |
+|----|------|------|
+| `new-spec` | 新建规格 | 创建新的 Piping Spec（管线等级） |
+| `import-code` | 导入规范 | 从行业标准模板导入（预留） |
+| `add-material` | 添加材料 | 管材、法兰、弯头等材料条目 |
+| `add-component` | 添加元件 | 管件元件定义（壁厚、压力等级等） |
+| `validate` | 校验 | 检查规格完整性与一致性 |
+
+**面板**:
+```
+panelIds = { "SpecTree", "MaterialTable", "ComponentTable", "PropertyPanel" }
+viewportType = Vsg  // 可选：无视口或简单预览
+```
+
+### 6.5 DesignWorkbench — 管线路由设计
+
+基于已选规范与参数进行三维建模。这是主力建模工作台。
+
+**工具栏**: 由 TopBar 区域显示，切换工作台时自动更换。
+
+| ID | 标签 | 说明 |
+|----|------|------|
+| `new-segment` | 新建段 | 新建管线段 |
+| `add-point` | 添加管点 | 添加路由控制点 |
+| `measure` | 测量 | 距离/角度测量 |
+| `export-step` | STEP 导出 | 几何导出 |
+
+**面板**:
+```
+panelIds = { "DesignTree", "Viewport3D", "ComponentToolStrip", "ParameterPanel" }
+viewportType = Vsg
+```
+
+**布局** (详见 §9.2):
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│  TopBar (工作台切换 / 工具栏)                                               │
+├─────────┬──────────────────────────────────────────┬───┬───┬──────────────┤
+│         │                                          │   │   │              │
+│  设计树  │                                          │ F │ A │  参数化面板   │
+│ Design  │            3D 视口 (VSG)                  │ i │ c │  Parameter   │
+│  Tree   │                                          │ t │ c │   Panel      │
+│         │                                          │ t │ e │              │
+│  ◄ 可   │                                          │ i │ s │    可 ►      │
+│   折叠   │                                          │ n │ s │   折叠       │
+│         │                                          │ g │ o │              │
+│         │                                          │ s │ r │              │
+│         │                                          │   │ y │              │
+├─────────┴──────────────────────────────────────────┴───┴───┴──────────────┤
+│  StatusBar                                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **设计树 (DesignTree)**: 左侧，可折叠(←向左收起)，展示管线段、管点、管件、附属构件的层级关系
+- **参数化面板 (ParameterPanel)**: 右侧固定，可折叠(→向右收起)，包含管点表格、属性编辑
+- **元件插入工具条 (ComponentToolStrip)**: 贴在参数化面板内侧(靠近视口一侧)的双列图标条
+- 设计树与参数化面板**独立折叠/展开**，折叠后视口自动填满
+
+#### 6.5.1 ComponentToolStrip — 元件插入工具条
+
+两列图标条，贴在参数化面板靠近视口一侧的边缘。每种元件一个独立的插入按钮。
+
+**Fittings 列（管件）** — 紧贴视口侧:
+
+| 图标 ID | 说明 |
+|---------|------|
+| `insert-pipe` | 插入直管段 |
+| `insert-elbow` | 插入弯头 |
+| `insert-tee` | 插入三通 |
+| `insert-reducer` | 插入异径管（大小头） |
+| `insert-valve` | 插入阀门 |
+| `insert-flange` | 插入法兰 |
+
+**Accessories 列（附属构件）** — 紧贴参数化面板内容区:
+
+| 图标 ID | 说明 |
+|---------|------|
+| `insert-rigid-support` | 刚性支撑/锚固 |
+| `insert-spring-hanger` | 弹簧支吊架 |
+| `insert-guide` | 导向约束 |
+| `insert-restraint` | 位移限位器 |
+| `insert-beam` | 结构梁/支架 |
+
+Fittings 列始终紧贴视口（插入管件频率更高），Accessories 列始终紧贴参数化面板内容区。
+
+### 6.6 AnalysisWorkbench — 管道应力分析
+
+在路由设计完成后进入，定义载荷、组合工况、执行分析与失效评估。使用 VTK 渲染引擎。
+
+**工具栏**:
+
+| ID | 标签 | 说明 |
+|----|------|------|
+| `toggle-render-mode` | 切换渲染模式 | 实体 ↔ 线条（梁单元） |
+| `add-load` | 添加载荷 | 选择载荷类型并添加 |
+| `manage-loadcase` | 工况管理 | 创建/编辑/删除工况组合 |
+| `run-analysis` | 执行分析 | 运行当前工况计算（未来） |
+| `show-results` | 查看结果 | 应力/位移云图（未来） |
+
+**面板**:
+```
+panelIds = { "AnalysisTree", "VtkViewport", "LoadTable", "LoadCaseTable", "PropertyPanel" }
+viewportType = Vtk
+```
+
+#### 6.6.1 渲染模式
+
+| 模式 | 显示内容 | 技术实现 |
+|------|---------|----------|
+| **实体模式 (Solid)** | 与设计工作台相同的 3D 管件外观 | VTK `vtkPolyData` + Surface 渲染，数据来自 OCCT→VTK 网格转换 |
+| **线条模式 (Beam)** | 管系中心线 + 节点（梁单元网格） | VTK `vtkPolyLine`，数据来自管路拓扑中心线提取 |
+
+线条模式是管道应力分析的标准视图 — 每个管件对应一个或多个梁单元，节点在管件连接点上。
+
+```
+实体模式:
+  OCCT TopoDS_Shape → ShapeMesher::mesh() → MeshData → vtkPolyData → vtkActor (Surface)
+
+线条模式:
+  管路拓扑 → 提取中心线端点 → vtkPoints + vtkCellArray(Lines) → vtkPolyData → vtkActor
+  + 节点标记: vtkSphereSource / vtkGlyph3D → vtkActor
+  + 约束/载荷符号: vtkGlyph3D 叠加显示
+```
+
+渲染模式切换通过 `vtkActor` 可见性控制，不需重建场景:
+```cpp
+class AnalysisWorkbench : public Workbench {
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+};
+```
+
+### 6.7 切换机制
+
+- TopBar 显示工作台切换标签（Specification / Design / Analysis）
+- 切换时: `WorkbenchManager::switchWorkbench()` → 旧工作台 `deactivate()` + 新工作台 `activate()` → `workbenchChanged` 信号 → QML 根据 `panelIds()` 动态加载/卸载面板，根据 `toolbarActions()` 更换工具栏
 - Document 在工作台之间共享
+
+### 6.8 工作台间数据契约
+
+```
+┌──────────────┐    PipingSpec     ┌──────────────┐   Topology+Geometry   ┌──────────────┐
+│ Specification │ ───────────────→ │    Design     │ ────────────────────→ │   Analysis   │
+│  Workbench    │ 材料/壁厚/压力等级│   Workbench   │ 管路拓扑+3D几何      │   Workbench  │
+└──────────────┘                  └──────────────┘                       └──────────────┘
+```
+
+- **SpecWorkbench** 写入: `PipeSpec` 对象（材料、元件、压力等级表）
+- **DesignWorkbench** 读取 PipeSpec，写入: `PipeSegment`/`PipePoint`/附属构件拓扑
+- **AnalysisWorkbench** 读取拓扑+几何，写入: `Load`/`LoadCase`/`LoadCombination`
+
+### 6.9 载荷与工况数据模型
+
+载荷(Load)、基本工况(LoadCase)、组合工况(LoadCombination) 均为 `DocumentObject` 子类，完整纳入文档基础设施（UUID、属性系统、Undo/Redo、序列化、依赖图）。
+
+#### 6.9.1 Load 基类
+
+```cpp
+class Load : public DocumentObject {
+public:
+    virtual std::string loadType() const = 0;          // 类型标识，用于序列化/UI
+    virtual std::vector<UUID> affectedObjects() const;  // 作用到哪些管段/管点
+    void addAffectedObject(const UUID& id);
+    void removeAffectedObject(const UUID& id);
+protected:
+    std::vector<UUID> affectedObjectIds_;
+};
+```
+
+#### 6.9.2 具体载荷类型
+
+| 子类 | loadType | 特有参数 | 说明 |
+|------|----------|---------|------|
+| `DeadWeightLoad` | `"DeadWeight"` | _(无)_ | 自重由管件材料密度+壁厚自动计算 |
+| `ThermalLoad` | `"Thermal"` | `installTemp`, `operatingTemp` (°C) | 热膨胀载荷 |
+| `PressureLoad` | `"Pressure"` | `pressure` (MPa), `isExternal` (bool) | 内压/外压 |
+| `WindLoad` | `"Wind"` | `speed` (m/s), `direction` (Vec3) | 风载荷 |
+| `SeismicLoad` | `"Seismic"` | `acceleration` (g), `direction` (Vec3) | 地震载荷 |
+| `DisplacementLoad` | `"Displacement"` | `translation` (mm), `rotation` (deg) (Vec3) | 锚点强制位移 |
+| `UserDefinedLoad` | `"UserDefined"` | `force` (N), `moment` (N·mm) (Vec3) | 自定义集中力/力矩 |
+
+#### 6.9.3 LoadCase（基本工况）
+
+一个基本工况 = 一种**物理运行状态**下的载荷集合。每个基本工况对应求解器的一次独立运算。
+
+```cpp
+struct LoadEntry {
+    UUID loadId;      // 指向 Load 文档对象
+    double factor;    // 组合系数（通常 1.0）
+};
+
+class LoadCase : public DocumentObject {
+    std::string caseName_;              // "W", "T1", "P1" 等
+    std::vector<LoadEntry> entries_;
+};
+```
+
+**示例**:
+
+| 基本工况 | 包含载荷 |
+|---------|---------|
+| W（自重） | DeadWeightLoad × 1.0 |
+| T1（热态1） | ThermalLoad(150°C) × 1.0 |
+| P1（内压） | PressureLoad(2.5MPa) × 1.0 |
+| WN（北风） | WindLoad(+X, 30m/s) × 1.0 |
+| EQ（地震） | SeismicLoad(0.3g, +Z) × 1.0 |
+
+#### 6.9.4 LoadCombination（组合工况）
+
+组合工况 = 按**规范公式**将多个基本工况的结果进行代数运算，用于规范校核。
+
+```cpp
+enum class CombineMethod {
+    Algebraic,   // 代数叠加: Σ(factor × result)
+    Absolute,    // 绝对值叠加: Σ|factor × result|（保守）
+    SRSS,        // 平方和开方: √Σ(result²)（不相关载荷，如地震）
+    Envelope     // 包络: max/min across cases
+};
+
+enum class StressCategory {
+    Sustained,    // 持续应力 (SUS) — 自重+内压，不得超过 Sh
+    Expansion,    // 热膨胀应力 (EXP) — 热态-冷态，不得超过 Sa
+    Occasional,   // 偶然应力 (OCC) — 持续+风/地震，不得超过 1.33Sh
+    Operating,    // 操作工况 (OPE) — 检查位移和力
+    Hydrotest     // 水压试验 (HYD)
+};
+
+struct CaseEntry {
+    UUID caseId;     // 指向 LoadCase
+    double factor;   // 组合系数
+};
+
+class LoadCombination : public DocumentObject {
+    std::string comboName_;
+    StressCategory category_;
+    CombineMethod method_;
+    std::vector<CaseEntry> caseEntries_;
+};
+```
+
+**示例（B31.3 典型配置）**:
+
+| 组合工况 | 类别 | 方法 | 公式 |
+|---------|------|------|------|
+| SUS | Sustained | Algebraic | W×1.0 + P1×1.0 |
+| EXP | Expansion | Algebraic | T1×1.0 |
+| OPE | Operating | Algebraic | W×1.0 + T1×1.0 + P1×1.0 |
+| OCC1 | Occasional | Algebraic | W×1.0 + P1×1.0 + WN×1.0 |
+| OCC2 | Occasional | SRSS | W×1.0 + P1×1.0 + EQ×1.0 |
+
+#### 6.9.5 两层设计的理由
+
+| 方面 | 说明 |
+|------|------|
+| **依赖关系** | 严格 DAG: LoadCombination → LoadCase → Load → 管段/管点 |
+| **求解分离** | 基本工况 = 独立求解任务，组合工况 = 后处理代数运算 |
+| **规范校核** | `StressCategory` 自然属于 Combination 层 |
+| **组合方法** | Algebraic/SRSS/Envelope 只在 Combination 层，语义清晰 |
+| **复用** | 一个 LoadCase 可被多个 Combination 引用 |
+
+#### 6.9.6 AnalysisWorkbench 设计树结构
+
+```
+📁 载荷 (Loads)
+  ├── 🏋 自重 (DeadWeight)
+  ├── 🌡 热载荷-操作 (Thermal 150°C)
+  ├── 📐 内压 (Pressure 2.5MPa)
+  ├── 💨 风载荷-北风 (Wind +X)
+  └── 🌊 地震 (Seismic 0.3g)
+
+📁 基本工况 (Load Cases)
+  ├── W  — 自重
+  ├── T1 — 热态操作
+  ├── P1 — 内压
+  ├── WN — 北风
+  └── EQ — 地震
+
+📁 组合工况 (Combinations)
+  ├── SUS — 持续应力 [W+P1]
+  ├── EXP — 热膨胀应力 [T1]
+  ├── OPE — 操作工况 [W+T1+P1]
+  ├── OCC1 — 偶然-风 [W+P1+WN]
+  └── OCC2 — 偶然-地震 [W+P1+EQ] (SRSS)
+```
+
+#### 6.9.7 依赖图集成
+
+全部纳入现有 `DependencyGraph`，支持级联重算：
+
+| 触发变更 | 标脏范围 |
+|---------|---------|
+| Load 参数修改 | 引用该 Load 的所有 LoadCase |
+| LoadCase 修改 | 引用该 LoadCase 的所有 LoadCombination |
+| 管段/管点坐标修改 | 作用于此管段的所有 Load |
+| PipeSpec 修改 | 影响的管点 → 关联的 Load |
 
 ---
 
@@ -468,22 +903,44 @@ qml-vsg-occt/
 │   │   ├── Segment.h/cpp            # 段
 │   │   ├── Route.h/cpp              # 路由
 │   │   ├── Beam.h/cpp               # 梁
-│   │   ├── Accessory.h/cpp          # 附属构件基类
-│   │   ├── FixedPoint.h/cpp         # 固定点
-│   │   ├── Support.h/cpp            # 支架
-│   │   ├── Flange.h/cpp             # 法兰
-│   │   ├── Gasket.h/cpp             # 垫片
-│   │   └── SealRing.h/cpp           # 密封圈
+│   │   ├── Accessory.h/cpp          # 附属构件基类(+subType)
+│   │   ├── Support.h/cpp            # 支撑件(Rigid/Spring/Constant/Shoe/Trunnion/Guide)
+│   │   ├── Restraint.h/cpp          # 限位件(Anchor/LineStop/Snubber)
+│   │   ├── Flange.h/cpp             # 法兰(WeldNeck/SlipOn/Blind)
+│   │   ├── Gasket.h/cpp             # 密封件(SpiralWound/RingJoint)
+│   │   ├── Load.h/cpp               # 载荷基类
+│   │   ├── DeadWeightLoad.h/cpp     # 自重载荷
+│   │   ├── ThermalLoad.h/cpp        # 热载荷
+│   │   ├── PressureLoad.h/cpp       # 压力载荷
+│   │   ├── WindLoad.h/cpp           # 风载荷
+│   │   ├── SeismicLoad.h/cpp        # 地震载荷
+│   │   ├── DisplacementLoad.h/cpp   # 位移载荷
+│   │   ├── UserDefinedLoad.h/cpp    # 自定义载荷
+│   │   ├── LoadCase.h/cpp           # 基本工况
+│   │   └── LoadCombination.h/cpp    # 组合工况
 │   ├── engine/                      # Layer 4 - 管道领域引擎
-│   │   ├── GeometryDeriver.h/cpp    # 统一几何推导入口
+│   │   ├── ComponentCatalog.h/cpp   # 参数化构件模板注册表(单例)
+│   │   ├── ComponentTemplate.h      # 模板基类(deriveParams+buildShape)
+│   │   ├── templates/               # 各构件参数化模板
+│   │   │   ├── PipeTemplate.h/cpp
+│   │   │   ├── ElbowTemplate.h/cpp
+│   │   │   ├── TeeTemplate.h/cpp
+│   │   │   ├── ReducerTemplate.h/cpp
+│   │   │   ├── GateValveTemplate.h/cpp
+│   │   │   ├── GlobeValveTemplate.h/cpp
+│   │   │   ├── BallValveTemplate.h/cpp
+│   │   │   ├── CheckValveTemplate.h/cpp
+│   │   │   ├── ButterflyValveTemplate.h/cpp
+│   │   │   ├── WeldNeckFlangeTemplate.h/cpp
+│   │   │   ├── SlipOnFlangeTemplate.h/cpp
+│   │   │   ├── BlindFlangeTemplate.h/cpp
+│   │   │   ├── RigidSupportTemplate.h/cpp
+│   │   │   ├── SpringHangerTemplate.h/cpp
+│   │   │   ├── PipeShoeTemplate.h/cpp
+│   │   │   ├── AnchorTemplate.h/cpp
+│   │   │   └── ...(其他模板)
+│   │   ├── GeometryDeriver.h/cpp    # 统一几何推导入口(通过Catalog查模板)
 │   │   ├── BendCalculator.h/cpp     # 弯头几何计算
-│   │   ├── RunBuilder.h/cpp         # 管段几何
-│   │   ├── ReducerBuilder.h/cpp     # 异径接头几何
-│   │   ├── TeeBuilder.h/cpp         # 三通几何
-│   │   ├── ValveBuilder.h/cpp       # 阀门几何
-│   │   ├── FlexJointBuilder.h/cpp   # 柔性接头几何
-│   │   ├── BeamBuilder.h/cpp        # 梁几何
-│   │   ├── AccessoryBuilder.h/cpp   # 附属构件几何
 │   │   ├── TopologyManager.h/cpp    # 路由拓扑管理
 │   │   ├── ConstraintSolver.h/cpp   # 约束求解
 │   │   ├── PipelineValidator.h/cpp  # 干涉检测/校验
@@ -498,9 +955,59 @@ qml-vsg-occt/
 │   │   ├── VsgViewport.h/cpp        # VSG渲染器
 │   │   ├── CameraController.h/cpp   # 相机控制
 │   │   ├── SceneFurniture.h/cpp     # 坐标轴/网格/背景
-│   │   └── PickHandler.h/cpp        # 3D拾取
+│   │   ├── PickHandler.h/cpp        # 3D拾取
+│   │   └── ViewManager.h/cpp        # 视图管理(视口路由+渲染状态+交互协调)
+│   ├── vtk-visualization/           # Layer 5b - VTK可视化 (Analysis)
+│   │   ├── OcctToVtk.h/cpp          # OCCT→VTK网格转换
+│   │   ├── VtkSceneManager.h/cpp    # VTK场景管理
+│   │   ├── BeamMeshBuilder.h/cpp    # 管路中心线→梁单元网格
+│   │   └── VtkViewport.h/cpp        # VTK渲染器
 │   ├── app/                         # Layer 6
-│   │   ├── Document.h/cpp           # 文档容器
+│   │   ├── Application.h/cpp        # 中央单例(Meyers' Singleton, 线程安全)
+
+`Application` 是中央单例，持有所有管理器，使用 `std::call_once` 保证线程安全初始化:
+
+```cpp
+class Application {
+    static void init();                        // main() 最前面调用（一次）
+    static Application& instance();            // 全局访问（init 未调用则抛异常）
+    static void destroy();                     // 可选，测试重置用
+
+    Document&           document();
+    DependencyGraph&    dependencyGraph();
+    TransactionManager& transactionManager();
+    SelectionManager&   selectionManager();
+    WorkbenchManager&   workbenchManager();
+};
+// 任意位置访问: Application::instance().document().findByName("A06")
+```
+│   │   ├── Document.h/cpp           # 文档容器(所有文档对象的管理员)
+
+`Document` 是全局唯一的文档对象管理器，持有所有 `DocumentObject` 的 `shared_ptr`，提供查找接口:
+
+```cpp
+class Document {
+    // 增删
+    void addObject(std::shared_ptr<DocumentObject> obj);
+    bool removeObject(const UUID& id);
+
+    // 按 ID 查找
+    DocumentObject* findObject(const UUID& id) const;                  // 裸指针
+    std::shared_ptr<DocumentObject> findObjectShared(const UUID& id) const;
+
+    // 按名称查找
+    std::shared_ptr<DocumentObject> findByName(const std::string& name) const;
+
+    // 按类型查找
+    template<typename T> std::vector<T*> findByType() const;                              // → vector
+    template<typename T> std::map<std::string, std::shared_ptr<T>> findByTypeIdMap() const;   // → map<ID, ptr>
+    template<typename T> std::map<std::string, std::shared_ptr<T>> findByTypeNameMap() const; // → map<名称, ptr>
+
+    // 遍历 & 统计
+    void forEach(const std::function<void(DocumentObject&)>& fn) const;
+    std::size_t objectCount() const;
+};
+```
 │   │   ├── TransactionManager.h/cpp # 事务管理
 │   │   ├── DependencyGraph.h/cpp    # 依赖图
 │   │   ├── ProjectSerializer.h/cpp  # JSON序列化
@@ -508,7 +1015,9 @@ qml-vsg-occt/
 │   │   ├── StepExporter.h/cpp       # STEP导出
 │   │   ├── Workbench.h              # 工作台基类
 │   │   ├── WorkbenchManager.h/cpp   # 工作台管理
-│   │   └── CadWorkbench.h/cpp       # CAD工作台
+│   │   ├── SpecWorkbench.h/cpp      # 管线规格管理工作台
+│   │   ├── DesignWorkbench.h/cpp    # 管线路由设计工作台
+│   │   └── AnalysisWorkbench.h/cpp  # 管道应力分析工作台
 │   └── ui/                          # Layer 7 - QML Bridge
 │       ├── VsgQuickItem.h/cpp       # QQuickFramebufferObject
 │       ├── AppController.h/cpp      # QML控制器
@@ -522,18 +1031,26 @@ qml-vsg-occt/
 │   ├── style/
 │   │   └── Theme.qml                # 颜色/字体常量
 │   ├── components/                  # 可复用QML组件
-│   │   ├── CollapsiblePanel.qml
+│   │   ├── CollapsiblePanel.qml     # 可折叠面板容器
 │   │   ├── SplitView.qml
 │   │   ├── IconButton.qml
 │   │   ├── EditableCell.qml
-│   │   └── ContextMenu.qml
+│   │   ├── ContextMenu.qml
+│   │   └── ComponentToolStrip.qml   # 双列元件插入图标条
 │   ├── panels/
-│   │   ├── TopBar.qml
-│   │   ├── StructureTree.qml
-│   │   ├── Viewport3D.qml
-│   │   ├── PipePointTable.qml
-│   │   ├── PropertyPanel.qml
-│   │   ├── PipeSpecEditor.qml
+│   │   ├── TopBar.qml               # 顶栏(工作台切换+动态工具栏)
+│   │   ├── DesignTree.qml           # 设计树(左侧可折叠，DesignWorkbench)
+│   │   ├── ParameterPanel.qml       # 参数化面板(右侧可折叠，含管点表+属性)
+│   │   ├── AnalysisTree.qml         # 分析树(左侧，AnalysisWorkbench)
+│   │   ├── SpecTree.qml             # 规格树(SpecWorkbench)
+│   │   ├── Viewport3D.qml           # VSG 3D视口
+│   │   ├── VtkViewport.qml          # VTK 3D视口
+│   │   ├── LoadTable.qml            # 载荷表格
+│   │   ├── LoadCaseTable.qml        # 工况表格
+│   │   ├── PipePointTable.qml       # 管点表格(嵌入ParameterPanel)
+│   │   ├── PropertyPanel.qml        # 属性面板(嵌入ParameterPanel)
+│   │   ├── MaterialTable.qml        # 材料表格(SpecWorkbench)
+│   │   ├── ComponentTable.qml       # 元件表格(SpecWorkbench)
 │   │   └── StatusBar.qml
 │   └── dialogs/
 │       ├── NewProjectDialog.qml
@@ -551,11 +1068,12 @@ qml-vsg-occt/
 
 1. 创建 `QGuiApplication`
 2. 注册 C++ 类型到 QML (`qmlRegisterType<VsgQuickItem>`, `qmlRegisterSingletonType<AppController>` 等)
-3. 创建 `Document`, `TransactionManager`, `DependencyGraph`, `SelectionManager`
-4. 创建 `WorkbenchManager`, 注册 `CadWorkbench`
-5. 创建 `QQmlApplicationEngine`, 设置根上下文属性
-6. 加载 `ui/main.qml`
-7. 进入事件循环
+3. 调用 `Application::init()` 初始化中央单例（线程安全，内部自动创建 Document/DependencyGraph/TransactionManager/SelectionManager/WorkbenchManager）
+4. 通过 `Application::instance()` 获取各管理器引用，注册工作台、配置回调
+5. 创建 `ViewManager`, 注入 VSG/VTK 视口实例
+6. 创建 `QQmlApplicationEngine`, 设置根上下文属性, 将 `Application` 和 `ViewManager` 暴露给 QML
+7. 加载 `ui/main.qml`
+8. 进入事件循环
 
 ---
 
@@ -579,7 +1097,7 @@ qml-vsg-occt/
 │        │                             │   属性面板 (动态)      │
 │        │                             │   320px               │
 ├────────┴─────────────────────────────┴───────────────────────┤
-│  [状态信息]              [坐标]                     [缩放]   │  ← StatusBar
+│  A06 Bend (3500.0, 1200.0, 0.0)    [鼠标3D坐标]      [缩放] │  ← StatusBar
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -626,6 +1144,8 @@ qml-vsg-occt/
 │    前管点    A05 (Run)           │
 │    后管点    A07 (Run)           │
 │    附属构件  Flange-01           │
+├──────────────────────────────────┤
+│  [🔒 只读模式] / [✏️ 编辑模式]  │  ← 模式切换按钮
 └──────────────────────────────────┘
 ```
 
@@ -640,7 +1160,14 @@ qml-vsg-occt/
 | Valve | ✅编辑 | ✅PipeSpec选择 | 阀门类型(下拉)+参数 | _(无)_ | ✅ |
 | FlexJoint | ✅编辑 | ✅PipeSpec选择 | 柔性参数 | _(无)_ | ✅ |
 
-**编辑规则**: 所有可编辑字段修改即走事务(open→set→commit→recompute)；只读字段灰色 #888888 无边框，带(auto)标签；关联项点击跳转联动。
+**编辑规则**:
+- 参数化面板最下方有一个 **模式切换按钮**，在“🔒 只读模式”和“✏️ 编辑模式”之间切换
+- **编辑模式**: 可编辑字段显示输入框/下拉菜单，修改即走事务(open→set→commit→recompute)
+- **只读模式**: 所有字段均为只读显示，无输入框，仅供查看
+- 右键菜单“修改”自动切换到编辑模式，“查看”自动切换到只读模式
+- 默认打开时为编辑模式
+- 只读字段(如计算值、自动推导值)在两种模式下始终显示为灰色 #888888 无边框，带(auto)标签
+- 关联项点击跳转联动，不受模式影响
 
 ### 9.4 视觉规范
 
@@ -661,16 +1188,20 @@ qml-vsg-occt/
 
 | 操作 | 响应 |
 |------|------|
-| 树节点选中 | 表格滚动到对应行 + 3D 视口高亮 |
+| 树节点选中 | 表格滚动到对应行 + 3D 视口高亮(管点:红色+, 管段:几何体高亮) |
 | 表格行选中 | 树展开到对应节点 + 3D 视口高亮 |
-| 3D 视口拾取 | 树+表格同步选中 |
+| 3D 视口拾取(管点) | 树+表格同步选中该管点行，属性面板显示管点属性 |
+| 3D 视口拾取(管段) | 树+表格同步选中该管段两端管点，属性面板显示管段信息 |
 | 表格编辑坐标 | 事务→recompute→3D 视口实时更新 |
 | 属性面板修改 PipeSpec | 事务→recompute→所有引用管点 3D 更新 |
 
 ### 9.6 TopBar / StatusBar
 
-- **TopBar**: 极简图标工具栏(新建/打开/保存/撤销/重做/选择/测量)，无文字标签，悬停提示。左侧工作台切换标签(CAD|CAE)，当前活跃高亮。工具栏内容由活跃工作台的 `toolbarActions()` 决定。
-- **StatusBar**: 管点数/段数/路由数 | 鼠标处 3D 坐标 | 缩放比例
+- **TopBar**: 左侧工作台切换标签(Specification|Design|Analysis)，当前活跃高亮。右侧工具栏图标组由活跃工作台的 `toolbarActions()` 决定，切换工作台时工具栏自动更换。文件操作(新建/打开/保存/撤销/重做)始终可见。
+- **StatusBar**: 分三个区域——
+  - **左区 (选中对象信息)**: 显示当前选中管件的 `名称 类型 (X, Y, Z)`，例如 `A06 Bend (3500.0, 1200.0, 0.0)`；无选中时显示 `管点数/段数/路由数` 统计信息
+  - **中区 (鼠标3D坐标)**: 实时显示鼠标在3D视口中悬停位置的世界坐标
+  - **右区 (缩放比例)**: 当前视口缩放级别
 
 ---
 
@@ -682,9 +1213,71 @@ qml-vsg-occt/
 |------|------|
 | **滚轮滚动** | 缩放 (以鼠标位置为中心) |
 | **滚轮按下拖动** | 平移视图 (Pan) |
-| **左键点击** | 选择对象 (LineSegmentIntersector → SelectionManager) |
+| **左键点击** | 选择对象 (管点选择 或 管段选择，见下方规则) |
+| **左键拖动框选** | 框选 (方向决定模式，见 §10.1.2) |
 | **Ctrl + 左键拖动** | 轨道旋转 (Orbit) |
 | **右键点击** | 弹出上下文菜单 |
+
+#### 10.1.1 选择模式—管点选择 vs 管段选择
+
+左键点击拾取后，`PickHandler` 根据点击位置与最近管点的距离决定选择类型:
+
+```
+点击位置 P → LineSegmentIntersector → 命中几何体
+  → 反查所属管件，找到该管件两端管点
+  → 计算 P 到最近管点的屏幕距离 d
+  → if d < 阈值 (e.g. 20px):  管点选择
+     else:                     管段选择
+```
+
+| 选择类型 | 触发条件 | 高亮表现 | SelectionManager 存储 |
+|---------|---------|---------|--------------------|
+| **管点选择** | 点击位置距管点 < 阈值 | 管点处显示 **红色十字标记 (+)** | `{type: Point, id: pointUUID}` |
+| **管段选择** | 点击位置距管点 ≥ 阈值 | 整个管段几何体高亮（发光/边框） | `{type: Segment, startId, endId}` |
+
+**管点选择的红色十字标记**:
+- 在管点 3D 坐标处叠加一个十字形 Glyph（两条正交短线），颜色 #FF0000
+- 尺寸与管径成比例（约 0.8×OD），保证不同管径下视觉协调
+- 始终面向相机（billboard），任何角度都清晰可见
+
+**弯头管点的选择**: 弯头上的 4 个管点(A06/N/M/F)均可独立拾取。点击弯头几何体时，找最近的弯头管点；距离小于阈值则选中该管点，否则选中整个弯头管段。
+
+```cpp
+// SelectionManager 选择模型
+enum class SelectionType { Point, Segment };
+
+struct Selection {
+    SelectionType type;
+    UUID primaryId;     // 管点选择: 管点ID; 管段选择: 起始管点ID
+    UUID secondaryId;   // 管段选择: 终止管点ID; 管点选择: 无效
+};
+```
+
+#### 10.1.2 框选模式—方向决定选择逻辑
+
+左键拖动（非 Ctrl）形成矩形框选区域，**拖动方向决定选择严格程度**：
+
+| 拖动方向 | 框线样式 | 选择逻辑 | 行业术语 |
+|---------|---------|---------|---------|
+| **左上→右下**（正向） | 实线框 | 对象必须**完全在框内**才被选中 | Window 选择 |
+| **右下→左上**（反向） | 虚线框 | 对象**部分在框内**即被选中 | Crossing 选择 |
+
+```
+正向框选 (Window):              反向框选 (Crossing):
+┌─────────────┐                ╭┄┄┄┄┄┄┄┄┄┄┄┄┄╮
+│  ○ 选中     │                ┆  ○ 选中     ┆
+│  ● 选中     │  实线框        ┆  ●━━━选中   ┆  虚线框
+│         ◆━━━│━ 不选中        ┆         ◆━━━┆━ 选中(部分在框内)
+└─────────────┘                ╰┄┄┄┄┄┄┄┄┄┄┄┄┄╯
+```
+
+**判定规则**:
+- Window: 管点的屏幕投影在框内 → 管点选中；管段两端管点均在框内 → 管段选中
+- Crossing: 管点的屏幕投影在框内 → 管点选中；管段几何体的屏幕投影与框**相交或被包含** → 管段选中
+- 框选结果为多选，所有命中对象同时高亮（管点显示红色+，管段显示高亮边框）
+- 框选追加: Shift + 框选追加到已有选择集；不按 Shift 则替换
+
+这与 AutoCAD/SolidWorks 的框选行为一致，管道设计师无学习成本。
 
 ### 10.2 视图快捷方式
 
@@ -702,12 +1295,113 @@ qml-vsg-occt/
 
 ### 10.3 右键上下文菜单
 
-**初期功能 (v0.1)**:
-- **查看/编辑管点属性** — 拾取到管点或管件时可用；引导至右侧属性面板(已展开→闪烁动画, 已收缩→自动展开)
+选中管件或管点后右键弹出，菜单项：
 
-**后续扩展**: 删除管点/添加管点、添加附属构件、隐藏/显示、Fit to selection、测量
+| 菜单项 | 快捷键 | 可用条件 | 行为 |
+|--------|--------|---------|------|
+| **修改** | Enter | 有选中对象 | 参数化面板若已折叠则自动展开，属性面板进入编辑模式并聚焦到选中对象 |
+| **查看** | — | 有选中对象 | 参数化面板若已折叠则自动展开，属性面板以只读模式显示选中对象信息 |
+| **删除** | Delete | 有选中对象 | 弹出确认对话框，确认后执行删除（走事务） |
 
-### 10.4 场景基础设施
+**参数化面板弹出逻辑**:
+- 选择"修改"或"查看"时，如果右侧参数化面板已折叠 → 自动展开
+- 如果参数化面板已展开 → 属性面板区域闪烁动画提醒用户注意
+- 无选中对象时，三个菜单项均灰色禁用
+
+### 10.4 ViewManager (视图管理)
+
+`ViewManager` 是 Layer 5 的统一门面，协调 VSG 与 VTK 双视口的渲染与交互，上层 QML/工具栏只与 `ViewManager` 交互，无需感知底层渲染引擎。
+
+**架构定位**:
+```
+WorkbenchManager ──切换通知──► ViewManager ──委派──► VSG Viewport (SceneManager + CameraController + SceneFurniture)
+                                   │                  VTK Viewport (VtkSceneManager + VtkRenderer)
+                                   │
+                              QML / ToolBar
+```
+
+**管理状态**:
+```cpp
+class ViewManager {
+public:
+    // === 视口路由 ===
+    enum class ActiveViewport { VSG, VTK };
+    void setActiveViewport(ActiveViewport vp);  // 工作台切换时调用
+    ActiveViewport activeViewport() const;
+
+    // === 相机控制 (转发给当前活跃视口) ===
+    void fitAll();
+    void setViewPreset(ViewPreset preset);      // Front/Right/Top/Iso
+    void saveViewState(const std::string& workbenchId);
+    void restoreViewState(const std::string& workbenchId);
+
+    // === 渲染模式 ===
+    enum class RenderMode { Solid, Wireframe, SolidWithEdges, Beam };
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+
+    // === 可见性控制 ===
+    enum class Category { PipePoints, Segments, Accessories, Supports, Beams,
+                          Annotations, LoadArrows, StressContour };
+    void setCategoryVisible(Category cat, bool visible);
+    bool isCategoryVisible(Category cat) const;
+
+    // === 场景装饰 ===
+    void setGridVisible(bool visible);
+    void setTriadVisible(bool visible);
+    void setAnnotationsVisible(bool visible);
+
+    // === LOD ===
+    enum class LodLevel { Draft, Normal, Fine };
+    void setLodLevel(LodLevel level);
+    LodLevel lodLevel() const;
+
+    // === StatusBar 数据 ===
+    gp_Pnt currentMouseWorldPos() const;        // 鼠标 3D 坐标
+
+    // === 截图 ===
+    bool captureImage(const std::string& path); // 离屏渲染截图
+
+private:
+    ActiveViewport activeVp_ = ActiveViewport::VSG;
+    RenderMode renderMode_ = RenderMode::Solid;
+    LodLevel lodLevel_ = LodLevel::Normal;
+    std::map<Category, bool> visibility_;
+    std::map<std::string, CameraState> viewStateCache_;  // workbenchId → 相机状态
+
+    // 非拥有指针
+    SceneManager*      vsgScene_   = nullptr;
+    CameraController*  vsgCamera_  = nullptr;
+    SceneFurniture*    vsgFurni_   = nullptr;
+    VtkSceneManager*   vtkScene_   = nullptr;
+};
+```
+
+**工作台切换流程**:
+```
+WorkbenchManager::switchTo("Analysis")
+  → ViewManager::saveViewState("Design")       // 保存当前相机
+  → ViewManager::setActiveViewport(VTK)         // 切换活跃视口
+  → ViewManager::restoreViewState("Analysis")   // 恢复目标相机
+  → ViewManager::setRenderMode(Beam)            // Analysis 默认 Beam 模式
+  → QML 层切换 Viewport3D.qml ↔ VtkViewport.qml
+```
+
+**与各底层类的分工**:
+
+| 职责 | 负责类 | ViewManager 角色 |
+|------|--------|------------------|
+| 场景图节点增删 | `SceneManager` / `VtkSceneManager` | 不涉及 |
+| 相机数学(lookAt/投影) | `CameraController` | 转发 fitAll/setViewPreset |
+| 坐标轴/网格/背景 | `SceneFurniture` | 转发显隐开关 |
+| LOD 网格精度 | `LodStrategy` | 设置全局精度档位 |
+| 3D 拾取 | `PickHandler` | 不涉及 |
+| VSG↔VTK 视口切换 | — | **ViewManager 独有** |
+| 渲染模式/可见性 | — | **ViewManager 独有** |
+| 视图状态缓存 | — | **ViewManager 独有** |
+| 截图/离屏渲染 | — | **ViewManager 独有** |
+
+### 10.5 场景基础设施
 
 | 元素 | 描述 | 实现 |
 |------|------|------|
@@ -797,12 +1491,14 @@ qml-vsg-occt/
 
 **Step 14 — 应用层**
 - `Document` / `TransactionManager` / `DependencyGraph` / `RecomputeEngine`
-- `SelectionManager` / `Workbench` + `WorkbenchManager` / `CadWorkbench`
+- `SelectionManager` / `Workbench` + `WorkbenchManager`
+- `DesignWorkbench` (取代 CadWorkbench): 设计树+ComponentToolStrip+参数化面板
 - `WorkbenchController`: C++→QML 桥接
 
-**Step 15 — QML UI**
-- `PipePointTable.qml`: 核心交互 — 管点表格
-- `SegmentTree.qml` / `PipeSpecEditor.qml` / `PropertyPanel.qml`
+**Step 15 — QML UI (DesignWorkbench)**
+- `DesignTree.qml`: 左侧可折叠设计树
+- `ParameterPanel.qml`: 右侧可折叠参数化面板(含管点表格+属性面板)
+- `ComponentToolStrip.qml`: 双列元件插入图标条
 - `Viewport3D.qml` / `ContextMenu.qml`
 
 ### Phase 6: 数据交换 (Steps 16-17, 依赖 Phase 3+5)
@@ -813,6 +1509,37 @@ qml-vsg-occt/
 
 **Step 17 — 管道校验**
 - 干涉检测, 规格校验, 未连接端口
+
+### Phase 7: 二期扩展 — 多工作台 + 载荷分析 (Steps 18-22, 依赖 Phase 5+6)
+
+**Step 18 — SpecWorkbench (管线规格管理)**
+- `SpecWorkbench.h/cpp`: 工具栏(新建规格/导入规范/添加材料/添加元件/校验)
+- `SpecTree.qml` / `MaterialTable.qml` / `ComponentTable.qml`
+- 自定义参数管理，预留行业规范接入接口
+
+**Step 19 — 载荷与工况数据模型**
+- `Load.h/cpp` 基类 + 7个子类(DeadWeight/Thermal/Pressure/Wind/Seismic/Displacement/UserDefined)
+- `LoadCase.h/cpp`: 基本工况
+- `LoadCombination.h/cpp`: 组合工况(CombineMethod + StressCategory)
+- 序列化扩展: ProjectSerializer 支持载荷/工况的 JSON 读写
+- 依赖图扩展: Load→LoadCase→LoadCombination 链
+
+**Step 20 — VTK 可视化桥接**
+- `OcctToVtk.h/cpp`: OCCT TopoDS_Shape → vtkPolyData
+- `BeamMeshBuilder.h/cpp`: 管路拓扑中心线 → 梁单元线模型
+- `VtkSceneManager.h/cpp`: VTK 场景管理, 实体/线条双模式 Actor 管理
+- `VtkViewport.h/cpp`: VTK 渲染器 + QML 集成 (QVTKOpenGLNativeWidget 或 QQuickFramebufferObject)
+
+**Step 21 — AnalysisWorkbench (管道应力分析)**
+- `AnalysisWorkbench.h/cpp`: 工具栏(渲染模式切换/添加载荷/工况管理)
+- `RenderMode::Solid` ↔ `RenderMode::Beam` 切换
+- `AnalysisTree.qml`: 三级树结构(载荷/基本工况/组合工况)
+- `LoadTable.qml` / `LoadCaseTable.qml` / `VtkViewport.qml`
+
+**Step 22 — 集成验证**
+- Spec→Design→Analysis 全流程端到端测试
+- 载荷/工况 Undo/Redo 和 JSON round-trip 验证
+- VTK 实体/线条模式切换验证
 
 ---
 
@@ -826,12 +1553,19 @@ qml-vsg-occt/
 - `STEPControl_Writer` / `Reader` → STEP
 - `gp_Trsf` + `BRepBuilderAPI_Transform` → 变换
 
-### VSG (Layer 5)
+### VSG (Layer 5a)
 - `vsg::VertexIndexDraw` → 渲染 OCCT 网格
 - `vsg::MatrixTransform` / `Group` / `StateGroup` → 场景组织
 - `vsg::Builder::createBox` → 管点正方体
 - `vsg::LOD` → 距离 LOD
 - `vsg::LineSegmentIntersector` → 拾取
+
+### VTK (Layer 5b, AnalysisWorkbench)
+- `vtkPolyData` → 实体模式网格 (来自 OCCT 转换)
+- `vtkPolyLine` + `vtkCellArray` → 线条模式梁单元
+- `vtkGlyph3D` + `vtkSphereSource` → 节点标记
+- `vtkActor` 可见性切换 → 渲染模式切换
+- `vtkRenderer` / `vtkRenderWindow` → VTK 渲染管线
 
 ### Qt/QML (Layer 7)
 - `QQuickFramebufferObject` → VSG 嵌入 QML
@@ -848,6 +1582,7 @@ qml-vsg-occt/
 4. **Phase 4**: test_visualization — Shape→VSG 节点→验证顶点/索引非空
 5. **Phase 5**: 手动 — QML 启动→表格输入管点→3D 渲染→参数修改→几何更新
 6. **Phase 6**: 导出 STEP→FreeCAD 验证
+7. **Phase 7**: test_loads — 载荷/工况 CRUD + 依赖图 + 序列化 round-trip; VTK 渲染模式切换; 端到端多工作台流程
 
 ---
 
@@ -864,12 +1599,17 @@ qml-vsg-occt/
 | STEP 仅导出 | 用于与其他 CAD 软件交换最终几何 |
 | 表格输入为主交互 | 管点通过表格输入坐标和参数 |
 | FreeCAD 风格事务 | 事务内不触发重算，commit 后统一 recompute |
-| VTK 延迟 | 预留接口，初期不集成 |
+| VTK 用于分析工作台 | 管道应力分析采用 VTK 渲染，支持实体/线条双模式 |
+| 三工作台架构 | Specification(规格管理) → Design(路由设计) → Analysis(应力分析) |
+| 载荷两层模型 | Load→LoadCase(基本工况,独立求解) → LoadCombination(组合工况,后处理代数运算) |
+| 参数化构件模板库 | 形状拓扑固定+尺寸按OD缩放，不用草图/STEP文件库，ComponentCatalog代码模板 |
 | 工作台系统 | FreeCAD 风格，CAD/CAE 两个工作台，文档模型共享 |
 | 初期全公制 | 内部统一公制存储，单位转换后续增加 |
 | pixi + CMake + Ninja | 通用依赖 pixi 管理，OCCT/VSG 本地 lib/ fallback |
 | 单文档模式 | 一次只打开一个工程 |
 | 3D 鼠标映射 | 滚轮=缩放, 滚轮拖=平移, Ctrl+左键拖=旋转, 左键=选择, 右键=菜单 |
+| ViewManager 统一门面 | 视口路由+渲染状态+交互协调，QML 只与 ViewManager 交互，不感知 VSG/VTK |
+| Application 中央单例 | 所有管理器由 Application 单例持有，Meyers' Singleton + std::call_once 保证线程安全，测试可独立构造各 Manager |
 
 ---
 

@@ -9,6 +9,7 @@ add_library(visualization STATIC
     SceneFurniture.cpp
     PickHandler.cpp
     SelectionHighlight.cpp
+    ViewManager.cpp
 )
 
 target_include_directories(visualization
