@@ -41,8 +41,8 @@
 | T18 | QML 表格模型层 | `done` | T17 | Sonnet | 2026-03-28 |
 | T19 | QML UI 面板 | `done` | T18 | Sonnet | 2026-03-28 |
 | T20 | JSON 序列化 | `done` | T05, T06 | Sonnet | 2026-03-28 |
-| T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
-| T25 | 集成测试 | `pending` | 全部 | **Opus** | |
+| T21 | STEP 导出 | `done` | T08, T09, T04 | Sonnet | 2026-03-28 |
+| T25 | 集成测试 | `ready` | 全部 | **Opus** | |
 
 ---
 
@@ -1470,5 +1470,40 @@ public:
 - T21 可直接复用 `ProjectSerializer` 的已加载对象关系，导出时无需再次做 PipeSpec/拓扑修复。
 - 若 T21 需要把 STEP 与 JSON 双文件联动保存，建议沿用本任务字段命名，避免破坏已有 round-trip 测试基线。
 - UI 层（T19）保存/打开占位动作可以直接接入 `ProjectSerializer::save/load`。
+
+### T21 — STEP 导出 (2026-03-28)
+
+**产出文件**:
+- `src/app/StepExporter.h`
+- `src/app/StepExporter.cpp`
+- `src/app/CMakeLists.txt` (更新，编译并链接 STEP 导出依赖)
+- `tests/test_step_exporter.cpp`
+- `tests/CMakeLists.txt` (更新，添加 `test_step_exporter`)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// app/StepExporter.h
+namespace app {
+class StepExporter {
+public:
+    static bool exportAll(const Document& document, const std::string& filePath);
+};
+}
+```
+
+**设计决策**:
+- 基于 XCAF + `STEPCAFControl_Writer` 导出装配树，而不是直接扁平 `STEPControl_Writer`，以保留产品层级。
+- 导出层级为 `Route -> Segment -> Component(PipePoint)`；每个层级使用 XCAF 组装标签并写入 `TDataStd_Name` 名称。
+- 组件几何统一通过 `engine::GeometryDeriver::deriveGeometry(prev,current,next)` 生成，邻接点规则与 `RecomputeEngine` 保持一致。
+- 若文档中没有 Route，则回退导出 `Document::allSegments()` 到 `Route_Standalone`，避免无输出。
+- 导出前调用 `shapeTool->UpdateAssemblies()`，确保 XCAF 装配关系正确落盘。
+
+**已知限制**:
+- 当前仅导出 `PipePoint` 推导几何；`Accessory`/`Beam` 尚未纳入 STEP 导出流程。
+- 首末端 `Run` 点因邻居不足可能不会生成几何（与现有推导规则一致）。
+
+**后续任务注意**:
+- T25 可直接复用 `tests/test_step_exporter.cpp` 的层级验证和性能基线（10 点导出 < 5s）。
+- 如需扩展导出对象范围，可在 `StepExporter::exportAll()` 中补充 Accessory/Beam 收集与命名策略。
 
 <!-- === COMPLETION LOG END === -->

@@ -2,6 +2,7 @@ add_library(app STATIC
     placeholder.cpp
     Document.cpp
     ProjectSerializer.cpp
+    StepExporter.cpp
     DependencyGraph.cpp
     TransactionManager.cpp
     WorkbenchManager.cpp
@@ -23,4 +24,7 @@ target_link_libraries(app
         engine
         visualization
         nlohmann_json::nlohmann_json
+    PRIVATE
+        ${OpenCASCADE_ApplicationFramework_LIBRARIES}
+        ${OpenCASCADE_DataExchange_LIBRARIES}
 )

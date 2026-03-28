@@ -198,6 +198,18 @@ target_include_directories(test_project_serializer PRIVATE ${OpenCASCADE_INCLUDE
 target_compile_features(test_project_serializer PRIVATE cxx_std_17)
 add_test(NAME ProjectSerializer COMMAND test_project_serializer)
 
+# STEP 导出测试 — T21
+add_executable(test_step_exporter test_step_exporter.cpp)
+target_link_libraries(test_step_exporter
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_step_exporter PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_step_exporter PRIVATE cxx_std_17)
+add_test(NAME StepExporter COMMAND test_step_exporter)
+
 # 工作台系统 + QML 桥接测试 — T17
 add_executable(test_workbench_bridge test_workbench_bridge.cpp)
 target_link_libraries(test_workbench_bridge
