@@ -207,3 +207,14 @@ target_link_libraries(test_qml_models
 )
 target_compile_features(test_qml_models PRIVATE cxx_std_17)
 add_test(NAME QmlModels COMMAND test_qml_models)
+
+# QML UI 面板测试 — T19
+add_executable(test_qml_ui_panels test_qml_ui_panels.cpp)
+target_link_libraries(test_qml_ui_panels
+    PRIVATE
+        ui
+        Qt6::Test
+        GTest::GTest
+)
+target_compile_features(test_qml_ui_panels PRIVATE cxx_std_17)
+add_test(NAME QmlUiPanels COMMAND test_qml_ui_panels)

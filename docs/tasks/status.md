@@ -39,7 +39,7 @@
 | T16 | 应用层核心 | `done` | T05, T07 | **Opus** | 2026-03-28 |
 | T17 | 工作台 + QML 桥接 | `done` | T16 | Sonnet | 2026-03-28 |
 | T18 | QML 表格模型层 | `done` | T17 | Sonnet | 2026-03-28 |
-| T19 | QML UI 面板 | `ready` | T18 | Sonnet | |
+| T19 | QML UI 面板 | `done` | T18 | Sonnet | 2026-03-28 |
 | T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
 | T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
 | T25 | 集成测试 | `pending` | 全部 | **Opus** | |
@@ -1354,5 +1354,75 @@ Q_PROPERTY(QObject* pipeSpecModel READ pipeSpecModel CONSTANT)
 - T19 可直接消费 `appController.pipePointTableModel`、`appController.segmentTreeModel`、`appController.propertyModel`、`appController.pipeSpecModel` 绑定控件。
 - 树/表格点击建议统一调用 `selectNodeByUuid()` 或 `selectRow()`，3D 拾取侧继续通过 `SelectionManager` 同步即可形成三方联动。
 - 若 T19 需要表格中 PipeSpec 下拉选择，建议在 Document 层补充“按 UUID 获取 shared_ptr<PipeSpec>”接口后再把 `pipeSpecId` 升级为真实对象引用。
+
+### T19 — QML UI 面板 (2026-03-28)
+
+**产出文件**:
+- `ui/style/Theme.qml`
+- `ui/components/CollapsiblePanel.qml`
+- `ui/components/SplitView.qml`
+- `ui/components/IconButton.qml`
+- `ui/components/EditableCell.qml`
+- `ui/components/ContextMenu.qml`
+- `ui/panels/TopBar.qml`
+- `ui/panels/StructureTree.qml`
+- `ui/panels/Viewport3D.qml`
+- `ui/panels/PipePointTable.qml`
+- `ui/panels/PropertyPanel.qml`
+- `ui/panels/StatusBar.qml`
+- `ui/dialogs/NewProjectDialog.qml`
+- `ui/dialogs/OpenProjectDialog.qml`
+- `ui/main.qml`
+- `tests/test_qml_ui_panels.cpp`
+- `tests/CMakeLists.txt` (更新，添加 `test_qml_ui_panels`)
+
+**关键接口** (后续任务需要知道的):
+```qml
+// ui/main.qml
+ApplicationWindow {
+    Shortcut { sequence: StandardKey.Undo; onActivated: appController.undo() }
+    Shortcut { sequence: StandardKey.Redo; onActivated: appController.redo() }
+    Shortcut { sequence: "Ctrl+S" }
+    Shortcut { sequence: "Ctrl+N" }
+    Shortcut { sequence: "Ctrl+O" }
+    Shortcut { sequence: "Delete" }
+
+    TopBar { workbenchController: workbenchController; appController: appController }
+
+    SplitView { // 左: 结构树, 中: 3D 视口, 右: 表格 + 属性
+        StructureTree { treeModel: appController.segmentTreeModel }
+        Viewport3D { onInspectRequested: propertyPanel.ensureExpandedAndFlash() }
+        SplitView {
+            PipePointTable { tableModel: appController.pipePointTableModel }
+            PropertyPanel { id: propertyPanel; propertyModel: appController.propertyModel }
+        }
+    }
+
+    StatusBar { appController: appController }
+}
+
+// ui/panels/PropertyPanel.qml
+function ensureExpandedAndFlash() {
+    collapsed = false
+    flashAnim.restart() // #0078D4, 300ms
+}
+```
+
+**设计决策**:
+- 采用组件化拆分：`main.qml` 只做布局与事件编排，面板/控件职责下沉到 `ui/panels` 与 `ui/components`。
+- 使用自定义 `SplitView.qml`（基于 Qt Quick Controls SplitView）统一分割条样式，满足左右/上下可拖动分割。
+- `Viewport3D` 右键菜单通过 `ContextMenu` 触发“查看属性”，调用 `PropertyPanel.ensureExpandedAndFlash()` 实现“已展开闪烁、已收缩自动展开”。
+- 属性面板按 `PropertyModel` 的 `group` 分段渲染，天然支持不同管点类型动态字段差异。
+- 新增 `tests/test_qml_ui_panels.cpp` 做 QML 加载烟测，验证核心面板对象存在，避免后续重构破坏主界面装配。
+
+**已知限制**:
+- 当前快捷键 `Ctrl+S/N/O/Delete` 为 UI 层触发与提示占位，实际保存/打开/删除业务逻辑待 T20/T21 或后续任务接入。
+- `PipePointTable.qml` 当前通过模型通用 `setData` 入口提交编辑，单元格编辑器与字段类型校验仍有进一步细化空间。
+- `PropertyPanel` 当前展示与引导完成，但字段写回仍由既有 C++ 模型层接口主导，尚未增加批量编辑表单行为。
+
+**后续任务注意**:
+- T20 (JSON 序列化) 可直接复用 `NewProjectDialog/OpenProjectDialog` 入口，把当前占位动作替换为真实 `save/load` 调用。
+- 若后续接入 3D 拾取右键定位，可将 `Viewport3D.inspectRequested` 扩展为携带 UUID/世界坐标参数传递至属性面板。
+- `test_qml_ui_panels` 使用 `qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport")`，后续改动 VSG QML 注册名时需同步更新测试。
 
 <!-- === COMPLETION LOG END === -->
