@@ -196,3 +196,14 @@ target_link_libraries(test_workbench_bridge
 )
 target_compile_features(test_workbench_bridge PRIVATE cxx_std_17)
 add_test(NAME WorkbenchBridge COMMAND test_workbench_bridge)
+
+# QML 表格模型层测试 — T18
+add_executable(test_qml_models test_qml_models.cpp)
+target_link_libraries(test_qml_models
+    PRIVATE
+        ui
+        Qt6::Test
+        GTest::GTest
+)
+target_compile_features(test_qml_models PRIVATE cxx_std_17)
+add_test(NAME QmlModels COMMAND test_qml_models)

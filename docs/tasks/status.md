@@ -38,8 +38,8 @@
 | T15 | VSG-QML 桥接 | `done` | T12, T13 | **Opus** | 2026-03-28 |
 | T16 | 应用层核心 | `done` | T05, T07 | **Opus** | 2026-03-28 |
 | T17 | 工作台 + QML 桥接 | `done` | T16 | Sonnet | 2026-03-28 |
-| T18 | QML 表格模型层 | `ready` | T17 | Sonnet | |
-| T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
+| T18 | QML 表格模型层 | `done` | T17 | Sonnet | 2026-03-28 |
+| T19 | QML UI 面板 | `ready` | T18 | Sonnet | |
 | T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
 | T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
 | T25 | 集成测试 | `pending` | 全部 | **Opus** | |
@@ -1281,5 +1281,78 @@ public:
 - T18/T19 做三方联动时，可把 `PickHandler::SelectionCallback` 直接桥接到 `SelectionManager::clear/select`。
 - T19 的右键菜单可直接消费 `ContextMenuCallback` 返回的 `worldPos` 作为菜单锚点或对象属性面板跳转输入。
 - 若后续实现真正渲染高亮，建议在渲染阶段读取 `SelectionHighlight::kHighlightColorKey` 并切换材质/描述符。
+
+### T18 — QML 表格模型层 (2026-03-28)
+
+**产出文件**:
+- `src/ui/PipePointTableModel.h`
+- `src/ui/PipePointTableModel.cpp`
+- `src/ui/SegmentTreeModel.h`
+- `src/ui/SegmentTreeModel.cpp`
+- `src/ui/PropertyModel.h`
+- `src/ui/PropertyModel.cpp`
+- `src/ui/PipeSpecModel.h`
+- `src/ui/PipeSpecModel.cpp`
+- `src/ui/UuidUtil.h`
+- `src/ui/AppController.h` (更新，暴露 4 个模型对象)
+- `src/ui/AppController.cpp` (更新)
+- `src/ui/CMakeLists.txt` (更新，添加模型源文件)
+- `src/app/SelectionManager.h` (更新，支持多回调监听)
+- `src/app/SelectionManager.cpp` (更新)
+- `src/app/TransactionManager.cpp` (更新，支持坐标/类型/pipeSpecId 回放)
+- `tests/test_qml_models.cpp`
+- `tests/CMakeLists.txt` (更新，添加 `test_qml_models`)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// ui/PipePointTableModel.h
+class PipePointTableModel : public QAbstractTableModel {
+    Q_PROPERTY(int selectedRow READ selectedRow NOTIFY selectedRowChanged)
+    Q_INVOKABLE void refresh();
+    Q_INVOKABLE bool selectRow(int row);
+    // 列: Name | X | Y | Z | Type | PipeSpec | bendMultiplier
+};
+
+// ui/SegmentTreeModel.h
+class SegmentTreeModel : public QAbstractItemModel {
+    enum Roles { NameRole = Qt::UserRole + 1, KindRole, UuidRole, SelectedRole };
+    Q_INVOKABLE void refresh();
+    Q_INVOKABLE bool selectNodeByUuid(const QString& uuid);
+};
+
+// ui/PropertyModel.h
+class PropertyModel : public QAbstractListModel {
+    enum Roles { GroupRole = Qt::UserRole + 1, KeyRole, ValueRole, EditableRole };
+    Q_INVOKABLE void refresh();
+};
+
+// ui/PipeSpecModel.h
+class PipeSpecModel : public QAbstractTableModel {
+    // 列: Name | OD | wallThickness | material
+    Q_INVOKABLE void refresh();
+};
+
+// ui/AppController.h
+Q_PROPERTY(QObject* pipePointTableModel READ pipePointTableModel CONSTANT)
+Q_PROPERTY(QObject* segmentTreeModel READ segmentTreeModel CONSTANT)
+Q_PROPERTY(QObject* propertyModel READ propertyModel CONSTANT)
+Q_PROPERTY(QObject* pipeSpecModel READ pipeSpecModel CONSTANT)
+```
+
+**设计决策**:
+- `PipePointTableModel` 以 Route/Segment 优先顺序构建管点行；未挂接到 Route 的对象回退到全局扫描并按名称排序，保证 UI 可见性与顺序稳定。
+- Bend N/M/F 行识别规则为 `PipePointType::Bend` 且名称后缀为 `N/M/F`，这些行统一灰底且不可编辑。
+- 表格与规格编辑统一走 `TransactionManager::open -> recordChange -> commit`，满足单步可撤销。
+- `SelectionManager` 增加 `addSelectionChangedCallback`，支持 AppController 与多个模型并行订阅，避免回调互相覆盖。
+- `SegmentTreeModel` 输出 `UuidRole` 与 `SelectedRole`，为 T19 树节点委托实现三方联动提供最小桥接接口。
+
+**已知限制**:
+- `Document` 当前仅暴露原始指针查询，`PipePoint::setPipeSpec(shared_ptr)` 无法在事务回放中完整恢复共享所有权；当前使用 `pipeSpecId` 字段记录引用信息，后续可在 Document 增补共享对象查询 API 后收敛。
+- 当前模型层已提供 C++ 数据与选择联动接口，但详细 QML 面板布局与交互动画仍在 T19 完成。
+
+**后续任务注意**:
+- T19 可直接消费 `appController.pipePointTableModel`、`appController.segmentTreeModel`、`appController.propertyModel`、`appController.pipeSpecModel` 绑定控件。
+- 树/表格点击建议统一调用 `selectNodeByUuid()` 或 `selectRow()`，3D 拾取侧继续通过 `SelectionManager` 同步即可形成三方联动。
+- 若 T19 需要表格中 PipeSpec 下拉选择，建议在 Document 层补充“按 UUID 获取 shared_ptr<PipeSpec>”接口后再把 `pipeSpecId` 升级为真实对象引用。
 
 <!-- === COMPLETION LOG END === -->

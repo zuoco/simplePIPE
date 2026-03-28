@@ -52,15 +52,24 @@ std::size_t SelectionManager::size() const
     return selected_.size();
 }
 
+std::size_t SelectionManager::addSelectionChangedCallback(SelectionChangedCallback cb)
+{
+    selectionChangedCallbacks_.push_back(std::move(cb));
+    return selectionChangedCallbacks_.size();
+}
+
 void SelectionManager::setSelectionChangedCallback(SelectionChangedCallback cb)
 {
-    onSelectionChanged_ = std::move(cb);
+    selectionChangedCallbacks_.clear();
+    selectionChangedCallbacks_.push_back(std::move(cb));
 }
 
 void SelectionManager::notifySelectionChanged()
 {
-    if (onSelectionChanged_) {
-        onSelectionChanged_(selected_);
+    for (auto& callback : selectionChangedCallbacks_) {
+        if (callback) {
+            callback(selected_);
+        }
     }
 }
 

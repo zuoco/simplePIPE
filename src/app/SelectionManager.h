@@ -19,11 +19,12 @@ public:
     const std::vector<foundation::UUID>& selected() const;
     std::size_t size() const;
 
+    std::size_t addSelectionChangedCallback(SelectionChangedCallback cb);
     void setSelectionChangedCallback(SelectionChangedCallback cb);
 
 private:
     std::vector<foundation::UUID> selected_;
-    SelectionChangedCallback onSelectionChanged_;
+    std::vector<SelectionChangedCallback> selectionChangedCallbacks_;
 
     void notifySelectionChanged();
 };

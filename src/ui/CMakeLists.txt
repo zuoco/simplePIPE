@@ -3,6 +3,10 @@ add_library(ui STATIC
     VsgQuickItem.cpp
     AppController.cpp
     WorkbenchController.cpp
+    PipePointTableModel.cpp
+    SegmentTreeModel.cpp
+    PropertyModel.cpp
+    PipeSpecModel.cpp
 )
 
 target_include_directories(ui

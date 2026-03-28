@@ -2,6 +2,8 @@
 #include "model/PropertyObject.h"
 #include "model/PipePoint.h"
 
+#include <gp_Pnt.hxx>
+
 namespace app {
 
 TransactionManager::TransactionManager(Document& doc, DependencyGraph& graph)
@@ -105,9 +107,41 @@ void TransactionManager::applyChanges(const std::vector<PropertyChange>& changes
             if (auto* s = std::get_if<std::string>(&value)) {
                 obj->setName(*s);
             }
-        } else if (auto* propObj = dynamic_cast<model::PropertyObject*>(obj)) {
+            continue;
+        }
+
+        auto* pp = dynamic_cast<model::PipePoint*>(obj);
+        if (pp && (ch.key == "x" || ch.key == "y" || ch.key == "z")) {
+            const double coordinate = foundation::variantToDouble(value);
+            const gp_Pnt current = pp->position();
+            if (ch.key == "x") {
+                pp->setPosition(gp_Pnt(coordinate, current.Y(), current.Z()));
+            } else if (ch.key == "y") {
+                pp->setPosition(gp_Pnt(current.X(), coordinate, current.Z()));
+            } else {
+                pp->setPosition(gp_Pnt(current.X(), current.Y(), coordinate));
+            }
+            continue;
+        }
+
+        if (pp && ch.key == "type") {
+            pp->setType(static_cast<model::PipePointType>(foundation::variantToInt(value)));
+            continue;
+        }
+
+        if (pp && ch.key == "pipeSpecId") {
+            if (auto* specId = std::get_if<std::string>(&value)) {
+                pp->setParam("pipeSpecId", *specId);
+            }
+            continue;
+        }
+
+        if (auto* propObj = dynamic_cast<model::PropertyObject*>(obj)) {
             propObj->setField(ch.key, value);
-        } else if (auto* pp = dynamic_cast<model::PipePoint*>(obj)) {
+            continue;
+        }
+
+        if (pp) {
             pp->setParam(ch.key, value);
         }
     }
