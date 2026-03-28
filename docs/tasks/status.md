@@ -26,7 +26,7 @@
 | T03 | OCCT 几何封装 | `done` | T01 | Sonnet | 2026-03-28 |
 | T04 | OCCT 网格化 + STEP I/O | `done` | T01 | Sonnet | 2026-03-28 |
 | T05 | 核心文档对象 | `done` | T02 | **Opus** | 2026-03-28 |
-| T06 | 附属对象与梁 | `ready` | T05 | Sonnet | |
+| T06 | 附属对象与梁 | `done` | T05 | Sonnet | 2026-03-28 |
 | T07 | 弯头几何计算器 | `done` | T05, T02 | **Opus** | 2026-03-28 |
 | T08 | 管件几何 (Run/Reducer/Tee) | `done` | T07, T03 | Sonnet | 2026-03-28 |
 | T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
@@ -40,7 +40,7 @@
 | T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
 | T19 | QML UI 面板 | `pending` | T18 | Sonnet | |
-| T20 | JSON 序列化 | `pending` | T05, T06 | Sonnet | |
+| T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
 | T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
 | T25 | 集成测试 | `pending` | 全部 | **Opus** | |
 
@@ -617,5 +617,101 @@ class AccessoryBuilder {
 - T21 (STEP 导出) 现在可以使用所有 9 种管件 builder
 - T06 (附属对象) 如需要几何表示，可调用 AccessoryBuilder::buildFlange/buildBracket
 - GeometryDeriver 已完整覆盖所有 PipePointType（Run/Bend/Reducer/Tee/Valve/FlexJoint）
+
+### T06 — 附属对象与梁 (2026-03-28)
+
+**产出文件**:
+- `src/model/Accessory.h`
+- `src/model/FixedPoint.h`
+- `src/model/Support.h`
+- `src/model/Flange.h`
+- `src/model/Gasket.h`
+- `src/model/SealRing.h`
+- `src/model/Beam.h`
+- `src/model/PipePoint.h` (更新，添加 accessory 列表管理)
+- `src/model/placeholder.cpp` (更新，include 新头文件)
+- `tests/test_accessory_beam.cpp` (36 个测试)
+- `tests/CMakeLists.txt` (更新，添加 test_accessory_beam)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// model/Accessory.h — 附属构件基类
+namespace model {
+class Accessory : public SpatialObject {
+    std::shared_ptr<PipePoint> pipePoint() const; // 关联的管点 (weak_ptr)
+    void attachTo(std::shared_ptr<PipePoint> pt);
+    void detach();
+    const gp_Vec& offset() const;
+    void setOffset(const gp_Vec& offset);
+};
+}
+
+// model/FixedPoint.h — 固定点
+class FixedPoint : public Accessory { bool isFixed() const; /* always true */ };
+
+// model/Support.h — 支架
+enum class SupportType { Rod, Spring, Rigid, Guide };
+class Support : public Accessory {
+    SupportType supportType() const; void setSupportType(SupportType);
+    const gp_Dir& loadDirection() const; void setLoadDirection(const gp_Dir&);
+};
+
+// model/Flange.h — 法兰
+class Flange : public Accessory {
+    const std::string& rating() const;   void setRating(const std::string&);
+    const std::string& faceType() const; void setFaceType(const std::string&);
+    int boltHoleCount() const;           void setBoltHoleCount(int);
+};
+
+// model/Gasket.h — 垫片
+class Gasket : public Accessory {
+    const std::string& gasketMaterial() const; void setGasketMaterial(const std::string&);
+    double thickness() const;                  void setThickness(double);
+};
+
+// model/SealRing.h — 密封圈
+class SealRing : public Accessory {
+    const std::string& sealMaterial() const;  void setSealMaterial(const std::string&);
+    double crossSectionDiameter() const;      void setCrossSectionDiameter(double);
+};
+
+// model/Beam.h — 梁
+enum class BeamSectionType { Rectangular, HSection };
+class Beam : public SpatialObject {
+    std::shared_ptr<PipePoint> startPoint() const; void setStartPoint(std::shared_ptr<PipePoint>);
+    std::shared_ptr<PipePoint> endPoint() const;   void setEndPoint(std::shared_ptr<PipePoint>);
+    BeamSectionType sectionType() const;           void setSectionType(BeamSectionType);
+    double width() const;  void setWidth(double);
+    double height() const; void setHeight(double);
+    double length() const; // computed = startPoint.Distance(endPoint)
+};
+
+// model/PipePoint.h — 新增 accessory 管理
+class PipePoint : public SpatialObject {
+    // ... existing ...
+    void addAccessory(std::shared_ptr<DocumentObject> acc);
+    bool removeAccessory(const foundation::UUID& accId);
+    const std::vector<std::shared_ptr<DocumentObject>>& accessories() const;
+    size_t accessoryCount() const;
+};
+```
+
+**设计决策**:
+- 全部 header-only 实现，遵循 T05 既有模式
+- Accessory 使用 weak_ptr<PipePoint> 引用管点，避免循环引用
+- Beam 使用 weak_ptr<PipePoint> 引用双端管点，length() 实时计算距离
+- PipePoint 的 accessory 列表存储为 vector<shared_ptr<DocumentObject>>，避免 Accessory.h ↔ PipePoint.h 循环 include
+- 所有 setter 在值未变化时不触发 changed 信号（与 T05 一致）
+- Beam 默认截面：Rectangular, 100mm 宽 × 200mm 高
+
+**已知限制**:
+- PipePoint 的 accessory 列表存储 DocumentObject 而非 Accessory 类型（caller 需 dynamic_cast）
+- Accessory.attachTo() 不自动调用 PipePoint.addAccessory()，需调用方手动管理双向关联
+- Beam.position 与端点位置独立，不自动更新
+
+**后续任务注意**:
+- T20 (JSON 序列化) 需遍历新增对象的字段：Accessory/FixedPoint/Support/Flange/Gasket/SealRing/Beam
+- T09 的 engine/AccessoryBuilder 和 engine/BeamBuilder 已提供几何生成，可与这些 model 对象配合使用
+- 所有新类继承 DocumentObject，有唯一 UUID 和 changed 信号
 
 <!-- === COMPLETION LOG END === -->

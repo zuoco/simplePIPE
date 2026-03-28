@@ -93,3 +93,15 @@ target_link_libraries(test_valve_flex_beam
 target_include_directories(test_valve_flex_beam PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_valve_flex_beam PRIVATE cxx_std_17)
 add_test(NAME ValveFlexBeam COMMAND test_valve_flex_beam)
+
+# 附属对象与梁测试 — T06
+add_executable(test_accessory_beam test_accessory_beam.cpp)
+target_link_libraries(test_accessory_beam
+    PRIVATE
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_accessory_beam PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_accessory_beam PRIVATE cxx_std_17)
+add_test(NAME AccessoryBeam COMMAND test_accessory_beam)

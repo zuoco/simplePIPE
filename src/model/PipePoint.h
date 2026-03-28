@@ -3,9 +3,11 @@
 #include "model/SpatialObject.h"
 #include "foundation/Types.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace model {
 
@@ -62,10 +64,34 @@ public:
         return typeParams_;
     }
 
+    // --- Accessory management (T06) ---
+    void addAccessory(std::shared_ptr<DocumentObject> acc) {
+        accessories_.push_back(std::move(acc));
+        changed.emit();
+    }
+
+    bool removeAccessory(const foundation::UUID& accId) {
+        auto it = std::find_if(accessories_.begin(), accessories_.end(),
+            [&](const auto& a) { return a->id() == accId; });
+        if (it != accessories_.end()) {
+            accessories_.erase(it);
+            changed.emit();
+            return true;
+        }
+        return false;
+    }
+
+    const std::vector<std::shared_ptr<DocumentObject>>& accessories() const {
+        return accessories_;
+    }
+
+    size_t accessoryCount() const { return accessories_.size(); }
+
 private:
     PipePointType type_;
     std::shared_ptr<PipeSpec> pipeSpec_;
     std::map<std::string, foundation::Variant> typeParams_;
+    std::vector<std::shared_ptr<DocumentObject>> accessories_;
 };
 
 } // namespace model
