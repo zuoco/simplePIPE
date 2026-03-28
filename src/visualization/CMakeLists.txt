@@ -1,6 +1,10 @@
 add_library(visualization STATIC
     placeholder.cpp
     OcctToVsg.cpp
+    PipePointNode.cpp
+    ComponentNode.cpp
+    LodStrategy.cpp
+    SceneManager.cpp
 )
 
 target_include_directories(visualization

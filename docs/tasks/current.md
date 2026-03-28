@@ -9,47 +9,53 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T12 |
-| **任务名** | VSG 场景管理 |
+| **任务 ID** | T13 |
+| **任务名** | 相机控制与场景基础设施 |
 | **推荐模型** | Sonnet |
-| **前置依赖** | T11 ✅ |
+| **前置依赖** | T12 ✅ |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 12/22 个任务（T01-T11）
+- 已完成: 13/22 个任务（T01-T12）
 - 当前阶段: Phase 4 — 可视化层
 
 ## 其他 ready 任务
 
 | 任务 | 推荐模型 | 说明 |
 |------|---------|------|
+| T14 | Sonnet | 3D 拾取与高亮（也依赖 T12 ✅） |
 | T16 | **Opus** | 应用层核心 |
 | T20 | Sonnet | JSON 序列化 |
 | T21 | Sonnet | STEP 导出 |
 
 ## 上一个完成的任务
 
-**T11 — OCCT→VSG 网格转换 (2026-03-28)**
+**T12 — VSG 场景管理 (2026-03-28)**
 - 产出:
-  - `src/visualization/OcctToVsg.h/cpp` — Shape → VertexIndexDraw 转换
-  - `tests/test_visualization.cpp` — 6 个测试全部通过
+  - `src/visualization/PipePointNode.h/cpp` — 管点小正方体节点（手动构建 VertexIndexDraw）
+  - `src/visualization/ComponentNode.h/cpp` — 管件节点（MatrixTransform → StateGroup → VertexIndexDraw）
+  - `src/visualization/LodStrategy.h/cpp` — 两级 VSG LOD 节点工厂
+  - `src/visualization/SceneManager.h/cpp` — UUID→VSG节点映射管理器
+  - `tests/test_scene_manager.cpp` — 29 个测试全部通过
 - 关键接口:
-  - `visualization::toVsgGeometry(shape, deflection)` → `vsg::ref_ptr<vsg::VertexIndexDraw>`
-  - binding 0 = 顶点 `vsg::vec3Array`, binding 1 = 法线 `vsg::vec3Array`
-  - 索引类型 `vsg::uintArray`（uint32_t，支持大网格）
-  - 空形体返回 nullptr
+  - `SceneManager::root()` → `vsg::ref_ptr<vsg::Group>` 场景根节点
+  - `SceneManager::addNode/removeNode/updateNode/batchUpdate` — 增量更新
+  - `createPipePointNode(x, y, z, size)` → `MatrixTransform`
+  - `createComponentNode(vid, matrix)` → `MatrixTransform → StateGroup → VertexIndexDraw`
+  - `createLodNode(highDetail, lowDetail, center, radius)` → `vsg::LOD`
 - 注意事项:
-  - VertexIndexDraw 不含材质/着色器，T12 需在外层 StateGroup 提供 Pipeline
-  - `visualization` 库已链接 `vsg::vsg` 和 `geometry`（传递依赖），T12 直接链接 visualization 即可
+  - StateGroup 的 stateCommands 为空，T13/T15 需要在 compile 前填充 Pipeline
+  - PipePointNode 正方体几何无纹理/颜色绑定（颜色参数预留）
+  - LOD 使用 minimumScreenHeightRatio 机制，高精度 0.05 低精度 0.0
 
-## 给 AI 的指令（T12）
+## 给 AI 的指令（T13）
 
-1. 读取 `docs/development-plan.md` 中 **T12** 章节获取交付物和验收标准
-2. 读取 `docs/architecture.md` 中场景管理相关章节
-3. 读取 `lib/vsg/AGENTS.md` 了解 VSG API（特别是 Group、StateGroup、LOD、Builder）
-4. 前置代码:
-   - `src/visualization/OcctToVsg.h` (T11 产出)
-   - `src/model/Route.h`, `src/model/Segment.h`, `src/model/PipePoint.h` (文档对象)
+1. 读取 `docs/development-plan.md` 中 **T13** 章节获取交付物和验收标准
+2. 读取 `docs/architecture.md` 中场景基础设施相关章节
+3. 读取前置代码:
+   - `src/visualization/SceneManager.h` (T12 产出)
+   - `src/visualization/LodStrategy.h` (T12 产出)
+4. 读取 `lib/vsg/AGENTS.md` 了解 VSG Trackball / Camera / Viewer API
 5. 完成后运行: `pixi run build-debug && pixi run test`
 6. 验证通过后更新 `docs/tasks/status.md` 和本文件

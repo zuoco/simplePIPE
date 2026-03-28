@@ -129,3 +129,14 @@ target_link_libraries(test_visualization
 target_include_directories(test_visualization PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_visualization PRIVATE cxx_std_17)
 add_test(NAME Visualization COMMAND test_visualization)
+
+# VSG 场景管理测试 — T12
+add_executable(test_scene_manager test_scene_manager.cpp)
+target_link_libraries(test_scene_manager
+    PRIVATE
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_scene_manager PRIVATE cxx_std_17)
+add_test(NAME SceneManager COMMAND test_scene_manager)

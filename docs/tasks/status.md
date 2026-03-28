@@ -32,9 +32,9 @@
 | T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
 | T10 | 拓扑管理与约束 | `done` | T05 | Sonnet | 2026-03-28 |
 | T11 | OCCT→VSG 网格转换 | `done` | T04 | Sonnet | 2026-03-28 |
-| T12 | VSG 场景管理 | `ready` | T11 | Sonnet | |
-| T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
-| T14 | 3D 拾取与高亮 | `pending` | T12 | Sonnet | |
+| T12 | VSG 场景管理 | `done` | T11 | Sonnet | 2026-03-28 |
+| T13 | 相机控制与场景基础设施 | `ready` | T12 | Sonnet | |
+| T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
 | T15 | VSG-QML 桥接 | `pending` | T12, T13 | **Opus** | |
 | T16 | 应用层核心 | `ready` | T05, T07 | **Opus** | |
 | T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
@@ -798,8 +798,6 @@ class PipelineValidator {
 - `ConstraintSolver::checkAll()` 是管道设计校验的主要入口，T16 可在提交时调用
 - engine 的 CMakeLists 现已添加 OCCT 包含路径（PUBLIC），T21/T16 等的 engine 下游无需再次添加
 
-<!-- === COMPLETION LOG END === -->
-
 ### T11 — OCCT→VSG 网格转换 (2026-03-28)
 
 **产出文件**:
@@ -838,3 +836,84 @@ vsg::ref_ptr<vsg::VertexIndexDraw> toVsgGeometry(const TopoDS_Shape& shape,
 - T12 (VSG 场景管理) 使用 `toVsgGeometry()` 创建几何节点，表面材质需在外层 StateGroup 设置
 - visualization 库链接：`target_link_libraries(your_target visualization)` 即可，已传递 vsg::vsg + geometry
 - `vid->arrays[0]->data` 是顶点 vec3Array, `vid->arrays[1]->data` 是法线 vec3Array
+
+### T12 — VSG 场景管理 (2026-03-28)
+
+**产出文件**:
+- `src/visualization/PipePointNode.h`
+- `src/visualization/PipePointNode.cpp`
+- `src/visualization/ComponentNode.h`
+- `src/visualization/ComponentNode.cpp`
+- `src/visualization/LodStrategy.h`
+- `src/visualization/LodStrategy.cpp`
+- `src/visualization/SceneManager.h`
+- `src/visualization/SceneManager.cpp`
+- `src/visualization/CMakeLists.txt` (更新：新增 4 个 .cpp)
+- `tests/test_scene_manager.cpp` (29 个测试)
+- `tests/CMakeLists.txt` (更新：新增 test_scene_manager)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// visualization/PipePointNode.h
+namespace visualization {
+// 创建管点 VSG 节点（小正方体，手动构建 VertexIndexDraw，无 GPU 依赖）
+vsg::ref_ptr<vsg::MatrixTransform> createPipePointNode(
+    double x, double y, double z,
+    float size = 20.0f,
+    const vsg::vec4& color = {0.9f, 0.5f, 0.1f, 1.0f});
+}
+
+// visualization/ComponentNode.h
+namespace visualization {
+// 创建管件 VSG 节点：MatrixTransform → StateGroup(空) → VertexIndexDraw
+vsg::ref_ptr<vsg::MatrixTransform> createComponentNode(
+    vsg::ref_ptr<vsg::VertexIndexDraw> vid,
+    const vsg::dmat4& matrix = vsg::dmat4{});
+}
+
+// visualization/LodStrategy.h
+namespace visualization {
+struct LodLevels { double highDetailRatio = 0.05; double lowDetailRatio = 0.0; };
+// 创建两级 VSG LOD 节点，以包围球中心+半径做视锥剔除
+vsg::ref_ptr<vsg::LOD> createLodNode(
+    vsg::ref_ptr<vsg::Node> highDetail,
+    vsg::ref_ptr<vsg::Node> lowDetail,
+    const vsg::dvec3& center, double radius,
+    const LodLevels& levels = {});
+}
+
+// visualization/SceneManager.h
+namespace visualization {
+class SceneManager {
+    SceneManager();
+    vsg::ref_ptr<vsg::Group> root() const;    // 场景根节点
+    void addNode(const std::string& uuid, vsg::ref_ptr<vsg::Node> node);
+    bool removeNode(const std::string& uuid);
+    bool updateNode(const std::string& uuid, vsg::ref_ptr<vsg::Node> newNode);
+    void batchUpdate(const std::vector<std::pair<std::string, vsg::ref_ptr<vsg::Node>>>& updates);
+    vsg::ref_ptr<vsg::Node> findNode(const std::string& uuid) const;
+    bool hasNode(const std::string& uuid) const;
+    size_t nodeCount() const;
+};
+}
+```
+
+**设计决策**:
+- `PipePointNode` 手动构建 24 顶点 / 36 索引的正方体 VertexIndexDraw（不使用 vsg::Builder，避免 Vulkan context 依赖）
+- `ComponentNode` 的 StateGroup 初始为空（stateCommands 留给 T13/T15 渲染层填充 Pipeline）
+- `SceneManager` 维护 `unordered_map<string, ref_ptr<Node>>` 映射 + `root_->children` 同步，addNode 对重复 UUID 静默忽略
+- LOD 使用 VSG 的 `minimumScreenHeightRatio` 机制（非距离阈值），默认高精度层 0.05、低精度层 0.0（始终可见）
+- 所有节点均为 CPU 端数据结构，GPU 上传在 Viewer compile() 时发生
+
+**已知限制**:
+- StateGroup 无 Pipeline 绑定，在 T15 桥接前无法实际渲染
+- PipePointNode 正方体无纹理/颜色绑定（颜色参数预留但未传入 StateGroup）
+- SceneManager::removeNode 在 children 中的查找是 O(n)，大场景可优化为 index map
+
+**后续任务注意**:
+- T13 (相机控制) 可直接使用 `SceneManager::root()` 作为 Viewer 场景数据
+- T14 (拾取) 可遍历 SceneManager 的 nodeMap_ 反查 UUID（或扩展 SceneManager 提供 UUID 查询接口）
+- T15 (VSG-QML 桥接) 在 compile 前需为 ComponentNode 的 StateGroup 填充 GraphicsPipeline
+- `visualization` 库现已包含所有 T12 产出，下游只需 `target_link_libraries(xxx visualization)` 即可
+
+<!-- === COMPLETION LOG END === -->
