@@ -186,6 +186,18 @@ target_include_directories(test_app_core PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_app_core PRIVATE cxx_std_17)
 add_test(NAME AppCore COMMAND test_app_core)
 
+# JSON 工程序列化测试 — T20
+add_executable(test_project_serializer test_project_serializer.cpp)
+target_link_libraries(test_project_serializer
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_project_serializer PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_project_serializer PRIVATE cxx_std_17)
+add_test(NAME ProjectSerializer COMMAND test_project_serializer)
+
 # 工作台系统 + QML 桥接测试 — T17
 add_executable(test_workbench_bridge test_workbench_bridge.cpp)
 target_link_libraries(test_workbench_bridge

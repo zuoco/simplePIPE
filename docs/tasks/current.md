@@ -9,29 +9,29 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T20 |
-| **任务名** | JSON 序列化 |
+| **任务 ID** | T21 |
+| **任务名** | STEP 导出 |
 | **推荐模型** | Sonnet |
-| **前置依赖** | T05, T06 |
+| **前置依赖** | T08, T09, T04 |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 20/22 个任务
+- 已完成: 21/22 个任务
 - 当前阶段: Phase 6 — 数据交换
 
 ## 上一个完成的任务
 
-T19 — QML UI 面板 (2026-03-28)
-- 产出: `ui/main.qml` + `ui/style` + `ui/components` + `ui/panels` + `ui/dialogs`，`tests/test_qml_ui_panels.cpp`
-- 关键接口: `PropertyPanel.ensureExpandedAndFlash()`；`Viewport3D.onInspectRequested` 引导属性面板；全局快捷键 Ctrl+S/Z/Y/N/O, Delete
-- 注意事项: 当前保存/打开/删除仍是 UI 占位动作，T20 可直接接入真实序列化逻辑
+T20 — JSON 序列化 (2026-03-28)
+- 产出: `src/app/ProjectSerializer.h/.cpp`，`tests/test_project_serializer.cpp`，以及构建与模型基类更新
+- 关键接口: `app::ProjectSerializer::save/load`；`DocumentObject::setIdForDeserialization()`
+- 注意事项: load 后已自动执行全量 `RecomputeEngine::recomputeAll()`；JSON round-trip 稳定性已由测试覆盖
 
 ## 给 AI 的指令
 
-1. 读取 `docs/development-plan.md` 中 **T20** 章节
-2. 读取 `docs/architecture.md` 中数据交换与应用约定相关章节（JSON 结构、单文档约定）
-3. 读取前置代码: `src/app/Document.h`、`src/model/PipePoint.h`、`src/model/PipeSpec.h`、`src/model/Route.h`、`src/model/Segment.h`、`src/model/Accessory.h`、`src/model/Beam.h`
-4. 如需库指南: 无（本任务以 `nlohmann/json` 为主）
+1. 读取 `docs/development-plan.md` 中 **T21** 章节
+2. 读取 `docs/architecture.md` 中数据交换/STEP 导出相关章节
+3. 读取前置代码: `src/app/Document.h`、`src/app/ProjectSerializer.h`、`src/engine/GeometryDeriver.h`、`src/engine/RunBuilder.h`、`src/engine/BendBuilder.h`、`src/engine/ReducerBuilder.h`、`src/engine/TeeBuilder.h`、`src/engine/ValveBuilder.h`、`src/engine/FlexJointBuilder.h`、`src/geometry/StepIO.h`
+4. 如需库指南: 读取 `lib/occt/AGENTS.md`
 5. 完成后运行 `pixi run build-debug && pixi run test`
 6. 验证通过后更新 `docs/tasks/status.md` 和本文件

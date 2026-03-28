@@ -1,6 +1,7 @@
 add_library(app STATIC
     placeholder.cpp
     Document.cpp
+    ProjectSerializer.cpp
     DependencyGraph.cpp
     TransactionManager.cpp
     WorkbenchManager.cpp

@@ -23,6 +23,9 @@ public:
 
     const foundation::UUID& id() const { return id_; }
 
+    /// 仅用于反序列化加载历史工程时恢复对象 UUID。
+    void setIdForDeserialization(const foundation::UUID& id) { id_ = id; }
+
     const std::string& name() const { return name_; }
     void setName(const std::string& name) {
         if (name_ != name) {

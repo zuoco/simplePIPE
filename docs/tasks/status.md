@@ -40,7 +40,7 @@
 | T17 | 工作台 + QML 桥接 | `done` | T16 | Sonnet | 2026-03-28 |
 | T18 | QML 表格模型层 | `done` | T17 | Sonnet | 2026-03-28 |
 | T19 | QML UI 面板 | `done` | T18 | Sonnet | 2026-03-28 |
-| T20 | JSON 序列化 | `ready` | T05, T06 | Sonnet | |
+| T20 | JSON 序列化 | `done` | T05, T06 | Sonnet | 2026-03-28 |
 | T21 | STEP 导出 | `ready` | T08, T09, T04 | Sonnet | |
 | T25 | 集成测试 | `pending` | 全部 | **Opus** | |
 
@@ -1424,5 +1424,51 @@ function ensureExpandedAndFlash() {
 - T20 (JSON 序列化) 可直接复用 `NewProjectDialog/OpenProjectDialog` 入口，把当前占位动作替换为真实 `save/load` 调用。
 - 若后续接入 3D 拾取右键定位，可将 `Viewport3D.inspectRequested` 扩展为携带 UUID/世界坐标参数传递至属性面板。
 - `test_qml_ui_panels` 使用 `qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport")`，后续改动 VSG QML 注册名时需同步更新测试。
+
+### T20 — JSON 序列化 (2026-03-28)
+
+**产出文件**:
+- `src/app/ProjectSerializer.h`
+- `src/app/ProjectSerializer.cpp`
+- `src/model/DocumentObject.h` (更新，增加反序列化 UUID 恢复接口)
+- `src/app/CMakeLists.txt` (更新，编译 `ProjectSerializer.cpp`)
+- `tests/test_project_serializer.cpp`
+- `tests/CMakeLists.txt` (更新，添加 `test_project_serializer`)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// app/ProjectSerializer.h
+namespace app {
+class ProjectSerializer {
+public:
+    static bool save(const Document& document, const std::string& filePath);
+    static std::unique_ptr<Document> load(const std::string& filePath);
+};
+}
+
+// model/DocumentObject.h
+class DocumentObject {
+public:
+    const foundation::UUID& id() const;
+    void setIdForDeserialization(const foundation::UUID& id);
+};
+```
+
+**设计决策**:
+- JSON 顶层结构实现为 `version + projectConfig + pipeSpecs + routes + accessories + beams`，满足 T20 任务定义。
+- 为保证 `save -> load -> save` 稳定，序列化输出对 PipeSpec/Route/Accessory/Beam 采用 UUID 排序；Segment 与 PipePoint 保留原有拓扑顺序。
+- `Variant` 字段采用显式类型编码：`{"type":"double|int|string","value":...}`，避免数字/字符串歧义。
+- 反序列化时恢复跨对象引用：`PipePoint->PipeSpec`、`Accessory->PipePoint`（并回填到 `PipePoint::accessories`）、`Beam->start/end PipePoint`。
+- `load()` 完成后创建临时 `DependencyGraph` 并调用 `RecomputeEngine::recomputeAll()`，满足“打开后全量重建”约定。
+- 为维持历史工程 ID 稳定性，新增 `DocumentObject::setIdForDeserialization()` 仅用于加载阶段。
+
+**已知限制**:
+- 目前 JSON 中 `projectConfig` 仅按单对象处理（符合当前单文档模式）；若未来支持多配置模板需扩展为数组或命名集合。
+- `ProjectSerializer::load()` 当前采用失败返回 `nullptr` 的容错策略，未区分细粒度错误码。
+
+**后续任务注意**:
+- T21 可直接复用 `ProjectSerializer` 的已加载对象关系，导出时无需再次做 PipeSpec/拓扑修复。
+- 若 T21 需要把 STEP 与 JSON 双文件联动保存，建议沿用本任务字段命名，避免破坏已有 round-trip 测试基线。
+- UI 层（T19）保存/打开占位动作可以直接接入 `ProjectSerializer::save/load`。
 
 <!-- === COMPLETION LOG END === -->
