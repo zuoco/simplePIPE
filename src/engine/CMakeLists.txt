@@ -1,4 +1,11 @@
-add_library(engine STATIC BendCalculator.cpp)
+add_library(engine STATIC
+    BendCalculator.cpp
+    RunBuilder.cpp
+    BendBuilder.cpp
+    ReducerBuilder.cpp
+    TeeBuilder.cpp
+    GeometryDeriver.cpp
+)
 
 target_include_directories(engine
     PUBLIC

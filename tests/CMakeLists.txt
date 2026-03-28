@@ -69,3 +69,15 @@ target_link_libraries(test_engine
 target_include_directories(test_engine PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_engine PRIVATE cxx_std_17)
 add_test(NAME Engine COMMAND test_engine)
+
+# 管件几何测试 — T08
+add_executable(test_pipe_geometry test_pipe_geometry.cpp)
+target_link_libraries(test_pipe_geometry
+    PRIVATE
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_pipe_geometry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_pipe_geometry PRIVATE cxx_std_17)
+add_test(NAME PipeGeometry COMMAND test_pipe_geometry)
