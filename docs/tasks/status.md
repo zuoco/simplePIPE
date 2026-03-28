@@ -49,19 +49,19 @@
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
 | T30 | ViewManager 视图管理器 | `done` | — | Sonnet | 2026-03-29 |
-| T31 | ComponentCatalog 参数化构件模板 | `ready` | — | **Opus** | — |
+| T31 | ComponentCatalog 参数化构件模板 | `done` | — | **Opus** | 2026-03-29 |
 | T32 | Load 载荷数据模型 | `ready` | — | Sonnet | — |
 | T33 | LoadCase 与 LoadCombination | `pending` | T32 | Sonnet | — |
-| T34 | DesignWorkbench 工作台 | `pending` | T31 | Sonnet | — |
-| T35 | SpecWorkbench 工作台 | `pending` | T31 | Sonnet | — |
-| T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | Sonnet | — |
-| T37 | OCCT→VTK 网格转换 | `pending` | T32 | Sonnet | — |
-| T38 | VTK 场景管理 | `pending` | T37 | Sonnet | — |
-| T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Opus** | — |
+| T34 | DesignWorkbench 工作台 | `ready` | T31 | Sonnet | — |
+| T35 | SpecWorkbench 工作台 | `ready` | T31 | Sonnet | — |
+| T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | **Codex** | — |
+| T37 | OCCT→VTK 网格转换 | `pending` | T32 | **Codex** | — |
+| T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
+| T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Gemini** | — |
 | T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
 | T41 | ComponentToolStrip 元件插入 | `pending` | T31, T36 | Sonnet | — |
-| T42 | VTK-QML 桥接 | `pending` | T38 | **Opus** | — |
-| T43 | 序列化扩展 (Load/LoadCase) | `pending` | T33 | Sonnet | — |
+| T42 | VTK-QML 桥接 | `pending` | T38 | **Gemini** | — |
+| T43 | 序列化扩展 (Load/LoadCase) | `pending` | T33 | **Codex** | — |
 | T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
 | T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
 
@@ -1614,5 +1614,82 @@ public:
 - T39(工作台切换): 需通过 `vm.saveViewState() → vm.setActiveViewport() → vm.restoreViewState()` 流程切换
 - T42(VTK-QML桥接): 需为 ViewManager 添加 `setVtkComponents(VtkSceneManager*)` 方法
 - T40(StatusBar): 可通过 `vm.currentMouseWorldPos()` 获取鼠标 3D 坐标
+
+### T31 — ComponentCatalog 参数化构件模板库 (2026-03-29)
+
+**产出文件**:
+- `src/engine/ComponentTemplate.h`
+- `src/engine/ComponentCatalog.h`
+- `src/engine/ComponentCatalog.cpp`
+- `src/engine/templates/PipeTemplate.h`
+- `src/engine/templates/ElbowTemplate.h`
+- `src/engine/templates/TeeTemplate.h`
+- `src/engine/templates/ReducerTemplate.h`
+- `src/engine/templates/GateValveTemplate.h`
+- `src/engine/templates/WeldNeckFlangeTemplate.h`
+- `src/engine/templates/RigidSupportTemplate.h`
+- `src/engine/templates/SpringHangerTemplate.h`
+- `src/engine/GeometryDeriver.cpp` (更新，GateValve 通过 Catalog 查表)
+- `src/engine/CMakeLists.txt` (更新，添加 ComponentCatalog.cpp)
+- `tests/test_component_catalog.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_component_catalog)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace engine {
+
+struct ComponentParams {
+    double od, wallThickness, bodyLength, bodyWidth, bodyHeight;
+    std::unordered_map<std::string, double> extra;
+    double get(const std::string& key, double fallback = 0.0) const;
+    void set(const std::string& key, double value);
+};
+
+class ComponentTemplate {
+public:
+    virtual ~ComponentTemplate() = default;
+    virtual std::string templateId() const = 0;
+    virtual ComponentParams deriveParams(double od, double wt) const = 0;
+    virtual TopoDS_Shape buildShape(const ComponentParams& p) const = 0;
+};
+
+class ComponentCatalog {
+public:
+    static ComponentCatalog& instance();
+    void registerTemplate(std::unique_ptr<ComponentTemplate> tpl);
+    ComponentTemplate* getTemplate(const std::string& templateId) const;
+    std::vector<std::string> allTemplateIds() const;
+    size_t size() const;
+    void clear();
+};
+}
+```
+
+**已注册的 8 种模板**:
+- `Pipe` — 圆柱壳 (外柱 cut 内柱)
+- `Elbow` — 圆环截段壳体 (默认90°, R=1.5×OD)
+- `Tee` — 主管+支管 fuse 壳体
+- `Reducer` — 锥壳 (大端→小端)
+- `GateValve` — 管段+膨大阀体+阀杆+手轮 (cut 内腔)
+- `WeldNeckFlange` — 法兰盘+短颈管段 (cut 内腔)
+- `RigidSupport` — 底板(正方形)+立柱(圆柱) fuse
+- `SpringHanger` — 弹簧体(圆柱)+吊杆(细圆柱) fuse
+
+**设计决策**:
+- 模板为 header-only 实现，注册在 `ComponentCatalog` 构造函数中自动完成
+- `ComponentParams::extra` 用 unordered_map 存放各模板的扩展参数，避免基类膨胀
+- `GeometryDeriver` 对 GateValve 类型已改为通过 Catalog 查表，添加了 `positionShape()` 辅助函数将原点几何变换到实际管线位置
+- 其他管点类型（Bend/Tee/Reducer等）保持原有 Builder 调用，因为它们需要上下文位置参数
+- 模板 `buildShape()` 统一在原点生成，轴线沿 Z
+
+**已知限制**:
+- 仅 GateValve 在 GeometryDeriver 中改为 Catalog 查表，其他类型仍用原 Builder
+- 模板参数均为硬编码比例规则，未支持从外部配置文件加载
+- Tee 模板的 OD=323.8 生成布尔运算较慢 (~4.7s)
+
+**后续任务注意**:
+- T34(DesignWorkbench): 可通过 `ComponentCatalog::instance().allTemplateIds()` 获取所有可用构件类型
+- T35(SpecWorkbench): 可通过 `getTemplate(id)->deriveParams(od, wt)` 查看构件参数规
+- T41(ComponentToolStrip): 直接从 Catalog 获取模板列表，用 `buildShape()` 生成预览几何
 
 <!-- === COMPLETION LOG END === -->

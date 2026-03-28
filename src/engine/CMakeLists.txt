@@ -9,6 +9,7 @@ add_library(engine STATIC
     BeamBuilder.cpp
     AccessoryBuilder.cpp
     GeometryDeriver.cpp
+    ComponentCatalog.cpp
     TopologyManager.cpp
     ConstraintSolver.cpp
     PipelineValidator.cpp

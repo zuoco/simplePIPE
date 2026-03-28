@@ -94,6 +94,19 @@ target_include_directories(test_valve_flex_beam PRIVATE ${OpenCASCADE_INCLUDE_DI
 target_compile_features(test_valve_flex_beam PRIVATE cxx_std_17)
 add_test(NAME ValveFlexBeam COMMAND test_valve_flex_beam)
 
+# ComponentCatalog 参数化构件模板库测试 — T31
+add_executable(test_component_catalog test_component_catalog.cpp)
+target_link_libraries(test_component_catalog
+    PRIVATE
+        engine
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_component_catalog PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_component_catalog PRIVATE cxx_std_17)
+add_test(NAME ComponentCatalog COMMAND test_component_catalog)
+
 # 附属对象与梁测试 — T06
 add_executable(test_accessory_beam test_accessory_beam.cpp)
 target_link_libraries(test_accessory_beam

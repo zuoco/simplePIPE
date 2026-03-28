@@ -35,9 +35,10 @@
 ```
 - 只读与当前任务相关的章节，不要读整个文档
 
-### Step 5: 如涉及 OCCT/VSG/VTK，读取库指南
+### Step 5: 如涉及领域知识或专门库，读取库指南与 Skills
 ```
 读取 lib/occt/AGENTS.md 或 lib/vsg/AGENTS.md 或 lib/vtk/AGENTS.md
+读取 .github/skills/industrial-software-dev/SKILL.md 获取工业软件开发的架构与源码实现指导
 ```
 
 ### Step 6: 实现代码
@@ -88,7 +89,7 @@ pixi run test
 
 ```bash
 git add -A
-git commit -m "feat: TXX — 简要描述实现的功能"
+git commit -m "feat: TXX — 使用中文详细描述实现的功能"
 ```
 
 - 功能开发统一使用 `feat: TXX — ...` 格式
@@ -113,7 +114,7 @@ git commit -m "feat: TXX — 简要描述实现的功能"
 |------|---|
 | **任务 ID** | TXX |
 | **任务名** | XXX |
-| **推荐模型** | Sonnet 或 Opus (从status.md查) |
+| **推荐模型** | Opus / Gemini / Codex / Sonnet (从status.md查) |
 | **前置依赖** | TYY, TZZ |
 | **前置状态** | ✅ 所有依赖已满足 |
 
@@ -134,7 +135,7 @@ TXX — 任务名 (日期)
 1. 读取 `docs/development-plan.md` 中 **TXX** 章节
 2. 读取 `docs/architecture.md` **§X** 相关章节
 3. 读取前置代码: [列出需要读的.h文件路径]
-4. 如需库指南: 读取 `lib/xxx/AGENTS.md`
+4. 如需领域知识或库指南: 读取 `.github/skills/industrial-software-dev/SKILL.md` 和 `lib/xxx/AGENTS.md`
 5. 完成后运行 `pixi run build-debug && pixi run test`
 6. 验证通过后更新 `docs/tasks/status.md` 和本文件
 ```

@@ -1105,7 +1105,7 @@ class SpecWorkbench : public Workbench {
 
 **Phase**: 13 — UI 完善  
 **依赖**: T34(DesignWorkbench)  
-**推荐模型**: Sonnet  
+**推荐模型**: **Codex** (GPT 5.2)  
 **预计规模**: ~500 行  
 
 **参考**: architecture.md §9.2, §9.3
@@ -1130,7 +1130,7 @@ class SpecWorkbench : public Workbench {
 
 **Phase**: 11 — VTK 可视化  
 **依赖**: T04(OCCT 网格化) — 已完成, T32(Load 模型,用于 VTK 中显示载荷箭头)  
-**推荐模型**: Sonnet  
+**推荐模型**: **Codex** (GPT 5.2)  
 **预计规模**: ~400 行  
 
 **参考**: architecture.md §12 Step 20, lib/vtk/AGENTS.md
@@ -1160,7 +1160,7 @@ namespace vtk_vis {
 
 **Phase**: 11 — VTK 可视化  
 **依赖**: T37(OCCT→VTK)  
-**推荐模型**: Sonnet  
+**推荐模型**: **Codex** (GPT 5.2)  
 **预计规模**: ~400 行  
 
 **参考**: architecture.md §8 vtk-visualization/
@@ -1191,7 +1191,7 @@ class VtkSceneManager {
 
 **Phase**: 10 — 工作台拆分  
 **依赖**: T34(DesignWorkbench), T35(SpecWorkbench)  
-**推荐模型**: **Opus**  
+**推荐模型**: **Gemini** (3.1 Pro)  
 **预计规模**: ~500 行  
 
 **参考**: architecture.md §6.7, §9.6
@@ -1258,7 +1258,7 @@ class VtkSceneManager {
 
 **Phase**: 11 — VTK 可视化  
 **依赖**: T38(VTK 场景管理)  
-**推荐模型**: **Opus**  
+**推荐模型**: **Gemini** (3.1 Pro)  
 **预计规模**: ~400 行  
 
 **参考**: architecture.md §8, lib/vtk/AGENTS.md
@@ -1279,7 +1279,7 @@ class VtkSceneManager {
 
 **Phase**: 14 — 集成 & 序列化  
 **依赖**: T33(LoadCase/Combo), T20(JSON序列化) — 已完成  
-**推荐模型**: Sonnet  
+**推荐模型**: **Codex** (GPT 5.2)  
 **预计规模**: ~400 行  
 
 **参考**: architecture.md §6.9
