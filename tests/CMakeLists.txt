@@ -140,3 +140,14 @@ target_link_libraries(test_scene_manager
 )
 target_compile_features(test_scene_manager PRIVATE cxx_std_17)
 add_test(NAME SceneManager COMMAND test_scene_manager)
+
+# 相机控制与场景基础设施测试 — T13
+add_executable(test_camera_furniture test_camera_furniture.cpp)
+target_link_libraries(test_camera_furniture
+    PRIVATE
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_camera_furniture PRIVATE cxx_std_17)
+add_test(NAME CameraFurniture COMMAND test_camera_furniture)

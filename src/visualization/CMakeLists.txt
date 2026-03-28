@@ -5,6 +5,8 @@ add_library(visualization STATIC
     ComponentNode.cpp
     LodStrategy.cpp
     SceneManager.cpp
+    CameraController.cpp
+    SceneFurniture.cpp
 )
 
 target_include_directories(visualization

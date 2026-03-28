@@ -33,9 +33,9 @@
 | T10 | 拓扑管理与约束 | `done` | T05 | Sonnet | 2026-03-28 |
 | T11 | OCCT→VSG 网格转换 | `done` | T04 | Sonnet | 2026-03-28 |
 | T12 | VSG 场景管理 | `done` | T11 | Sonnet | 2026-03-28 |
-| T13 | 相机控制与场景基础设施 | `ready` | T12 | Sonnet | |
+| T13 | 相机控制与场景基础设施 | `done` | T12 | Sonnet | 2026-03-28 |
 | T14 | 3D 拾取与高亮 | `ready` | T12 | Sonnet | |
-| T15 | VSG-QML 桥接 | `pending` | T12, T13 | **Opus** | |
+| T15 | VSG-QML 桥接 | `ready` | T12, T13 | **Opus** | |
 | T16 | 应用层核心 | `ready` | T05, T07 | **Opus** | |
 | T17 | 工作台 + QML 桥接 | `pending` | T16 | Sonnet | |
 | T18 | QML 表格模型层 | `pending` | T17 | Sonnet | |
@@ -915,5 +915,76 @@ class SceneManager {
 - T14 (拾取) 可遍历 SceneManager 的 nodeMap_ 反查 UUID（或扩展 SceneManager 提供 UUID 查询接口）
 - T15 (VSG-QML 桥接) 在 compile 前需为 ComponentNode 的 StateGroup 填充 GraphicsPipeline
 - `visualization` 库现已包含所有 T12 产出，下游只需 `target_link_libraries(xxx visualization)` 即可
+
+### T13 — 相机控制与场景基础设施 (2026-03-28)
+
+**产出文件**:
+- `src/visualization/CameraController.h`
+- `src/visualization/CameraController.cpp`
+- `src/visualization/SceneFurniture.h`
+- `src/visualization/SceneFurniture.cpp`
+- `tests/test_camera_furniture.cpp` — 27 个测试全部通过
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// visualization/CameraController.h
+namespace visualization {
+enum class ViewPreset { Front, Right, Top, Isometric };
+
+class CameraController {
+    CameraController(vsg::ref_ptr<vsg::Camera> camera,
+                     vsg::ref_ptr<vsg::Trackball> trackball);
+    vsg::ref_ptr<vsg::Trackball> trackball() const;
+    vsg::ref_ptr<vsg::Camera>    camera()    const;
+    void setViewPreset(ViewPreset preset, double duration = 0.2);
+    void fitAll(vsg::ref_ptr<vsg::Node> sceneRoot);
+    void fitAll(const vsg::dbox& bounds);
+    vsg::ref_ptr<vsg::LookAt> lookAt() const;
+    static vsg::ref_ptr<vsg::LookAt> computePresetLookAt(
+        ViewPreset preset, const vsg::dvec3& center, double distance);
+};
+}
+
+// visualization/SceneFurniture.h
+namespace visualization {
+class SceneFurniture {
+    SceneFurniture(double axisLength=200.0, double gridSize=5000.0, uint32_t divisions=20);
+    vsg::ref_ptr<vsg::Group>  axisNode()   const;  // X/Y/Z 三轴线段
+    vsg::ref_ptr<vsg::Group>  gridNode()   const;  // 地面网格内容
+    vsg::ref_ptr<vsg::Switch> gridSwitch() const;  // 可见性控制节点（添加到场景用这个）
+    void setGridVisible(bool visible);
+    bool isGridVisible() const;
+    static constexpr float backgroundTopR/G/B(); // #E8E8E8
+    static constexpr float backgroundBotR/G/B(); // #D0D0D0
+};
+}
+```
+
+**设计决策**:
+- `CameraController` 是对 `vsg::Trackball` 的轻量封装，不派生 Visitor，而是持有 `ref_ptr<Trackball>` 委托事件处理
+- `setViewPreset` 调用 `trackball->setViewpoint(lookAt, duration)` 实现平滑过渡（VSG 内置插值动画）
+- `fitAll` 使用 `vsg::ComputeBounds` 遍历场景图，计算包围盒后设置新 LookAt
+- `SceneFurniture` 轴线和网格均使用 `vsg::VertexDraw`（轻量级，仅存储顶点，不依赖 Vulkan context）
+- 地面网格可见性通过 `vsg::Switch` 节点控制（`setAllChildren(bool)`）
+- 背景颜色以 constexpr 常量提供，实际 Vulkan clearColor 设置留给 T15 桥接层
+
+**已知限制**:
+- `CameraController` 未实现自定义鼠标按键映射（使用 Trackball 默认映射），T15 桥接时可通过 QML 事件转发覆盖
+- 坐标轴几何无颜色绑定（颜色 X=红/Y=绿/Z=蓝 由 Pipeline 的顶点着色器负责，T15 时填充）
+- 渐变背景未实现为 VSG 节点（仅提供颜色常量供 T15 配置 Vulkan clearColor）
+
+**后续任务注意**:
+- T14 (拾取): `CameraController::camera()` 可用于构建 Intersector 的投影矩阵
+- T15 (VSG-QML 桥接): 从 `ctrl.trackball()` 获取 Trackball，注册到 Viewer 事件处理链；
+  `SceneFurniture::axisNode()` 和 `gridSwitch()` 加入场景根节点即可
+- 典型场景组装:
+  ```cpp
+  SceneManager mgr;
+  SceneFurniture furniture;
+  mgr.root()->addChild(furniture.axisNode());
+  mgr.root()->addChild(furniture.gridSwitch());
+  auto ctrl = CameraController(camera, trackball);
+  viewer->addEventHandler(ctrl.trackball());
+  ```
 
 <!-- === COMPLETION LOG END === -->
