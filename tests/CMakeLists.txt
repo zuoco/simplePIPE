@@ -242,3 +242,16 @@ target_link_libraries(test_qml_ui_panels
 )
 target_compile_features(test_qml_ui_panels PRIVATE cxx_std_17)
 add_test(NAME QmlUiPanels COMMAND test_qml_ui_panels)
+
+# 集成测试 — T25
+add_executable(test_integration test_integration.cpp)
+target_link_libraries(test_integration
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_integration PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_integration PRIVATE cxx_std_17)
+add_test(NAME Integration COMMAND test_integration)

@@ -42,7 +42,7 @@
 | T19 | QML UI 面板 | `done` | T18 | Sonnet | 2026-03-28 |
 | T20 | JSON 序列化 | `done` | T05, T06 | Sonnet | 2026-03-28 |
 | T21 | STEP 导出 | `done` | T08, T09, T04 | Sonnet | 2026-03-28 |
-| T25 | 集成测试 | `ready` | 全部 | **Opus** | |
+| T25 | 集成测试 | `done` | 全部 | **Opus** | 2026-03-28 |
 
 ---
 
@@ -1505,5 +1505,33 @@ public:
 **后续任务注意**:
 - T25 可直接复用 `tests/test_step_exporter.cpp` 的层级验证和性能基线（10 点导出 < 5s）。
 - 如需扩展导出对象范围，可在 `StepExporter::exportAll()` 中补充 Accessory/Beam 收集与命名策略。
+
+### T25 — 集成测试与端到端验证 (2026-03-28)
+
+**产出文件**:
+- `tests/test_integration.cpp`
+- `tests/CMakeLists.txt` (更新，添加 `test_integration`)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// test_integration.cpp — IntegrationTest 测试夹具
+// 内置 Document + DependencyGraph + TransactionManager + RecomputeEngine 完整栈
+// 12 个测试覆盖全部验收场景
+```
+
+**设计决策**:
+- 使用 GTest fixture (`IntegrationTest`) 搭建完整应用栈：Document + DependencyGraph + TransactionManager + RecomputeEngine，通过回调捕获生成的 OCCT 形体。
+- 7 个验收场景对应 7 个独立测试 + 1 个 EndToEnd 全流程测试 + 4 个跨模块集成测试。
+- TransactionManager 的 `recordChange` key 必须与 PropertyObject 内部 field name 一致（如 `"OD"`, `"wallThickness"`），否则 undo/redo 不生效。
+- STEP 导出验证使用 `STEPCAFControl_Reader` 回读校验文件有效性和装配层级存在。
+- 序列化 round-trip 验证覆盖 PipeSpec/PipePoint(含 Bend 参数)/Segment/Route/Flange/Beam/ProjectConfig。
+
+**已知限制**:
+- QML UI 层面的交互（如 Ctrl+Z 快捷键、表格输入）无法在纯 C++ 测试中验证，需手动 QML 测试。
+- 3D 视口渲染验证仅通过回调捕获 shape 非空来间接确认，未验证实际 VSG 渲染帧。
+
+**后续任务注意**:
+- 所有 22 个任务均已完成，项目进入维护/扩展阶段。
+- 全量测试（22 tests）执行约 11 秒，其中集成测试约 5.7 秒。
 
 <!-- === COMPLETION LOG END === -->
