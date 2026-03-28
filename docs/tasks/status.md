@@ -31,8 +31,8 @@
 | T08 | 管件几何 (Run/Reducer/Tee) | `done` | T07, T03 | Sonnet | 2026-03-28 |
 | T09 | 管件几何 (Valve/Flex/Beam) | `done` | T03, T05 | Sonnet | 2026-06-03 |
 | T10 | 拓扑管理与约束 | `done` | T05 | Sonnet | 2026-03-28 |
-| T11 | OCCT→VSG 网格转换 | `ready` | T04 | Sonnet | |
-| T12 | VSG 场景管理 | `pending` | T11 | Sonnet | |
+| T11 | OCCT→VSG 网格转换 | `done` | T04 | Sonnet | 2026-03-28 |
+| T12 | VSG 场景管理 | `ready` | T11 | Sonnet | |
 | T13 | 相机控制与场景基础设施 | `pending` | T12 | Sonnet | |
 | T14 | 3D 拾取与高亮 | `pending` | T12 | Sonnet | |
 | T15 | VSG-QML 桥接 | `pending` | T12, T13 | **Opus** | |
@@ -799,3 +799,42 @@ class PipelineValidator {
 - engine 的 CMakeLists 现已添加 OCCT 包含路径（PUBLIC），T21/T16 等的 engine 下游无需再次添加
 
 <!-- === COMPLETION LOG END === -->
+
+### T11 — OCCT→VSG 网格转换 (2026-03-28)
+
+**产出文件**:
+- `src/visualization/OcctToVsg.h`
+- `src/visualization/OcctToVsg.cpp`
+- `src/visualization/CMakeLists.txt` (更新：新增 OcctToVsg.cpp)
+- `tests/test_visualization.cpp` (6 个测试全部通过)
+- `tests/CMakeLists.txt` (更新：新增 test_visualization)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace visualization {
+
+/// OCCT Shape → VSG VertexIndexDraw（顶点 + 法线 + 索引）
+/// binding 0 = vsg::vec3Array（顶点坐标）
+/// binding 1 = vsg::vec3Array（法线向量）
+/// 索引类型: vsg::uintArray（uint32_t）
+/// 空形体或三角化失败返回 nullptr
+vsg::ref_ptr<vsg::VertexIndexDraw> toVsgGeometry(const TopoDS_Shape& shape,
+                                                  double deflection = 0.1);
+
+} // namespace visualization
+```
+
+**设计决策**:
+- MeshData → vsg::vec3Array (顶点/法线) + vsg::uintArray (索引)，直接调用 ShapeMesher::mesh()
+- 使用 `assignArrays({vertices, normals})` 和 `assignIndices(indices)` 组装 VertexIndexDraw
+- 索引使用 uint32_t（vsg::uintArray），支持超过 65535 顶点的大网格
+- 空形体判断：mesh.vertices.empty() || mesh.indices.empty() 时返回 nullptr
+
+**已知限制**:
+- VertexIndexDraw 不含材质/着色器绑定，T12 需要在外层 StateGroup 提供 Pipeline 和 DescriptorSet
+- 本阶段仅做 CPU 端数据组装，GPU buffer 上传在 compile() 时发生（需要 Vulkan Context）
+
+**后续任务注意**:
+- T12 (VSG 场景管理) 使用 `toVsgGeometry()` 创建几何节点，表面材质需在外层 StateGroup 设置
+- visualization 库链接：`target_link_libraries(your_target visualization)` 即可，已传递 vsg::vsg + geometry
+- `vid->arrays[0]->data` 是顶点 vec3Array, `vid->arrays[1]->data` 是法线 vec3Array

@@ -117,3 +117,15 @@ target_link_libraries(test_topology
 target_include_directories(test_topology PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_topology PRIVATE cxx_std_17)
 add_test(NAME Topology COMMAND test_topology)
+
+# OCCT→VSG 网格转换测试 — T11
+add_executable(test_visualization test_visualization.cpp)
+target_link_libraries(test_visualization
+    PRIVATE
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_visualization PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_visualization PRIVATE cxx_std_17)
+add_test(NAME Visualization COMMAND test_visualization)
