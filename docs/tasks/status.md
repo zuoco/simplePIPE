@@ -53,11 +53,11 @@
 | T32 | Load 载荷数据模型 | `done` | — | Sonnet | 2026-03-29 |
 | T33 | LoadCase 与 LoadCombination | `done` | T32 | Sonnet | 2026-03-29 |
 | T34 | DesignWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
-| T35 | SpecWorkbench 工作台 | `ready` | T31 | Sonnet | — |
+| T35 | SpecWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T36 | DesignTree + ParameterPanel 重构 | `ready` | T34 | **Codex** | — |
 | T37 | OCCT→VTK 网格转换 | `ready` | T32 | **Codex** | — |
 | T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
-| T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Gemini** | — |
+| T39 | 工作台切换 + QML 面板动态加载 | `ready` | T34, T35 | **Gemini** | — |
 | T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
 | T41 | ComponentToolStrip 元件插入 | `pending` | T31, T36 | Sonnet | — |
 | T42 | VTK-QML 桥接 | `pending` | T38 | **Gemini** | — |
@@ -1834,5 +1834,48 @@ public:
 - T35(SpecWorkbench): 与本任务结构完全相同，仿照此实现即可
 - T36(DesignTree+ParameterPanel): activate() 中可添加面板初始化/信号回调
 - T39(工作台切换): workbenchManager 已注册 DesignWorkbench("Design")，直接调用 switchWorkbench("Design")
+
+---
+
+### T35 — SpecWorkbench 工作台 (2026-03-29)
+
+**产出文件**:
+- `src/app/SpecWorkbench.h`
+- `src/app/SpecWorkbench.cpp`
+- `src/app/CMakeLists.txt` (更新，添加 SpecWorkbench.cpp)
+- `tests/test_spec_workbench.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_spec_workbench)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace app {
+
+class SpecWorkbench : public Workbench {
+public:
+    std::string name() const override;           // "Specification"
+    void activate(Document& document) override;
+    void deactivate(Document& document) override;
+    std::vector<ToolbarAction> toolbarActions() const override;
+    // 返回: new-spec / import-code / add-material / add-component / validate (共 5 项)
+    std::vector<std::string> panelIds() const override;
+    // 返回: "SpecTree" / "MaterialTable" / "ComponentTable" / "PropertyPanel"
+    ViewportType viewportType() const override;  // ViewportType::Vsg
+};
+
+} // namespace app
+```
+
+**设计决策**:
+- 结构与 DesignWorkbench 完全对称，5个 toolbarAction、4个 panelId
+- activate/deactivate 均为空实现，留给后续 UI 重构填充
+- viewportType 返回 Vsg，与 DesignWorkbench 保持一致
+
+**已知限制**:
+- 面板内容（SpecTree/MaterialTable/ComponentTable）留给后续任务实现
+- main.cpp 暂未注册 SpecWorkbench，T39 工作台切换时注册
+
+**后续任务注意**:
+- T39(工作台切换): 需在 main.cpp 中注册 SpecWorkbench("Specification")，switchWorkbench 时使用
+- T39 依赖 T34 和 T35 均已完成，状态已改为 `ready`
 
 <!-- === COMPLETION LOG END === -->

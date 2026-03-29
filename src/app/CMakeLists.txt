@@ -9,6 +9,7 @@ add_library(app STATIC
     WorkbenchManager.cpp
     CadWorkbench.cpp
     DesignWorkbench.cpp
+    SpecWorkbench.cpp
     SelectionManager.cpp
     ${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp
 )

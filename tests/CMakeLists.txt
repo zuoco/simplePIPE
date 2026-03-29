@@ -314,3 +314,15 @@ target_link_libraries(test_design_workbench
 target_include_directories(test_design_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_design_workbench PRIVATE cxx_std_17)
 add_test(NAME DesignWorkbench COMMAND test_design_workbench)
+
+# SpecWorkbench 工作台测试 — T35
+add_executable(test_spec_workbench test_spec_workbench.cpp)
+target_link_libraries(test_spec_workbench
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_spec_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_spec_workbench PRIVATE cxx_std_17)
+add_test(NAME SpecWorkbench COMMAND test_spec_workbench)
