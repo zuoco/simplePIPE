@@ -1,6 +1,8 @@
 #include "app/Application.h"
 #include "app/CadWorkbench.h"
 #include "app/DesignWorkbench.h"
+#include "app/SpecWorkbench.h"
+#include "app/AnalysisWorkbench.h"
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
@@ -15,6 +17,7 @@
 #include "visualization/OcctToVsg.h"
 #include "visualization/SceneFurniture.h"
 #include "visualization/SceneManager.h"
+#include "visualization/ViewManager.h"
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -45,12 +48,17 @@ int main(int argc, char* argv[])
     document.setName("Untitled");
     workbenchManager.registerWorkbench(std::make_unique<app::CadWorkbench>());
     workbenchManager.registerWorkbench(std::make_unique<app::DesignWorkbench>());
+    workbenchManager.registerWorkbench(std::make_unique<app::SpecWorkbench>());
+    workbenchManager.registerWorkbench(std::make_unique<app::AnalysisWorkbench>());
     workbenchManager.switchWorkbench("Design");
 
     engine::RecomputeEngine recomputeEngine(document, dependencyGraph);
 
     visualization::SceneManager sceneManager;
     visualization::SceneFurniture sceneFurniture;
+    
+    // ViewManager 注入
+    visualization::ViewManager viewManager;
     sceneManager.root()->addChild(sceneFurniture.axisNode());
     sceneManager.root()->addChild(sceneFurniture.gridSwitch());
 
@@ -63,6 +71,7 @@ int main(int argc, char* argv[])
     auto camera = vsg::Camera::create(perspective, lookAt, viewport);
     auto trackball = vsg::Trackball::create(camera);
     visualization::CameraController cameraController(camera, trackball);
+    viewManager.setVsgComponents(&sceneManager, &cameraController, &sceneFurniture);
 
     recomputeEngine.setSceneUpdateCallback([&sceneManager](const std::string& uuid,
                                                            const TopoDS_Shape& shape) {
@@ -80,7 +89,7 @@ int main(int argc, char* argv[])
     });
 
     ui::AppController appController(document, transactionManager, selectionManager);
-    ui::WorkbenchController workbenchController(workbenchManager);
+    ui::WorkbenchController workbenchController(workbenchManager, &viewManager);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appController", &appController);
@@ -97,17 +106,19 @@ int main(int argc, char* argv[])
                          if (!obj || objUrl != mainQmlUrl) {
                              return;
                          }
+                     },
+                     Qt::QueuedConnection);
 
-                         auto* viewportItem = obj->findChild<ui::VsgQuickItem*>("viewport3d");
+    QObject::connect(&workbenchController, &ui::WorkbenchController::viewportLoaded, &qtApp,
+                     [&](QObject* obj) {
+                         auto* viewportItem = qobject_cast<ui::VsgQuickItem*>(obj);
                          if (!viewportItem) {
                              return;
                          }
-
                          viewportItem->setSceneManager(&sceneManager);
                          viewportItem->setCameraController(&cameraController);
                          viewportItem->setSceneFurniture(&sceneFurniture);
-                     },
-                     Qt::QueuedConnection);
+                     });
 
     engine.load(mainQmlUrl);
     if (engine.rootObjects().isEmpty()) {

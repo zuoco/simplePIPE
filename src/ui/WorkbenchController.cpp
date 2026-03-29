@@ -2,9 +2,10 @@
 
 namespace ui {
 
-WorkbenchController::WorkbenchController(app::WorkbenchManager& manager, QObject* parent)
+WorkbenchController::WorkbenchController(app::WorkbenchManager& manager, visualization::ViewManager* viewManager, QObject* parent)
     : QObject(parent)
     , manager_(manager)
+    , viewManager_(viewManager)
 {
     manager_.setWorkbenchChangedCallback([this](const app::Workbench*) {
         emit activeWorkbenchChanged();
@@ -56,11 +57,31 @@ QStringList WorkbenchController::workbenchNames() const
 
 bool WorkbenchController::switchWorkbench(const QString& name)
 {
+    std::string oldName = manager_.activeWorkbench() ? manager_.activeWorkbench()->name() : "";
+
+    if (viewManager_ && !oldName.empty()) {
+        viewManager_->saveViewState(oldName);
+    }
+
     const bool changed = manager_.switchWorkbench(name.toStdString());
     if (changed) {
+        if (viewManager_) {
+            const app::Workbench* wb = manager_.activeWorkbench();
+            if (wb && wb->viewportType() == app::ViewportType::Vtk) {
+                viewManager_->setActiveViewport(visualization::ViewManager::ActiveViewport::VTK);
+            } else {
+                viewManager_->setActiveViewport(visualization::ViewManager::ActiveViewport::VSG);
+            }
+            viewManager_->restoreViewState(name.toStdString());
+        }
+
         emit activeWorkbenchChanged();
     }
     return changed;
+}
+
+void WorkbenchController::notifyViewportLoaded(QObject* viewportObj) {
+    emit viewportLoaded(viewportObj);
 }
 
 } // namespace ui

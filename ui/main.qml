@@ -127,30 +127,37 @@ ApplicationWindow {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
 
-            DesignTree {
-                id: designTree
-                objectName: "designTreePanel"
-                treeModel: appController ? appController.segmentTreeModel : null
-                SplitView.minimumWidth: 200
-                SplitView.preferredWidth: 260
-            }
-
-            Viewport3D {
-                id: viewportPanel
-                objectName: "viewportPanel"
-                SplitView.minimumWidth: 400
-                SplitView.preferredWidth: 860
-                SplitView.fillWidth: true
-                onInspectRequested: root.showPropertyPanelHint()
-            }
-
-            ParameterPanel {
-                id: parameterPanel
-                objectName: "parameterPanel"
-                tableModel: appController ? appController.pipePointTableModel : null
-                propertyModel: appController ? appController.propertyModel : null
-                SplitView.minimumWidth: 320
-                SplitView.preferredWidth: 380
+            Repeater {
+                model: workbenchController ? workbenchController.activePanels : []
+                delegate: Loader {
+                    id: panelLoader
+                    source: "panels/" + modelData + ".qml"
+                    
+                    SplitView.minimumWidth: item && item.SplitView ? item.SplitView.minimumWidth : 200
+                    SplitView.preferredWidth: item && item.SplitView ? item.SplitView.preferredWidth : 300
+                    SplitView.fillWidth: modelData === "Viewport3D"
+                    
+                    onLoaded: {
+                        if (modelData === "DesignTree") {
+                            item.objectName = "designTreePanel"
+                            item.treeModel = Qt.binding(function() { return appController ? appController.segmentTreeModel : null })
+                        } else if (modelData === "Viewport3D") {
+                            item.objectName = "viewportPanel"
+                            item.inspectRequested.connect(root.showPropertyPanelHint)
+                            var vsg = item.children[1] // The second child is VsgViewport? Wait, it's safer to find it. But QML doesn't have findChild inside Loader easily without objectName and looping.
+                            // Actually it's exposed as item.findChild in QtQuick since 5.9 maybe?
+                            // Wait, we can just write a function in Viewport3D.qml to emit it.
+                            if (workbenchController) workbenchController.notifyViewportLoaded(item.vsgViewport);
+                        } else if (modelData === "ParameterPanel") {
+                            item.objectName = "parameterPanel"
+                            item.tableModel = Qt.binding(function() { return appController ? appController.pipePointTableModel : null })
+                            item.propertyModel = Qt.binding(function() { return appController ? appController.propertyModel : null })
+                        } else if (modelData === "PropertyPanel") {
+                            item.objectName = "propertyPanel"
+                            item.propertyModel = Qt.binding(function() { return appController ? appController.propertyModel : null })
+                        }
+                    }
+                }
             }
         }
 

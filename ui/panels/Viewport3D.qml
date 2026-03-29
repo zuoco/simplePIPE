@@ -10,6 +10,8 @@ Rectangle {
     id: root
 
     signal inspectRequested()
+    property alias vsgViewport: viewport
+
 
     color: "transparent"
 

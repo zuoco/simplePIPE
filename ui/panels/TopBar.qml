@@ -35,24 +35,37 @@ Rectangle {
             font.pixelSize: theme.titleSize
             font.family: theme.fontFamily
             color: theme.textPrimary
-            Layout.rightMargin: 8
+            Layout.rightMargin: 16
         }
 
-        ComboBox {
-            id: wbCombo
-            model: workbenchController ? workbenchController.workbenchNames : []
+        TabBar {
+            id: wbTabBar
+            Layout.preferredWidth: 320
+            Layout.fillHeight: true
+
+            Repeater {
+                model: workbenchController ? workbenchController.workbenchNames : []
+                delegate: TabButton {
+                    text: modelData
+                    width: Math.max(100, implicitWidth + 20)
+                }
+            }
+
             currentIndex: {
-                if (!workbenchController || !model || model.length <= 0) {
+                if (!workbenchController || !workbenchController.workbenchNames || workbenchController.workbenchNames.length <= 0) {
                     return -1
                 }
-                return Math.max(0, model.indexOf(workbenchController.activeWorkbench))
+                return Math.max(0, workbenchController.workbenchNames.indexOf(workbenchController.activeWorkbench))
             }
-            onActivated: {
-                if (workbenchController) {
-                    workbenchController.switchWorkbench(currentText)
+
+            onCurrentIndexChanged: {
+                if (workbenchController && currentIndex >= 0 && currentIndex < workbenchController.workbenchNames.length) {
+                    var selected = workbenchController.workbenchNames[currentIndex]
+                    if (selected !== workbenchController.activeWorkbench) {
+                        workbenchController.switchWorkbench(selected)
+                    }
                 }
             }
-            Layout.preferredWidth: 120
         }
 
         Rectangle {

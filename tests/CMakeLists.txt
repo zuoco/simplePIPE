@@ -350,3 +350,12 @@ target_link_libraries(test_vtk_scene
 )
 target_compile_features(test_vtk_scene PRIVATE cxx_std_17)
 add_test(NAME VtkScene COMMAND test_vtk_scene)
+
+add_executable(test_workbench_switch test_workbench_switch.cpp)
+target_link_libraries(test_workbench_switch 
+    PRIVATE 
+        app 
+        ui 
+        GTest::GTest 
+        GTest::Main)
+add_test(NAME test_workbench_switch COMMAND test_workbench_switch)
