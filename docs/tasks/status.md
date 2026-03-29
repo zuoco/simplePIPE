@@ -51,7 +51,7 @@
 | T30 | ViewManager 视图管理器 | `done` | — | Sonnet | 2026-03-29 |
 | T31 | ComponentCatalog 参数化构件模板 | `done` | — | **Opus** | 2026-03-29 |
 | T32 | Load 载荷数据模型 | `done` | — | Sonnet | 2026-03-29 |
-| T33 | LoadCase 与 LoadCombination | `ready` | T32 | Sonnet | — |
+| T33 | LoadCase 与 LoadCombination | `done` | T32 | Sonnet | 2026-03-29 |
 | T34 | DesignWorkbench 工作台 | `ready` | T31 | Sonnet | — |
 | T35 | SpecWorkbench 工作台 | `ready` | T31 | Sonnet | — |
 | T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | **Codex** | — |
@@ -61,7 +61,7 @@
 | T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
 | T41 | ComponentToolStrip 元件插入 | `pending` | T31, T36 | Sonnet | — |
 | T42 | VTK-QML 桥接 | `pending` | T38 | **Gemini** | — |
-| T43 | 序列化扩展 (Load/LoadCase) | `pending` | T33 | **Codex** | — |
+| T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
 | T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
 | T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
 
@@ -1737,5 +1737,59 @@ class Load : public DocumentObject {
 - T33(LoadCase): 直接 `#include "model/Load.h"` 引用 Load，通过 UUID 关联
 - T37(OCCT→VTK): 可 include WindLoad/SeismicLoad 获取 direction 用于箭头方向渲染
 - T43(序列化扩展): 注意 Vec3 用 `foundation::math::Vec3` 命名空间
+
+### T33 — LoadCase 与 LoadCombination (2026-03-29)
+
+**产出文件**:
+- `src/model/LoadCase.h` — 基本工况（LoadEntry + LoadCase）
+- `src/model/LoadCombination.h` — 组合工况（CaseEntry + enums + LoadCombination）
+- `tests/test_loadcase.cpp` — 24 个单元测试，全部通过
+- `tests/CMakeLists.txt` — 新增 test_loadcase 目标
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// model/LoadCase.h
+struct LoadEntry {
+    foundation::UUID loadId;   // 指向 Load 文档对象
+    double factor = 1.0;
+};
+class LoadCase : public DocumentObject {
+    const std::string& caseName() const;   // 与 name() 相同，语义化别名
+    void addEntry(const LoadEntry& entry); // 防重复
+    bool removeEntry(const foundation::UUID& loadId);
+    const std::vector<LoadEntry>& entries() const;
+};
+
+// model/LoadCombination.h
+enum class CombineMethod { Algebraic, Absolute, SRSS, Envelope };
+enum class StressCategory { Sustained, Expansion, Occasional, Operating, Hydrotest };
+struct CaseEntry {
+    foundation::UUID caseId;   // 指向 LoadCase 文档对象
+    double factor = 1.0;
+};
+class LoadCombination : public DocumentObject {
+    StressCategory category() const;
+    void setCategory(StressCategory cat);
+    CombineMethod method() const;
+    void setMethod(CombineMethod m);
+    void addCaseEntry(const CaseEntry& entry);  // 防重复
+    bool removeCaseEntry(const foundation::UUID& caseId);
+    const std::vector<CaseEntry>& caseEntries() const;
+};
+```
+
+**设计决策**:
+- 全部为 header-only 实现，无 .cpp 文件（与 model 层其他类一致）
+- 防重复插入：addEntry / addCaseEntry 通过 find_if 检查 UUID 唯一性
+- changed 信号：setCategory/setMethod 仅在值真正变化时触发（无变化不触发）
+- DAG 层次：LoadCombination → LoadCase → Load，全通过 UUID 引用（无裸指针）
+
+**已知限制**:
+- 无序列化支持（T43 负责）
+- 无组合运算执行逻辑（在 AnalysisWorkbench/求解器层实现）
+
+**后续任务注意**:
+- T43(序列化扩展): include LoadCase.h 和 LoadCombination.h，序列化 entries/caseEntries 向量
+- T44(AnalysisWorkbench): 通过 LoadCombination::category() 确定规范校核类别，method() 决定求解方式
 
 <!-- === COMPLETION LOG END === -->

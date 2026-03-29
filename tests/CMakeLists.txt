@@ -291,3 +291,14 @@ target_link_libraries(test_load_model
 )
 target_compile_features(test_load_model PRIVATE cxx_std_17)
 add_test(NAME LoadModel COMMAND test_load_model)
+
+# LoadCase 与 LoadCombination 测试 — T33
+add_executable(test_loadcase test_loadcase.cpp)
+target_link_libraries(test_loadcase
+    PRIVATE
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_loadcase PRIVATE cxx_std_17)
+add_test(NAME LoadCase COMMAND test_loadcase)
