@@ -9,6 +9,8 @@
 #include <map>
 #include <string>
 
+namespace vtk_vis { class VtkSceneManager; }
+
 namespace visualization {
 
 /// @brief 视图管理器 — Layer 5 统一门面
@@ -53,6 +55,7 @@ public:
 
     /// 注入 VSG 子系统（SceneManager + CameraController + SceneFurniture）
     void setVsgComponents(SceneManager* scene, CameraController* camera, SceneFurniture* furniture);
+    void setVtkComponents(vtk_vis::VtkSceneManager* vtkScene);
 
     // === 视口路由 ===
     void setActiveViewport(ActiveViewport vp);
@@ -106,7 +109,7 @@ private:
     SceneFurniture*   vsgFurni_   = nullptr;
 
     // VTK 子系统指针预留（T38/T42 时注入）
-    // VtkSceneManager* vtkScene_ = nullptr;
+    vtk_vis::VtkSceneManager* vtkScene_ = nullptr;
 };
 
 } // namespace visualization

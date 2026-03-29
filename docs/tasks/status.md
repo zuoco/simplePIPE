@@ -60,9 +60,9 @@
 | T39 | 工作台切换 + QML 面板动态加载 | `done` | T34, T35 | **Gemini** | 2026-03-29 |
 | T40 | StatusBar + 右键菜单 + 框选 | `done` | T36 | Sonnet | 2026-03-29 |
 | T41 | ComponentToolStrip 元件插入 | `done` | T31, T36 | Sonnet | 2026-03-29 |
-| T42 | VTK-QML 桥接 | `ready` | T38 | **Gemini** | — |
+| T42 | VTK-QML 桥接 | `done` | T38 | **Gemini** | 2026-03-29 |
 | T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
-| T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
+| T44 | AnalysisWorkbench 工作台 | `ready` | T33, T39, T42 | **Opus** | — |
 | T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
 
 ---
@@ -1993,6 +1993,31 @@ public:
 **后续任务注意**:
 - T42 请直接复用 `VtkSceneManager::renderer()` 作为 QML 侧渲染桥接入口，避免重复持有 renderer 生命周期
 - Analysis 工作台切换渲染模式时，可直接调用 `setRenderMode(RenderMode::Solid/Beam)` 完成实体/梁单元显示切换
+
+### T42 — VTK-QML 桥接 (2026-03-29)
+
+**产出文件**:
+- `src/vtk-visualization/VtkViewport.h/cpp`
+- `ui/panels/VtkViewport.qml`
+- `tests/test_vtk_qml.cpp`
+
+**关键接口**:
+```cpp
+class VtkViewport : public QQuickFramebufferObject {
+    void setSceneManager(VtkSceneManager* manager);
+    vtkGenericRenderWindowInteractor* interactor() const;
+    vtkGenericOpenGLRenderWindow* renderWindow() const;
+};
+```
+
+**设计决策**:
+- 采用 `QQuickFramebufferObject` 并实现 `VtkFboRenderer`，将 `vtkGenericOpenGLRenderWindow` 渲染结果挂载到 Qt Quick 组合图中。
+- 移除了 `VtkViewport` 构造函数中的 `interactor_->Initialize()`，避免因上下文中未生效 OpenGL 产生 SIGSEGV 崩溃。
+- `ViewManager` 接口添加 `setVtkComponents`。
+
+**后续任务注意**:
+- `AnalysisWorkbench` 工作台激活时，前端 `main.qml` 会注入 `VtkViewport` 对象而非 `VsgViewport` 供 `ViewManager` 使用。
+- 如果进行快照截取等离屏渲染交互，需要注意 QML 的 FBO 管理周期。
 
 <!-- === COMPLETION LOG END === -->
 

@@ -19,6 +19,8 @@
 #include "visualization/SceneManager.h"
 #include "visualization/ViewManager.h"
 
+#include "vtk-visualization/VtkViewport.h"
+#include "vtk-visualization/VtkSceneManager.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -34,6 +36,7 @@ int main(int argc, char* argv[])
     QGuiApplication qtApp(argc, argv);
 
     qmlRegisterType<ui::VsgQuickItem>("PipeCAD", 1, 0, "VsgViewport");
+    qmlRegisterType<vtk_vis::VtkViewport>("PipeCAD", 1, 0, "VtkViewportElement");
 
     // 初始化中央单例（线程安全）
     app::Application::init();
@@ -59,6 +62,8 @@ int main(int argc, char* argv[])
     
     // ViewManager 注入
     visualization::ViewManager viewManager;
+    vtk_vis::VtkSceneManager vtkScene;
+    viewManager.setVtkComponents(&vtkScene);
     sceneManager.root()->addChild(sceneFurniture.axisNode());
     sceneManager.root()->addChild(sceneFurniture.gridSwitch());
 
@@ -111,13 +116,17 @@ int main(int argc, char* argv[])
 
     QObject::connect(&workbenchController, &ui::WorkbenchController::viewportLoaded, &qtApp,
                      [&](QObject* obj) {
-                         auto* viewportItem = qobject_cast<ui::VsgQuickItem*>(obj);
-                         if (!viewportItem) {
-                             return;
+                         auto* vsgItem = qobject_cast<ui::VsgQuickItem*>(obj);
+                         if (vsgItem) {
+                             vsgItem->setSceneManager(&sceneManager);
+                             vsgItem->setCameraController(&cameraController);
+                             vsgItem->setSceneFurniture(&sceneFurniture);
+                         } else {
+                             auto* vtkItem = qobject_cast<vtk_vis::VtkViewport*>(obj);
+                             if (vtkItem) {
+                                 vtkItem->setSceneManager(&vtkScene);
+                             }
                          }
-                         viewportItem->setSceneManager(&sceneManager);
-                         viewportItem->setCameraController(&cameraController);
-                         viewportItem->setSceneFurniture(&sceneFurniture);
                      });
 
     engine.load(mainQmlUrl);

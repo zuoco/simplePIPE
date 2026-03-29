@@ -24,4 +24,5 @@ target_link_libraries(visualization
         engine
         geometry
         vsg::vsg
+        vtk_visualization
 )

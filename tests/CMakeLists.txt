@@ -359,3 +359,17 @@ target_link_libraries(test_workbench_switch
         GTest::GTest 
         GTest::Main)
 add_test(NAME test_workbench_switch COMMAND test_workbench_switch)
+
+add_executable(test_vtk_qml test_vtk_qml.cpp)
+target_link_libraries(test_vtk_qml
+    PRIVATE
+        vtk_visualization
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Quick
+        Qt6::Qml
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_vtk_qml PRIVATE cxx_std_17)
+add_test(NAME VtkQml COMMAND test_vtk_qml)

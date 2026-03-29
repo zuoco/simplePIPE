@@ -186,6 +186,11 @@ ApplicationWindow {
                         if (modelData === "DesignTree") {
                             item.objectName = "designTreePanel"
                             item.treeModel = Qt.binding(function() { return appController ? appController.segmentTreeModel : null })
+                        } else if (modelData === "VtkViewport") {
+                            item.objectName = "vtkViewportPanel"
+                            item.appController = Qt.binding(function() { return appController })
+                            if (workbenchController) workbenchController.notifyViewportLoaded(item.vtkViewport);
+
                         } else if (modelData === "Viewport3D") {
                             item.objectName = "viewportPanel"
                             item.appController = Qt.binding(function() { return appController })

@@ -2,6 +2,7 @@ add_library(vtk_visualization STATIC
     OcctToVtk.cpp
     BeamMeshBuilder.cpp
     VtkSceneManager.cpp
+    VtkViewport.cpp
 )
 
 target_include_directories(vtk_visualization
@@ -18,4 +19,9 @@ target_link_libraries(vtk_visualization
         VTK::CommonCore
         VTK::CommonDataModel
     VTK::RenderingCore
+    VTK::InteractionStyle
+    VTK::RenderingOpenGL2
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
 )

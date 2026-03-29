@@ -17,7 +17,7 @@ std::vector<ToolbarAction> AnalysisWorkbench::toolbarActions() const {
 std::vector<std::string> AnalysisWorkbench::panelIds() const {
     return {
         "AnalysisTree",
-        "Viewport3D",
+        "VtkViewport",
         "LoadTable",
         "PropertyPanel"
     };

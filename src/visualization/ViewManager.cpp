@@ -1,4 +1,7 @@
 #include "visualization/ViewManager.h"
+#include "vtk-visualization/VtkSceneManager.h"
+#include <vtkRenderer.h>
+#include <vtkCamera.h>
 
 namespace visualization {
 
@@ -12,6 +15,10 @@ ViewManager::ViewManager() {
     visibility_[Category::Annotations]   = true;
     visibility_[Category::LoadArrows]    = true;
     visibility_[Category::StressContour] = true;
+}
+
+void ViewManager::setVtkComponents(vtk_vis::VtkSceneManager* vtkScene) {
+    vtkScene_ = vtkScene;
 }
 
 void ViewManager::setVsgComponents(SceneManager* scene, CameraController* camera, SceneFurniture* furniture) {
@@ -36,7 +43,9 @@ void ViewManager::fitAll() {
     if (activeVp_ == ActiveViewport::VSG && vsgCamera_ && vsgScene_) {
         vsgCamera_->fitAll(vsgScene_->root());
     }
-    // VTK 分支：T38/T42 时实现
+    else if (activeVp_ == ActiveViewport::VTK && vtkScene_ && vtkScene_->renderer()) {
+        vtkScene_->renderer()->ResetCamera();
+    }
 }
 
 void ViewManager::setViewPreset(ViewPreset preset) {
