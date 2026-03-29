@@ -52,9 +52,9 @@
 | T31 | ComponentCatalog 参数化构件模板 | `done` | — | **Opus** | 2026-03-29 |
 | T32 | Load 载荷数据模型 | `done` | — | Sonnet | 2026-03-29 |
 | T33 | LoadCase 与 LoadCombination | `done` | T32 | Sonnet | 2026-03-29 |
-| T34 | DesignWorkbench 工作台 | `ready` | T31 | Sonnet | — |
+| T34 | DesignWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T35 | SpecWorkbench 工作台 | `ready` | T31 | Sonnet | — |
-| T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | **Codex** | — |
+| T36 | DesignTree + ParameterPanel 重构 | `ready` | T34 | **Codex** | — |
 | T37 | OCCT→VTK 网格转换 | `ready` | T32 | **Codex** | — |
 | T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
 | T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Gemini** | — |
@@ -1791,5 +1791,48 @@ class LoadCombination : public DocumentObject {
 **后续任务注意**:
 - T43(序列化扩展): include LoadCase.h 和 LoadCombination.h，序列化 entries/caseEntries 向量
 - T44(AnalysisWorkbench): 通过 LoadCombination::category() 确定规范校核类别，method() 决定求解方式
+
+### T34 — DesignWorkbench 工作台 (2026-03-29)
+
+**产出文件**:
+- `src/app/DesignWorkbench.h`
+- `src/app/DesignWorkbench.cpp`
+- `src/app/CMakeLists.txt` (更新，添加 DesignWorkbench.cpp)
+- `src/main.cpp` (更新，注册 DesignWorkbench 并切换到 "Design")
+- `tests/test_design_workbench.cpp`
+- `tests/CMakeLists.txt` (更新，添加 test_design_workbench)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace app {
+
+class DesignWorkbench : public Workbench {
+public:
+    std::string name() const override;           // "Design"
+    void activate(Document& document) override;
+    void deactivate(Document& document) override;
+    std::vector<ToolbarAction> toolbarActions() const override;
+    // 返回: new-segment / add-point / measure / export-step (共 4 项)
+    std::vector<std::string> panelIds() const override;
+    // 返回: "DesignTree" / "Viewport3D" / "ComponentToolStrip" / "ParameterPanel"
+    ViewportType viewportType() const override;  // ViewportType::Vsg
+};
+
+} // namespace app
+```
+
+**设计决策**:
+- DesignWorkbench 作为独立类与 CadWorkbench 并存（CadWorkbench 保留，已有测试依赖它）
+- main.cpp 同时注册两个工作台，启动时切换到 "Design"
+- activate/deactivate 目前均为空实现（留给 T36 UI 重构时填充）
+
+**已知限制**:
+- ComponentToolStrip 的插入按钮逻辑留给 T41 实现
+- DesignTree 面板内容留给 T36 实现
+
+**后续任务注意**:
+- T35(SpecWorkbench): 与本任务结构完全相同，仿照此实现即可
+- T36(DesignTree+ParameterPanel): activate() 中可添加面板初始化/信号回调
+- T39(工作台切换): workbenchManager 已注册 DesignWorkbench("Design")，直接调用 switchWorkbench("Design")
 
 <!-- === COMPLETION LOG END === -->

@@ -1,5 +1,6 @@
 #include "app/Application.h"
 #include "app/CadWorkbench.h"
+#include "app/DesignWorkbench.h"
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
@@ -43,7 +44,8 @@ int main(int argc, char* argv[])
 
     document.setName("Untitled");
     workbenchManager.registerWorkbench(std::make_unique<app::CadWorkbench>());
-    workbenchManager.switchWorkbench("CAD");
+    workbenchManager.registerWorkbench(std::make_unique<app::DesignWorkbench>());
+    workbenchManager.switchWorkbench("Design");
 
     engine::RecomputeEngine recomputeEngine(document, dependencyGraph);
 

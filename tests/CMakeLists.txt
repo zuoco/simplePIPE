@@ -302,3 +302,15 @@ target_link_libraries(test_loadcase
 )
 target_compile_features(test_loadcase PRIVATE cxx_std_17)
 add_test(NAME LoadCase COMMAND test_loadcase)
+
+# DesignWorkbench 工作台测试 — T34
+add_executable(test_design_workbench test_design_workbench.cpp)
+target_link_libraries(test_design_workbench
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_design_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_design_workbench PRIVATE cxx_std_17)
+add_test(NAME DesignWorkbench COMMAND test_design_workbench)
