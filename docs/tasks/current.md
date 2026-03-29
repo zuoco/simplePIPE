@@ -9,28 +9,29 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T43 |
-| **任务名** | 序列化扩展 (Load/LoadCase) |
-| **推荐模型** | Codex (GPT 5.2) / Opus |
-| **前置依赖** | T33, T20 |
+| **任务 ID** | T44 |
+| **任务名** | AnalysisWorkbench 工作台 |
+| **推荐模型** | Opus |
+| **前置依赖** | T33, T39, T42 |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 42/45 个任务
-- 当前阶段: Phase 14 — 集成 & 序列化
+- 已完成: 43/45 个任务
+- 当前阶段: Phase 12 — AnalysisWorkbench
 
 ## 上一个完成的任务
 
-T42 — VTK-QML 桥接 (2026-03-29)
-- 产出: `VtkViewport.h/cpp`, `VtkViewport.qml`, `test_vtk_qml.cpp`
-- 关键接口: `VtkViewport` 继承 `QQuickFramebufferObject` 显示 `vtkGenericOpenGLRenderWindow` 的渲染。
-- 注意事项: `AnalysisWorkbench` 会加载 `VtkViewport`；注意测试在无界面的环境下可能的 OpenGL 验证影响。
+T43 — 序列化扩展 (Load/LoadCase) (2026-03-29)
+- 产出: `ProjectSerializer.h/cpp`, `DependencyGraph.h/cpp`, `TransactionManager.cpp`, `test_load_serialization.cpp`
+- 关键接口: `ProjectSerializer::load(path, DependencyGraph*)`；`DependencyGraph::rebuildLoadDependencyChain(const Document&)`
+- 注意事项: 读档后可直接重建 `Load -> LoadCase -> LoadCombination` 依赖；entries/caseEntries 的事务回放仍需后续补齐。
 
 ## 给 AI 的指令
 
-1. 读取 `docs/development-plan.md` 中 **T43** 章节
-2. 读取 `docs/architecture.md` **§6.9** 相关章节
-3. 读取前置代码: `src/app/ProjectSerializer.h`
-4. 完成后运行 `pixi run build-debug && pixi run test`
-5. 验证通过后更新 `docs/tasks/status.md` 和本文件
+1. 读取 `docs/development-plan.md` 中 **T44** 章节
+2. 读取 `docs/architecture.md` **§6.6** 相关章节
+3. 读取前置代码: `src/app/AnalysisWorkbench.h/cpp`, `src/ui/WorkbenchController.*`, `src/vtk-visualization/VtkViewport.*`
+4. 如需领域知识或库指南：读取 `.github/skills/industrial-software-dev/SKILL.md` 与 `lib/vtk/AGENTS.md`
+5. 完成后运行 `pixi run build-debug && pixi run test`
+6. 验证通过后更新 `docs/tasks/status.md` 和本文件

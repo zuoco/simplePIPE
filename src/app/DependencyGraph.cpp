@@ -1,5 +1,10 @@
 #include "app/DependencyGraph.h"
 
+#include "app/Document.h"
+#include "model/Load.h"
+#include "model/LoadCase.h"
+#include "model/LoadCombination.h"
+
 namespace app {
 
 void DependencyGraph::cacheUUID(const foundation::UUID& id) {
@@ -94,6 +99,46 @@ void DependencyGraph::clearDirty() {
 
 bool DependencyGraph::isDirty(const foundation::UUID& id) const {
     return dirty_.count(id.toString()) > 0;
+}
+
+void DependencyGraph::rebuildLoadDependencyChain(const Document& document) {
+    auto loads = document.findByType<model::Load>();
+    auto loadCases = document.findByType<model::LoadCase>();
+    auto loadCombinations = document.findByType<model::LoadCombination>();
+
+    std::unordered_set<std::string> loadIds;
+    loadIds.reserve(loads.size());
+    for (const auto* load : loads) {
+        cacheUUID(load->id());
+        loadIds.insert(load->id().toString());
+    }
+
+    std::unordered_set<std::string> loadCaseIds;
+    loadCaseIds.reserve(loadCases.size());
+    for (const auto* loadCase : loadCases) {
+        cacheUUID(loadCase->id());
+        loadCaseIds.insert(loadCase->id().toString());
+    }
+
+    for (const auto* combination : loadCombinations) {
+        cacheUUID(combination->id());
+    }
+
+    for (const auto* loadCase : loadCases) {
+        for (const auto& entry : loadCase->entries()) {
+            if (loadIds.count(entry.loadId.toString()) > 0) {
+                addDependency(loadCase->id(), entry.loadId);
+            }
+        }
+    }
+
+    for (const auto* combination : loadCombinations) {
+        for (const auto& caseEntry : combination->caseEntries()) {
+            if (loadCaseIds.count(caseEntry.caseId.toString()) > 0) {
+                addDependency(combination->id(), caseEntry.caseId);
+            }
+        }
+    }
 }
 
 void DependencyGraph::topoSort(const std::string& node,

@@ -61,7 +61,7 @@
 | T40 | StatusBar + 右键菜单 + 框选 | `done` | T36 | Sonnet | 2026-03-29 |
 | T41 | ComponentToolStrip 元件插入 | `done` | T31, T36 | Sonnet | 2026-03-29 |
 | T42 | VTK-QML 桥接 | `done` | T38 | **Gemini** | 2026-03-29 |
-| T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
+| T43 | 序列化扩展 (Load/LoadCase) | `done` | T33 | **Codex** | 2026-03-29 |
 | T44 | AnalysisWorkbench 工作台 | `ready` | T33, T39, T42 | **Opus** | — |
 | T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
 
@@ -2018,6 +2018,43 @@ class VtkViewport : public QQuickFramebufferObject {
 **后续任务注意**:
 - `AnalysisWorkbench` 工作台激活时，前端 `main.qml` 会注入 `VtkViewport` 对象而非 `VsgViewport` 供 `ViewManager` 使用。
 - 如果进行快照截取等离屏渲染交互，需要注意 QML 的 FBO 管理周期。
+
+### T43 — 序列化扩展 (Load/LoadCase) (2026-03-29)
+
+**产出文件**:
+- `src/app/ProjectSerializer.h`
+- `src/app/ProjectSerializer.cpp`
+- `src/app/DependencyGraph.h`
+- `src/app/DependencyGraph.cpp`
+- `src/app/TransactionManager.cpp`
+- `tests/test_load_serialization.cpp`
+- `tests/CMakeLists.txt`
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// app/ProjectSerializer.h
+static std::unique_ptr<Document> load(const std::string& filePath,
+                                      DependencyGraph* dependencyGraph = nullptr);
+
+// app/DependencyGraph.h
+void rebuildLoadDependencyChain(const Document& document);
+// 关系: Load -> LoadCase -> LoadCombination
+```
+
+**设计决策**:
+- `ProjectSerializer` 新增 `loads/loadCases/loadCombinations` 三个 JSON 节点，支持 7 种 `Load` 子类字段、`affectedObjectIds`、`LoadEntry` 与 `CaseEntry`。
+- 读档时按 `Load -> LoadCase -> LoadCombination` 顺序恢复对象，引用无效时跳过条目，保证坏数据输入下的稳定性。
+- `ProjectSerializer::load(..., DependencyGraph*)` 支持在加载后自动调用 `rebuildLoadDependencyChain()`，为后续事务脏传播直接就绪。
+- `TransactionManager::applyChanges()` 扩展了载荷字段回放能力（如 `operatingTemp`、`pressure`、方向/位移/力矩分量，以及 `LoadCombination` 的 `category/method`），满足载荷操作的 undo/redo。
+
+**已知限制**:
+- `TransactionManager` 目前仅支持载荷常用标量/向量分量键的回放，不包含 `LoadCase::entries` 与 `LoadCombination::caseEntries` 的结构化增删回放。
+- `ProjectSerializer` 在无外部 `DependencyGraph` 参数时不会持久化图结构，仅在调用方显式传入时重建依赖链。
+
+**后续任务注意**:
+- T44 可直接复用 `ProjectSerializer::load(path, &graph)` 完成读档后载荷依赖链恢复。
+- 若 T44 引入 `LoadCase/LoadCombination` 编辑 UI，建议新增事务键约定并补齐 entries/caseEntries 的 undo/redo 回放。
+- 已新增 `LoadSerialization` 测试并通过：`pixi run ctest --test-dir build/debug --output-on-failure -R LoadSerialization`。
 
 <!-- === COMPLETION LOG END === -->
 

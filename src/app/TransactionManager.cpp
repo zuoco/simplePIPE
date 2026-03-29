@@ -1,10 +1,33 @@
 #include "app/TransactionManager.h"
+#include "model/DisplacementLoad.h"
+#include "model/LoadCombination.h"
+#include "model/PressureLoad.h"
 #include "model/PropertyObject.h"
+#include "model/SeismicLoad.h"
+#include "model/ThermalLoad.h"
+#include "model/UserDefinedLoad.h"
+#include "model/WindLoad.h"
 #include "model/PipePoint.h"
 
 #include <gp_Pnt.hxx>
 
 namespace app {
+namespace {
+
+bool variantToBool(const foundation::Variant& value) {
+    if (const auto* i = std::get_if<int>(&value)) {
+        return *i != 0;
+    }
+    if (const auto* d = std::get_if<double>(&value)) {
+        return *d != 0.0;
+    }
+    if (const auto* s = std::get_if<std::string>(&value)) {
+        return (*s == "true") || (*s == "1") || (*s == "True");
+    }
+    return false;
+}
+
+} // namespace
 
 TransactionManager::TransactionManager(Document& doc, DependencyGraph& graph)
     : doc_(doc), graph_(graph) {}
@@ -134,6 +157,113 @@ void TransactionManager::applyChanges(const std::vector<PropertyChange>& changes
                 pp->setParam("pipeSpecId", *specId);
             }
             continue;
+        }
+
+        if (auto* thermal = dynamic_cast<model::ThermalLoad*>(obj)) {
+            if (ch.key == "installTemp") {
+                thermal->setInstallTemp(foundation::variantToDouble(value));
+                continue;
+            }
+            if (ch.key == "operatingTemp") {
+                thermal->setOperatingTemp(foundation::variantToDouble(value));
+                continue;
+            }
+        }
+
+        if (auto* pressure = dynamic_cast<model::PressureLoad*>(obj)) {
+            if (ch.key == "pressure") {
+                pressure->setPressure(foundation::variantToDouble(value));
+                continue;
+            }
+            if (ch.key == "isExternal") {
+                pressure->setIsExternal(variantToBool(value));
+                continue;
+            }
+        }
+
+        if (auto* wind = dynamic_cast<model::WindLoad*>(obj)) {
+            if (ch.key == "speed") {
+                wind->setSpeed(foundation::variantToDouble(value));
+                continue;
+            }
+            if (ch.key == "windDirectionX" || ch.key == "windDirectionY" || ch.key == "windDirectionZ") {
+                foundation::math::Vec3 direction = wind->direction();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "windDirectionX") direction.x = component;
+                if (ch.key == "windDirectionY") direction.y = component;
+                if (ch.key == "windDirectionZ") direction.z = component;
+                wind->setDirection(direction);
+                continue;
+            }
+        }
+
+        if (auto* seismic = dynamic_cast<model::SeismicLoad*>(obj)) {
+            if (ch.key == "acceleration") {
+                seismic->setAcceleration(foundation::variantToDouble(value));
+                continue;
+            }
+            if (ch.key == "seismicDirectionX" || ch.key == "seismicDirectionY" || ch.key == "seismicDirectionZ") {
+                foundation::math::Vec3 direction = seismic->direction();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "seismicDirectionX") direction.x = component;
+                if (ch.key == "seismicDirectionY") direction.y = component;
+                if (ch.key == "seismicDirectionZ") direction.z = component;
+                seismic->setDirection(direction);
+                continue;
+            }
+        }
+
+        if (auto* displacement = dynamic_cast<model::DisplacementLoad*>(obj)) {
+            if (ch.key == "translationX" || ch.key == "translationY" || ch.key == "translationZ") {
+                foundation::math::Vec3 translation = displacement->translation();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "translationX") translation.x = component;
+                if (ch.key == "translationY") translation.y = component;
+                if (ch.key == "translationZ") translation.z = component;
+                displacement->setTranslation(translation);
+                continue;
+            }
+            if (ch.key == "rotationX" || ch.key == "rotationY" || ch.key == "rotationZ") {
+                foundation::math::Vec3 rotation = displacement->rotation();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "rotationX") rotation.x = component;
+                if (ch.key == "rotationY") rotation.y = component;
+                if (ch.key == "rotationZ") rotation.z = component;
+                displacement->setRotation(rotation);
+                continue;
+            }
+        }
+
+        if (auto* userDefined = dynamic_cast<model::UserDefinedLoad*>(obj)) {
+            if (ch.key == "forceX" || ch.key == "forceY" || ch.key == "forceZ") {
+                foundation::math::Vec3 force = userDefined->force();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "forceX") force.x = component;
+                if (ch.key == "forceY") force.y = component;
+                if (ch.key == "forceZ") force.z = component;
+                userDefined->setForce(force);
+                continue;
+            }
+            if (ch.key == "momentX" || ch.key == "momentY" || ch.key == "momentZ") {
+                foundation::math::Vec3 moment = userDefined->moment();
+                const double component = foundation::variantToDouble(value);
+                if (ch.key == "momentX") moment.x = component;
+                if (ch.key == "momentY") moment.y = component;
+                if (ch.key == "momentZ") moment.z = component;
+                userDefined->setMoment(moment);
+                continue;
+            }
+        }
+
+        if (auto* combination = dynamic_cast<model::LoadCombination*>(obj)) {
+            if (ch.key == "category") {
+                combination->setCategory(static_cast<model::StressCategory>(foundation::variantToInt(value)));
+                continue;
+            }
+            if (ch.key == "method") {
+                combination->setMethod(static_cast<model::CombineMethod>(foundation::variantToInt(value)));
+                continue;
+            }
         }
 
         if (auto* propObj = dynamic_cast<model::PropertyObject*>(obj)) {

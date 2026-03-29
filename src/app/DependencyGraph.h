@@ -9,6 +9,8 @@
 
 namespace app {
 
+class Document;
+
 /// 依赖图：维护文档对象间的依赖关系，支持脏标记传播和拓扑排序
 ///
 /// 依赖边的语义：A 依赖 B，表示 B 的变化需要触发 A 重算。
@@ -48,6 +50,10 @@ public:
 
     /// 脏对象数量
     std::size_t dirtyCount() const { return dirty_.size(); }
+
+    /// 基于文档中的 LoadCase/LoadCombination 引用重建载荷依赖链。
+    /// 关系: Load -> LoadCase -> LoadCombination
+    void rebuildLoadDependencyChain(const Document& document);
 
 private:
     // dependents_[A] = {B, C} 表示 A 变脏后，B 和 C 也要标脏

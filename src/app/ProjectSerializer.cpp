@@ -3,16 +3,25 @@
 #include "app/DependencyGraph.h"
 #include "engine/RecomputeEngine.h"
 #include "model/Beam.h"
+#include "model/DeadWeightLoad.h"
+#include "model/DisplacementLoad.h"
 #include "model/FixedPoint.h"
 #include "model/Flange.h"
 #include "model/Gasket.h"
+#include "model/LoadCase.h"
+#include "model/LoadCombination.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
+#include "model/PressureLoad.h"
 #include "model/ProjectConfig.h"
 #include "model/Route.h"
 #include "model/SealRing.h"
+#include "model/SeismicLoad.h"
 #include "model/Segment.h"
 #include "model/Support.h"
+#include "model/ThermalLoad.h"
+#include "model/UserDefinedLoad.h"
+#include "model/WindLoad.h"
 
 #include <nlohmann/json.hpp>
 
@@ -21,6 +30,7 @@
 #include <cctype>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -48,6 +58,14 @@ std::array<double, 3> vecToArray(const gp_Vec& v) {
 
 gp_Vec arrayToVec(const json& j) {
     return gp_Vec(j.at(0).get<double>(), j.at(1).get<double>(), j.at(2).get<double>());
+}
+
+std::array<double, 3> vec3ToArray(const foundation::math::Vec3& v) {
+    return {v.x, v.y, v.z};
+}
+
+foundation::math::Vec3 arrayToVec3(const json& j) {
+    return foundation::math::Vec3{j.at(0).get<double>(), j.at(1).get<double>(), j.at(2).get<double>()};
 }
 
 json variantToJson(const foundation::Variant& value) {
@@ -136,6 +154,44 @@ model::BeamSectionType stringToBeamSectionType(const std::string& s) {
     throw std::runtime_error("unsupported BeamSectionType: " + s);
 }
 
+std::string combineMethodToString(model::CombineMethod method) {
+    switch (method) {
+    case model::CombineMethod::Algebraic: return "Algebraic";
+    case model::CombineMethod::Absolute: return "Absolute";
+    case model::CombineMethod::SRSS: return "SRSS";
+    case model::CombineMethod::Envelope: return "Envelope";
+    }
+    return "Algebraic";
+}
+
+model::CombineMethod stringToCombineMethod(const std::string& s) {
+    if (s == "Algebraic") return model::CombineMethod::Algebraic;
+    if (s == "Absolute") return model::CombineMethod::Absolute;
+    if (s == "SRSS") return model::CombineMethod::SRSS;
+    if (s == "Envelope") return model::CombineMethod::Envelope;
+    throw std::runtime_error("unsupported CombineMethod: " + s);
+}
+
+std::string stressCategoryToString(model::StressCategory category) {
+    switch (category) {
+    case model::StressCategory::Sustained: return "Sustained";
+    case model::StressCategory::Expansion: return "Expansion";
+    case model::StressCategory::Occasional: return "Occasional";
+    case model::StressCategory::Operating: return "Operating";
+    case model::StressCategory::Hydrotest: return "Hydrotest";
+    }
+    return "Sustained";
+}
+
+model::StressCategory stringToStressCategory(const std::string& s) {
+    if (s == "Sustained") return model::StressCategory::Sustained;
+    if (s == "Expansion") return model::StressCategory::Expansion;
+    if (s == "Occasional") return model::StressCategory::Occasional;
+    if (s == "Operating") return model::StressCategory::Operating;
+    if (s == "Hydrotest") return model::StressCategory::Hydrotest;
+    throw std::runtime_error("unsupported StressCategory: " + s);
+}
+
 std::string unitSystemToString(foundation::UnitSystem us) {
     return (us == foundation::UnitSystem::Imperial) ? "Imperial" : "SI";
 }
@@ -211,6 +267,41 @@ std::vector<model::Beam*> sortedBeams(const Document& doc) {
         return a->id().toString() < b->id().toString();
     });
     return beams;
+}
+
+std::vector<model::Load*> sortedLoads(const Document& doc) {
+    auto loads = doc.findByType<model::Load>();
+    std::sort(loads.begin(), loads.end(), [](const auto* a, const auto* b) {
+        return a->id().toString() < b->id().toString();
+    });
+    return loads;
+}
+
+std::vector<model::LoadCase*> sortedLoadCases(const Document& doc) {
+    auto loadCases = doc.findByType<model::LoadCase>();
+    std::sort(loadCases.begin(), loadCases.end(), [](const auto* a, const auto* b) {
+        return a->id().toString() < b->id().toString();
+    });
+    return loadCases;
+}
+
+std::vector<model::LoadCombination*> sortedLoadCombinations(const Document& doc) {
+    auto loadCombinations = doc.findByType<model::LoadCombination>();
+    std::sort(loadCombinations.begin(), loadCombinations.end(), [](const auto* a, const auto* b) {
+        return a->id().toString() < b->id().toString();
+    });
+    return loadCombinations;
+}
+
+std::shared_ptr<model::Load> createLoadByType(const std::string& loadType, const std::string& name) {
+    if (loadType == "DeadWeight") return std::make_shared<model::DeadWeightLoad>(name);
+    if (loadType == "Thermal") return std::make_shared<model::ThermalLoad>(name);
+    if (loadType == "Pressure") return std::make_shared<model::PressureLoad>(name);
+    if (loadType == "Wind") return std::make_shared<model::WindLoad>(name);
+    if (loadType == "Seismic") return std::make_shared<model::SeismicLoad>(name);
+    if (loadType == "Displacement") return std::make_shared<model::DisplacementLoad>(name);
+    if (loadType == "UserDefined") return std::make_shared<model::UserDefinedLoad>(name);
+    throw std::runtime_error("unsupported load type: " + loadType);
 }
 
 } // namespace
@@ -332,6 +423,80 @@ bool ProjectSerializer::save(const Document& document, const std::string& filePa
             });
         }
 
+        root["loads"] = json::array();
+        for (const auto* load : sortedLoads(document)) {
+            json loadJson = {
+                {"id", load->id().toString()},
+                {"name", load->name()},
+                {"loadType", load->loadType()},
+                {"affectedObjectIds", json::array()}
+            };
+
+            for (const auto& affectedId : load->affectedObjects()) {
+                loadJson["affectedObjectIds"].push_back(affectedId.toString());
+            }
+
+            if (const auto* thermal = dynamic_cast<const model::ThermalLoad*>(load)) {
+                loadJson["installTemp"] = thermal->installTemp();
+                loadJson["operatingTemp"] = thermal->operatingTemp();
+            } else if (const auto* pressure = dynamic_cast<const model::PressureLoad*>(load)) {
+                loadJson["pressure"] = pressure->pressure();
+                loadJson["isExternal"] = pressure->isExternal();
+            } else if (const auto* wind = dynamic_cast<const model::WindLoad*>(load)) {
+                loadJson["speed"] = wind->speed();
+                loadJson["direction"] = vec3ToArray(wind->direction());
+            } else if (const auto* seismic = dynamic_cast<const model::SeismicLoad*>(load)) {
+                loadJson["acceleration"] = seismic->acceleration();
+                loadJson["direction"] = vec3ToArray(seismic->direction());
+            } else if (const auto* displacement = dynamic_cast<const model::DisplacementLoad*>(load)) {
+                loadJson["translation"] = vec3ToArray(displacement->translation());
+                loadJson["rotation"] = vec3ToArray(displacement->rotation());
+            } else if (const auto* userDefined = dynamic_cast<const model::UserDefinedLoad*>(load)) {
+                loadJson["force"] = vec3ToArray(userDefined->force());
+                loadJson["moment"] = vec3ToArray(userDefined->moment());
+            }
+
+            root["loads"].push_back(std::move(loadJson));
+        }
+
+        root["loadCases"] = json::array();
+        for (const auto* loadCase : sortedLoadCases(document)) {
+            json loadCaseJson = {
+                {"id", loadCase->id().toString()},
+                {"name", loadCase->name()},
+                {"entries", json::array()}
+            };
+
+            for (const auto& entry : loadCase->entries()) {
+                loadCaseJson["entries"].push_back(json{
+                    {"loadId", entry.loadId.toString()},
+                    {"factor", entry.factor}
+                });
+            }
+
+            root["loadCases"].push_back(std::move(loadCaseJson));
+        }
+
+        root["loadCombinations"] = json::array();
+        for (const auto* combination : sortedLoadCombinations(document)) {
+            json combinationJson = {
+                {"id", combination->id().toString()},
+                {"name", combination->name()},
+                {"category", stressCategoryToString(combination->category())},
+                {"method", combineMethodToString(combination->method())},
+                {"caseEntries", json::array()}
+            };
+
+            for (const auto& caseEntry : combination->caseEntries()) {
+                combinationJson["caseEntries"].push_back(json{
+                    {"caseId", caseEntry.caseId.toString()},
+                    {"factor", caseEntry.factor}
+                });
+            }
+
+            root["loadCombinations"].push_back(std::move(combinationJson));
+        }
+
         std::ofstream out(filePath);
         if (!out.is_open()) return false;
         out << root.dump(2) << '\n';
@@ -341,7 +506,8 @@ bool ProjectSerializer::save(const Document& document, const std::string& filePa
     }
 }
 
-std::unique_ptr<Document> ProjectSerializer::load(const std::string& filePath) {
+std::unique_ptr<Document> ProjectSerializer::load(const std::string& filePath,
+                                                  DependencyGraph* dependencyGraph) {
     try {
         std::ifstream in(filePath);
         if (!in.is_open()) return nullptr;
@@ -353,6 +519,8 @@ std::unique_ptr<Document> ProjectSerializer::load(const std::string& filePath) {
 
         std::unordered_map<std::string, std::shared_ptr<model::PipeSpec>> specsById;
         std::unordered_map<std::string, std::shared_ptr<model::PipePoint>> pointsById;
+        std::unordered_map<std::string, std::shared_ptr<model::Load>> loadsById;
+        std::unordered_map<std::string, std::shared_ptr<model::LoadCase>> loadCasesById;
 
         if (root.contains("projectConfig") && root["projectConfig"].is_object()) {
             const json& cfgJson = root["projectConfig"];
@@ -390,6 +558,114 @@ std::unique_ptr<Document> ProjectSerializer::load(const std::string& filePath) {
                 const std::string id = spec->id().toString();
                 specsById[id] = spec;
                 document->addObject(spec);
+            }
+        }
+
+        if (root.contains("loads") && root["loads"].is_array()) {
+            for (const auto& loadJson : root["loads"]) {
+                const std::string loadType = loadJson.value("loadType", "DeadWeight");
+                const std::string loadName = loadJson.value("name", loadType);
+
+                auto load = createLoadByType(loadType, loadName);
+                if (loadJson.contains("id")) {
+                    load->setIdForDeserialization(parseUuid(loadJson.at("id").get<std::string>()));
+                }
+
+                if (loadJson.contains("affectedObjectIds") && loadJson["affectedObjectIds"].is_array()) {
+                    for (const auto& idJson : loadJson["affectedObjectIds"]) {
+                        load->addAffectedObject(parseUuid(idJson.get<std::string>()));
+                    }
+                }
+
+                if (auto* thermal = dynamic_cast<model::ThermalLoad*>(load.get())) {
+                    thermal->setInstallTemp(loadJson.value("installTemp", thermal->installTemp()));
+                    thermal->setOperatingTemp(loadJson.value("operatingTemp", thermal->operatingTemp()));
+                } else if (auto* pressure = dynamic_cast<model::PressureLoad*>(load.get())) {
+                    pressure->setPressure(loadJson.value("pressure", pressure->pressure()));
+                    pressure->setIsExternal(loadJson.value("isExternal", pressure->isExternal()));
+                } else if (auto* wind = dynamic_cast<model::WindLoad*>(load.get())) {
+                    wind->setSpeed(loadJson.value("speed", wind->speed()));
+                    if (loadJson.contains("direction") && loadJson["direction"].is_array()) {
+                        wind->setDirection(arrayToVec3(loadJson["direction"]));
+                    }
+                } else if (auto* seismic = dynamic_cast<model::SeismicLoad*>(load.get())) {
+                    seismic->setAcceleration(loadJson.value("acceleration", seismic->acceleration()));
+                    if (loadJson.contains("direction") && loadJson["direction"].is_array()) {
+                        seismic->setDirection(arrayToVec3(loadJson["direction"]));
+                    }
+                } else if (auto* displacement = dynamic_cast<model::DisplacementLoad*>(load.get())) {
+                    if (loadJson.contains("translation") && loadJson["translation"].is_array()) {
+                        displacement->setTranslation(arrayToVec3(loadJson["translation"]));
+                    }
+                    if (loadJson.contains("rotation") && loadJson["rotation"].is_array()) {
+                        displacement->setRotation(arrayToVec3(loadJson["rotation"]));
+                    }
+                } else if (auto* userDefined = dynamic_cast<model::UserDefinedLoad*>(load.get())) {
+                    if (loadJson.contains("force") && loadJson["force"].is_array()) {
+                        userDefined->setForce(arrayToVec3(loadJson["force"]));
+                    }
+                    if (loadJson.contains("moment") && loadJson["moment"].is_array()) {
+                        userDefined->setMoment(arrayToVec3(loadJson["moment"]));
+                    }
+                }
+
+                const std::string id = load->id().toString();
+                loadsById[id] = load;
+                document->addObject(load);
+            }
+        }
+
+        if (root.contains("loadCases") && root["loadCases"].is_array()) {
+            for (const auto& loadCaseJson : root["loadCases"]) {
+                auto loadCase = std::make_shared<model::LoadCase>(loadCaseJson.value("name", ""));
+                if (loadCaseJson.contains("id")) {
+                    loadCase->setIdForDeserialization(parseUuid(loadCaseJson.at("id").get<std::string>()));
+                }
+
+                if (loadCaseJson.contains("entries") && loadCaseJson["entries"].is_array()) {
+                    for (const auto& entryJson : loadCaseJson["entries"]) {
+                        const std::string loadIdStr = entryJson.value("loadId", "");
+                        if (loadIdStr.empty()) continue;
+                        if (loadsById.find(loadIdStr) == loadsById.end()) continue;
+
+                        model::LoadEntry entry;
+                        entry.loadId = parseUuid(loadIdStr);
+                        entry.factor = entryJson.value("factor", 1.0);
+                        loadCase->addEntry(entry);
+                    }
+                }
+
+                const std::string id = loadCase->id().toString();
+                loadCasesById[id] = loadCase;
+                document->addObject(loadCase);
+            }
+        }
+
+        if (root.contains("loadCombinations") && root["loadCombinations"].is_array()) {
+            for (const auto& comboJson : root["loadCombinations"]) {
+                auto combination = std::make_shared<model::LoadCombination>(
+                    comboJson.value("name", ""),
+                    stringToStressCategory(comboJson.value("category", "Sustained")),
+                    stringToCombineMethod(comboJson.value("method", "Algebraic")));
+
+                if (comboJson.contains("id")) {
+                    combination->setIdForDeserialization(parseUuid(comboJson.at("id").get<std::string>()));
+                }
+
+                if (comboJson.contains("caseEntries") && comboJson["caseEntries"].is_array()) {
+                    for (const auto& entryJson : comboJson["caseEntries"]) {
+                        const std::string caseIdStr = entryJson.value("caseId", "");
+                        if (caseIdStr.empty()) continue;
+                        if (loadCasesById.find(caseIdStr) == loadCasesById.end()) continue;
+
+                        model::CaseEntry entry;
+                        entry.caseId = parseUuid(caseIdStr);
+                        entry.factor = entryJson.value("factor", 1.0);
+                        combination->addCaseEntry(entry);
+                    }
+                }
+
+                document->addObject(combination);
             }
         }
 
@@ -542,8 +818,12 @@ std::unique_ptr<Document> ProjectSerializer::load(const std::string& filePath) {
             }
         }
 
-        DependencyGraph graph;
-        engine::RecomputeEngine recompute(*document, graph);
+        if (dependencyGraph) {
+            dependencyGraph->rebuildLoadDependencyChain(*document);
+        }
+
+        DependencyGraph recomputeGraph;
+        engine::RecomputeEngine recompute(*document, recomputeGraph);
         recompute.recomputeAll();
 
         return document;

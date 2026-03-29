@@ -211,6 +211,18 @@ target_include_directories(test_project_serializer PRIVATE ${OpenCASCADE_INCLUDE
 target_compile_features(test_project_serializer PRIVATE cxx_std_17)
 add_test(NAME ProjectSerializer COMMAND test_project_serializer)
 
+# Load/LoadCase/LoadCombination 序列化测试 — T43
+add_executable(test_load_serialization test_load_serialization.cpp)
+target_link_libraries(test_load_serialization
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_load_serialization PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_load_serialization PRIVATE cxx_std_17)
+add_test(NAME LoadSerialization COMMAND test_load_serialization)
+
 # STEP 导出测试 — T21
 add_executable(test_step_exporter test_step_exporter.cpp)
 target_link_libraries(test_step_exporter
