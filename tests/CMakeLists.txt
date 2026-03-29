@@ -398,3 +398,17 @@ target_link_libraries(test_analysis_workbench
 target_include_directories(test_analysis_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_analysis_workbench PRIVATE cxx_std_17)
 add_test(NAME AnalysisWorkbench COMMAND test_analysis_workbench)
+
+# Phase 2 端到端集成测试 — T45
+add_executable(test_phase2_integration test_phase2_integration.cpp)
+target_link_libraries(test_phase2_integration
+    PRIVATE
+        app
+        engine
+        visualization
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_phase2_integration PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_phase2_integration PRIVATE cxx_std_17)
+add_test(NAME Phase2Integration COMMAND test_phase2_integration)
