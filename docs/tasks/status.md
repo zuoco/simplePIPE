@@ -62,8 +62,8 @@
 | T41 | ComponentToolStrip 元件插入 | `done` | T31, T36 | Sonnet | 2026-03-29 |
 | T42 | VTK-QML 桥接 | `done` | T38 | **Gemini** | 2026-03-29 |
 | T43 | 序列化扩展 (Load/LoadCase) | `done` | T33 | **Codex** | 2026-03-29 |
-| T44 | AnalysisWorkbench 工作台 | `ready` | T33, T39, T42 | **Opus** | — |
-| T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
+| T44 | AnalysisWorkbench 工作台 | `done` | T33, T39, T42 | **Opus** | 2026-03-29 |
+| T45 | 端到端集成测试 | `ready` | T41, T43, T44 | **Opus** | — |
 
 ---
 
@@ -2058,7 +2058,56 @@ void rebuildLoadDependencyChain(const Document& document);
 
 <!-- === COMPLETION LOG END === -->
 
-### T39 — 工作台切换 + QML 面板动态加载 (2024-05-31)
+### T44 — AnalysisWorkbench 工作台 (2026-03-29)
+
+**产出文件**:
+- `src/app/AnalysisWorkbench.h` — 新增 RenderMode 枚举和 setRenderMode/renderMode 接口
+- `src/app/AnalysisWorkbench.cpp` — 完整实现：5 个工具栏动作、5 个面板、Solid/Beam 渲染模式
+- `ui/panels/AnalysisTree.qml` — 三级折叠树：载荷/基本工况/组合工况
+- `ui/panels/LoadTable.qml` — 可编辑载荷表格：名称/类型/参数/作用对象
+- `ui/panels/LoadCaseTable.qml` — 可编辑工况表格：工况名/类别/组合方法/引用数
+- `tests/test_analysis_workbench.cpp` — 25 个单元测试
+- `tests/CMakeLists.txt` — 新增 test_analysis_workbench 目标
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// app/AnalysisWorkbench.h
+namespace app {
+
+enum class RenderMode {
+    Solid, // 实体模式：3D 管件外观
+    Beam   // 线条模式：管系中心线 + 节点
+};
+
+class AnalysisWorkbench : public Workbench {
+    std::string name() const override;            // "Analysis"
+    ViewportType viewportType() const override;   // Vtk
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+    // toolbarActions: toggle-render-mode, add-load, manage-loadcase, run-analysis, show-results
+    // panelIds: AnalysisTree, VtkViewport, LoadTable, LoadCaseTable, PropertyPanel
+};
+
+} // namespace app
+```
+
+**设计决策**:
+- RenderMode 定义在 AnalysisWorkbench.h 中（仅此工作台使用）
+- 工具栏包含 5 个动作：toggle-render-mode/add-load/manage-loadcase/run-analysis/show-results
+- 面板包含 5 个：AnalysisTree/VtkViewport/LoadTable/LoadCaseTable/PropertyPanel
+- AnalysisTree.qml 使用三级 ListView + 折叠头，通过 `analysisModel` 属性绑定数据模型
+- LoadTable.qml 和 LoadCaseTable.qml 使用 CollapsiblePanel + EditableCell 模式
+- renderMode_ 在 deactivate 时保留，下次 activate 自动恢复
+
+**已知限制**:
+- QML 面板的数据绑定需要 C++ QML 模型层（未来由集成层提供）
+- run-analysis 和 show-results 动作为占位（未来实现求解器和结果可视化）
+- 渲染模式切换目前只影响 C++ 侧状态，VTK actor 可见性切换需 VtkSceneManager 的支持
+
+**后续任务注意**:
+- T45（端到端集成测试）可直接使用 WorkbenchManager 注册并激活 AnalysisWorkbench
+- 若需数据绑定 AnalysisTree，需新建 AnalysisTreeModel 继承 QAbstractItemModel
+- main.qml 中 panelLoader onLoaded 需为 AnalysisTree/LoadTable/LoadCaseTable 绑定对应模型
 
 **产出文件**:
 - src/app/AnalysisWorkbench.h, src/app/AnalysisWorkbench.cpp (作为测试或骨架)

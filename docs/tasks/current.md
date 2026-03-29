@@ -9,29 +9,34 @@
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T44 |
-| **任务名** | AnalysisWorkbench 工作台 |
+| **任务 ID** | T45 |
+| **任务名** | 端到端集成测试 |
 | **推荐模型** | Opus |
-| **前置依赖** | T33, T39, T42 |
+| **前置依赖** | T41, T43, T44 |
 | **前置状态** | ✅ 所有依赖已满足 |
 
 ## 项目进度
 
-- 已完成: 43/45 个任务
-- 当前阶段: Phase 12 — AnalysisWorkbench
+- 已完成: 44/45 个任务
+- 当前阶段: Phase 14 — 集成 & 序列化
 
 ## 上一个完成的任务
 
-T43 — 序列化扩展 (Load/LoadCase) (2026-03-29)
-- 产出: `ProjectSerializer.h/cpp`, `DependencyGraph.h/cpp`, `TransactionManager.cpp`, `test_load_serialization.cpp`
-- 关键接口: `ProjectSerializer::load(path, DependencyGraph*)`；`DependencyGraph::rebuildLoadDependencyChain(const Document&)`
-- 注意事项: 读档后可直接重建 `Load -> LoadCase -> LoadCombination` 依赖；entries/caseEntries 的事务回放仍需后续补齐。
+T44 — AnalysisWorkbench 工作台 (2026-03-29)
+- 产出: `AnalysisWorkbench.h/cpp`, `AnalysisTree.qml`, `LoadTable.qml`, `LoadCaseTable.qml`, `test_analysis_workbench.cpp`
+- 关键接口: `RenderMode { Solid, Beam }`; `AnalysisWorkbench::setRenderMode/renderMode`; toolbarActions 5 个; panelIds 5 个
+- 注意事项: QML 面板的数据绑定需要 C++ QML 模型层；run-analysis/show-results 为占位动作
 
 ## 给 AI 的指令
 
-1. 读取 `docs/development-plan.md` 中 **T44** 章节
-2. 读取 `docs/architecture.md` **§6.6** 相关章节
-3. 读取前置代码: `src/app/AnalysisWorkbench.h/cpp`, `src/ui/WorkbenchController.*`, `src/vtk-visualization/VtkViewport.*`
-4. 如需领域知识或库指南：读取 `.github/skills/industrial-software-dev/SKILL.md` 与 `lib/vtk/AGENTS.md`
+1. 读取 `docs/development-plan.md` 中 **T45** 章节
+2. 读取 `docs/architecture.md` 相关章节
+3. 读取前置代码:
+   - `src/app/AnalysisWorkbench.h` — RenderMode 和面板/工具栏定义
+   - `src/app/DesignWorkbench.h` — Design 工作台
+   - `src/ui/WorkbenchController.h` — 工作台切换控制器
+   - `src/app/ProjectSerializer.h` — 序列化接口
+   - `ui/panels/ComponentToolStrip.qml` — 元件插入面板
+4. 如需领域知识或库指南：读取 `.github/skills/industrial-software-dev/SKILL.md`
 5. 完成后运行 `pixi run build-debug && pixi run test`
 6. 验证通过后更新 `docs/tasks/status.md` 和本文件

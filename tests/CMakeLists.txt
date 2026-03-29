@@ -385,3 +385,16 @@ target_link_libraries(test_vtk_qml
 )
 target_compile_features(test_vtk_qml PRIVATE cxx_std_17)
 add_test(NAME VtkQml COMMAND test_vtk_qml)
+
+# AnalysisWorkbench 工作台测试 — T44
+add_executable(test_analysis_workbench test_analysis_workbench.cpp)
+target_link_libraries(test_analysis_workbench
+    PRIVATE
+        app
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_analysis_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_analysis_workbench PRIVATE cxx_std_17)
+add_test(NAME AnalysisWorkbench COMMAND test_analysis_workbench)

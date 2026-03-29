@@ -11,7 +11,7 @@ CollapsiblePanel {
     property var tableModel
     property bool editEnabled: true
 
-    title: "载荷表 (Load Table)"
+    title: "工况表 (LoadCase Table)"
     fillHeight: true
 
     Theme {
@@ -29,10 +29,10 @@ CollapsiblePanel {
             spacing: 1
 
             Repeater {
-                model: ["名称", "类型", "参数", "作用对象"]
+                model: ["工况名", "类别", "组合方法", "引用工况数"]
 
                 Rectangle {
-                    width: index === 2 ? 160 : (index === 3 ? 140 : 120)
+                    width: index === 0 ? 130 : (index === 2 ? 110 : 100)
                     height: 28
                     color: "#F0F2F5"
                     border.color: "#E0E0E0"
@@ -51,78 +51,80 @@ CollapsiblePanel {
 
         // 表体
         ListView {
-            id: loadListView
+            id: caseListView
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
             model: root.tableModel
 
             delegate: Row {
-                width: loadListView.width
+                width: caseListView.width
                 height: theme.rowHeight
                 spacing: 1
 
                 required property int index
                 required property var model
 
-                // 名称列
+                // 工况名列
                 EditableCell {
-                    width: 120
+                    width: 130
                     height: theme.rowHeight
                     text: model.name !== undefined ? model.name : ""
                     editable: root.editEnabled
-                    selected: loadListView.currentIndex === index
+                    selected: caseListView.currentIndex === index
 
                     onEditCommitted: function(value) {
                         if (root.tableModel) {
-                            root.tableModel.setLoadName(index, value)
+                            root.tableModel.setCaseName(index, value)
                         }
                     }
                 }
 
-                // 类型列
+                // 类别列
                 Rectangle {
-                    width: 120
+                    width: 100
                     height: theme.rowHeight
-                    color: loadListView.currentIndex === index ? "#DCEEFF" : "transparent"
+                    color: caseListView.currentIndex === index ? "#DCEEFF" : "transparent"
 
                     Label {
                         anchors.fill: parent
                         anchors.leftMargin: 8
                         verticalAlignment: Text.AlignVCenter
-                        text: model.loadType !== undefined ? model.loadType : ""
-                        color: "#888888"
+                        text: model.category !== undefined ? model.category : ""
+                        color: theme.textSecondary
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                 }
 
-                // 参数列
-                EditableCell {
-                    width: 160
-                    height: theme.rowHeight
-                    text: model.parameters !== undefined ? model.parameters : ""
-                    editable: root.editEnabled
-                    selected: loadListView.currentIndex === index
-
-                    onEditCommitted: function(value) {
-                        if (root.tableModel) {
-                            root.tableModel.setLoadParameters(index, value)
-                        }
-                    }
-                }
-
-                // 作用对象列
+                // 组合方法列
                 Rectangle {
-                    width: 140
+                    width: 110
                     height: theme.rowHeight
-                    color: loadListView.currentIndex === index ? "#DCEEFF" : "transparent"
+                    color: caseListView.currentIndex === index ? "#DCEEFF" : "transparent"
 
                     Label {
                         anchors.fill: parent
                         anchors.leftMargin: 8
                         verticalAlignment: Text.AlignVCenter
-                        text: model.affectedCount !== undefined ? (model.affectedCount + " 个对象") : ""
+                        text: model.method !== undefined ? model.method : ""
+                        color: theme.textSecondary
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // 引用工况数列
+                Rectangle {
+                    width: 100
+                    height: theme.rowHeight
+                    color: caseListView.currentIndex === index ? "#DCEEFF" : "transparent"
+
+                    Label {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        verticalAlignment: Text.AlignVCenter
+                        text: model.entryCount !== undefined ? String(model.entryCount) : "0"
                         color: theme.textSecondary
                         font.pixelSize: 12
                     }
@@ -131,7 +133,7 @@ CollapsiblePanel {
                 MouseArea {
                     anchors.fill: parent
                     z: -1
-                    onClicked: loadListView.currentIndex = index
+                    onClicked: caseListView.currentIndex = index
                 }
             }
         }
