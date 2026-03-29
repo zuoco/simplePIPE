@@ -21,7 +21,7 @@ ApplicationWindow {
     }
 
     function showPropertyPanelHint() {
-        propertyPanel.ensureExpandedAndFlash()
+        parameterPanel.ensurePropertyPanelVisibleAndFlash()
     }
 
     Shortcut {
@@ -127,9 +127,9 @@ ApplicationWindow {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
 
-            StructureTree {
-                id: structureTree
-                objectName: "structureTreePanel"
+            DesignTree {
+                id: designTree
+                objectName: "designTreePanel"
                 treeModel: appController ? appController.segmentTreeModel : null
                 SplitView.minimumWidth: 200
                 SplitView.preferredWidth: 260
@@ -144,27 +144,13 @@ ApplicationWindow {
                 onInspectRequested: root.showPropertyPanelHint()
             }
 
-            SplitView {
-                id: rightSplit
-                orientation: Qt.Vertical
+            ParameterPanel {
+                id: parameterPanel
+                objectName: "parameterPanel"
+                tableModel: appController ? appController.pipePointTableModel : null
+                propertyModel: appController ? appController.propertyModel : null
                 SplitView.minimumWidth: 320
                 SplitView.preferredWidth: 380
-
-                PipePointTable {
-                    id: pipePointTable
-                    objectName: "pipePointTablePanel"
-                    tableModel: appController ? appController.pipePointTableModel : null
-                    SplitView.minimumHeight: 220
-                    SplitView.preferredHeight: 360
-                }
-
-                PropertyPanel {
-                    id: propertyPanel
-                    objectName: "propertyPanel"
-                    propertyModel: appController ? appController.propertyModel : null
-                    SplitView.minimumHeight: 220
-                    SplitView.fillHeight: true
-                }
             }
         }
 

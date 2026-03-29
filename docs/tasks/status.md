@@ -54,12 +54,12 @@
 | T33 | LoadCase 与 LoadCombination | `done` | T32 | Sonnet | 2026-03-29 |
 | T34 | DesignWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T35 | SpecWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
-| T36 | DesignTree + ParameterPanel 重构 | `ready` | T34 | **Codex** | — |
+| T36 | DesignTree + ParameterPanel 重构 | `done` | T34 | **Codex** | 2026-03-29 |
 | T37 | OCCT→VTK 网格转换 | `ready` | T32 | **Codex** | — |
 | T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
 | T39 | 工作台切换 + QML 面板动态加载 | `ready` | T34, T35 | **Gemini** | — |
-| T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
-| T41 | ComponentToolStrip 元件插入 | `pending` | T31, T36 | Sonnet | — |
+| T40 | StatusBar + 右键菜单 + 框选 | `ready` | T36 | Sonnet | — |
+| T41 | ComponentToolStrip 元件插入 | `ready` | T31, T36 | Sonnet | — |
 | T42 | VTK-QML 桥接 | `pending` | T38 | **Gemini** | — |
 | T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
 | T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
@@ -1877,5 +1877,45 @@ public:
 **后续任务注意**:
 - T39(工作台切换): 需在 main.cpp 中注册 SpecWorkbench("Specification")，switchWorkbench 时使用
 - T39 依赖 T34 和 T35 均已完成，状态已改为 `ready`
+
+### T36 — DesignTree + ParameterPanel 重构 (2026-03-29)
+
+**产出文件**:
+- `ui/panels/DesignTree.qml`
+- `ui/panels/ParameterPanel.qml`
+- `ui/panels/PropertyPanel.qml` (更新，新增编辑/只读模式切换支持)
+- `ui/panels/PipePointTable.qml` (更新，新增 editEnabled 属性)
+- `ui/main.qml` (更新，切换为 DesignTree + ParameterPanel 布局)
+- `tests/test_qml_ui_panels.cpp` (更新，验证新面板结构)
+
+**关键接口** (后续任务需要知道的):
+```qml
+// ui/panels/ParameterPanel.qml
+property bool editMode: true
+function ensurePropertyPanelVisibleAndFlash()
+
+// ui/panels/PropertyPanel.qml
+property bool editMode: true
+function ensureExpandedAndFlash()
+
+// ui/main.qml
+DesignTree { objectName: "designTreePanel" }
+ParameterPanel { objectName: "parameterPanel" }
+```
+
+**设计决策**:
+- 新增 `ParameterPanel` 作为右侧统一容器，内部垂直组织 `PipePointTable` 与 `PropertyPanel`，并提供统一模式切换按钮
+- `DesignTree` 由原 `StructureTree` 抽离为 DesignWorkbench 语义命名，保持树选中与展开逻辑不变
+- 属性面板新增 `editMode` 状态：只读模式显示文本，编辑模式显示输入框并尝试提交 model setData
+- 保留 `ensureExpandedAndFlash()` 提示链路，并在主窗口通过 `ensurePropertyPanelVisibleAndFlash()` 自动展开右侧面板
+
+**已知限制**:
+- `PropertyModel` 当前未实现完整可写回事务提交，属性面板编辑输入会尝试 setData，失败时执行 refresh 回滚展示
+- 右侧面板内部目前是双层可折叠（ParameterPanel 外层 + 内部子面板），后续可按交互评审继续精简
+
+**后续任务注意**:
+- T39 可直接基于 `parameterPanel` / `designTreePanel` 对象名做动态加载与切换适配
+- T40 可复用 `showPropertyPanelHint()` 链路，在右键菜单“查看属性”时触发 `ensurePropertyPanelVisibleAndFlash()`
+- T41 实现 `ComponentToolStrip` 时建议作为 `ParameterPanel` 近视口侧插入，避免破坏当前右侧容器职责
 
 <!-- === COMPLETION LOG END === -->

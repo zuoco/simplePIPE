@@ -9,6 +9,7 @@ CollapsiblePanel {
     id: root
 
     property var tableModel
+    property bool editEnabled: true
 
     title: "管点表格"
     fillHeight: true
@@ -45,7 +46,7 @@ CollapsiblePanel {
             required property int column
 
             text: model.display === undefined ? "" : String(model.display)
-            editable: true
+            editable: root.editEnabled
             selected: table.currentRow === row
 
             onEditCommitted: function(value) {

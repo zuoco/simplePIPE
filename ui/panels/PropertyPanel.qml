@@ -9,6 +9,7 @@ CollapsiblePanel {
     id: root
 
     property var propertyModel
+    property bool editMode: true
 
     title: "属性面板"
     fillHeight: true
@@ -89,11 +90,12 @@ CollapsiblePanel {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 4
-                    color: editable ? "#FAFCFF" : "transparent"
-                    border.color: editable ? "#D6E6F5" : "transparent"
-                    border.width: editable ? 1 : 0
+                    color: (editable && root.editMode) ? "#FAFCFF" : "transparent"
+                    border.color: (editable && root.editMode) ? "#D6E6F5" : "transparent"
+                    border.width: (editable && root.editMode) ? 1 : 0
 
                     Label {
+                        visible: !(editable && root.editMode)
                         anchors.fill: parent
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
@@ -101,6 +103,25 @@ CollapsiblePanel {
                         text: value + (editable ? "" : " (auto)")
                         color: editable ? theme.textPrimary : theme.textSecondary
                         elide: Text.ElideRight
+                    }
+
+                    TextField {
+                        visible: editable && root.editMode
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        text: value
+                        selectByMouse: true
+                        onEditingFinished: {
+                            if (!root.propertyModel) {
+                                return
+                            }
+
+                            const idx = root.propertyModel.index(index, 0)
+                            const committed = root.propertyModel.setData(idx, text, 2)
+                            if (!committed && root.propertyModel.refresh) {
+                                root.propertyModel.refresh()
+                            }
+                        }
                     }
                 }
             }

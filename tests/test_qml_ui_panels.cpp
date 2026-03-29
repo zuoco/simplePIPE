@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "app/CadWorkbench.h"
+#include "app/DesignWorkbench.h"
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
@@ -53,8 +53,8 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
     app::SelectionManager selectionManager;
 
     app::WorkbenchManager workbenchManager(document);
-    workbenchManager.registerWorkbench(std::make_unique<app::CadWorkbench>());
-    ASSERT_TRUE(workbenchManager.switchWorkbench("CAD"));
+    workbenchManager.registerWorkbench(std::make_unique<app::DesignWorkbench>());
+    ASSERT_TRUE(workbenchManager.switchWorkbench("Design"));
 
     ui::AppController appController(document, transactionManager, selectionManager);
     ui::WorkbenchController workbenchController(workbenchManager);
@@ -72,7 +72,8 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
     ASSERT_NE(root, nullptr);
 
     EXPECT_NE(root->findChild<QObject*>("viewport3d"), nullptr);
-    EXPECT_NE(root->findChild<QObject*>("structureTreePanel"), nullptr);
+    EXPECT_NE(root->findChild<QObject*>("designTreePanel"), nullptr);
+    EXPECT_NE(root->findChild<QObject*>("parameterPanel"), nullptr);
     EXPECT_NE(root->findChild<QObject*>("pipePointTablePanel"), nullptr);
     EXPECT_NE(root->findChild<QObject*>("propertyPanel"), nullptr);
     EXPECT_NE(root->findChild<QObject*>("statusBarPanel"), nullptr);
