@@ -280,3 +280,14 @@ target_link_libraries(test_view_manager
 target_include_directories(test_view_manager PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_view_manager PRIVATE cxx_std_17)
 add_test(NAME ViewManager COMMAND test_view_manager)
+
+# Load 载荷数据模型测试 — T32
+add_executable(test_load_model test_load_model.cpp)
+target_link_libraries(test_load_model
+    PRIVATE
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_load_model PRIVATE cxx_std_17)
+add_test(NAME LoadModel COMMAND test_load_model)

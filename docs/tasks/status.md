@@ -50,12 +50,12 @@
 |----|--------|------|------|---------|---------|
 | T30 | ViewManager 视图管理器 | `done` | — | Sonnet | 2026-03-29 |
 | T31 | ComponentCatalog 参数化构件模板 | `done` | — | **Opus** | 2026-03-29 |
-| T32 | Load 载荷数据模型 | `ready` | — | Sonnet | — |
-| T33 | LoadCase 与 LoadCombination | `pending` | T32 | Sonnet | — |
+| T32 | Load 载荷数据模型 | `done` | — | Sonnet | 2026-03-29 |
+| T33 | LoadCase 与 LoadCombination | `ready` | T32 | Sonnet | — |
 | T34 | DesignWorkbench 工作台 | `ready` | T31 | Sonnet | — |
 | T35 | SpecWorkbench 工作台 | `ready` | T31 | Sonnet | — |
 | T36 | DesignTree + ParameterPanel 重构 | `pending` | T34 | **Codex** | — |
-| T37 | OCCT→VTK 网格转换 | `pending` | T32 | **Codex** | — |
+| T37 | OCCT→VTK 网格转换 | `ready` | T32 | **Codex** | — |
 | T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
 | T39 | 工作台切换 + QML 面板动态加载 | `pending` | T34, T35 | **Gemini** | — |
 | T40 | StatusBar + 右键菜单 + 框选 | `pending` | T36 | Sonnet | — |
@@ -1691,5 +1691,51 @@ public:
 - T34(DesignWorkbench): 可通过 `ComponentCatalog::instance().allTemplateIds()` 获取所有可用构件类型
 - T35(SpecWorkbench): 可通过 `getTemplate(id)->deriveParams(od, wt)` 查看构件参数规
 - T41(ComponentToolStrip): 直接从 Catalog 获取模板列表，用 `buildShape()` 生成预览几何
+
+### T32 — Load 载荷数据模型 (2026-03-29)
+
+**产出文件**:
+- `src/model/Load.h` — 载荷基类
+- `src/model/DeadWeightLoad.h` — 自重载荷（无额外参数）
+- `src/model/ThermalLoad.h` — 温度载荷（installTemp/operatingTemp）
+- `src/model/PressureLoad.h` — 压力载荷（pressure/isExternal）
+- `src/model/WindLoad.h` — 风载荷（speed/direction）
+- `src/model/SeismicLoad.h` — 地震载荷（acceleration/direction）
+- `src/model/DisplacementLoad.h` — 位移载荷（translation/rotation）
+- `src/model/UserDefinedLoad.h` — 自定义载荷（force/moment）
+- `tests/test_load_model.cpp` — 42 个单元测试，全部通过
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// 基类
+class Load : public DocumentObject {
+    virtual std::string loadType() const = 0;
+    std::vector<foundation::UUID> affectedObjects() const;
+    void addAffectedObject(const foundation::UUID& id);  // 防重复
+    bool removeAffectedObject(const foundation::UUID& id); // 返回是否成功
+};
+
+// Vec3 类型: foundation::math::Vec3 (来自 foundation/Math.h)
+// 注意: 不是 foundation::Vec3，Vec3 在 foundation::math 子命名空间中
+
+// 7 种子类 loadType() 返回值:
+// "DeadWeight" / "Thermal" / "Pressure" / "Wind" / "Seismic" / "Displacement" / "UserDefined"
+```
+
+**设计决策**:
+- 所有载荷类均为纯头文件实现（header-only），无需 .cpp
+- Vec3 使用 `foundation::math::Vec3`（注意不是 `foundation::Vec3`）
+- `changed` 信号在 setter 中遵循"相同值不触发"原则（ThermalLoad/PressureLoad/Wind speed/Seismic acceleration）
+- Vec3 类型的 setter 直接赋值并 emit（不做相等判断，Vec3 无 operator== 在 setDirection 等场景不适用）
+- `addAffectedObject` 防重复：已存在则不插入、不发信号
+
+**已知限制**:
+- 所有子类均为纯数据对象，无业务逻辑（如 DeadWeight 的质量计算在求解器层完成）
+- 无序列化支持（T43 任务负责）
+
+**后续任务注意**:
+- T33(LoadCase): 直接 `#include "model/Load.h"` 引用 Load，通过 UUID 关联
+- T37(OCCT→VTK): 可 include WindLoad/SeismicLoad 获取 direction 用于箭头方向渲染
+- T43(序列化扩展): 注意 Vec3 用 `foundation::math::Vec3` 命名空间
 
 <!-- === COMPLETION LOG END === -->
