@@ -22,27 +22,49 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: 10
         anchors.rightMargin: 10
-        spacing: 18
+        spacing: 0
 
+        // Left zone: selected object info
         Label {
-            text: "Selected: " + (appController ? appController.selectedCount : 0)
+            Layout.preferredWidth: parent.width * 0.4
+            elide: Text.ElideRight
+            text: appController ? appController.selectionInfo : ""
             color: theme.textPrimary
-        }
-
-        Label {
-            text: "Coord: (0.0, 0.0, 0.0)"
-            color: theme.textSecondary
+            font.pixelSize: 12
         }
 
         Rectangle {
-            Layout.fillWidth: true
-            color: "transparent"
-            implicitHeight: 1
+            width: 1
+            Layout.fillHeight: true
+            Layout.topMargin: 4
+            Layout.bottomMargin: 4
+            color: theme.divider
         }
 
+        // Center zone: mouse 3D world coordinates
         Label {
-            text: "Zoom: 100%"
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+            text: appController ? appController.mouseCoord : "(0.0, 0.0, 0.0)"
             color: theme.textSecondary
+            font.pixelSize: 12
+        }
+
+        Rectangle {
+            width: 1
+            Layout.fillHeight: true
+            Layout.topMargin: 4
+            Layout.bottomMargin: 4
+            color: theme.divider
+        }
+
+        // Right zone: zoom level
+        Label {
+            Layout.preferredWidth: 80
+            horizontalAlignment: Text.AlignRight
+            text: "Zoom: " + (appController ? Math.round(appController.zoomLevel) : 100) + "%"
+            color: theme.textSecondary
+            font.pixelSize: 12
         }
     }
 }

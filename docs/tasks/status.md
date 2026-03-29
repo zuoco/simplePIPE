@@ -57,9 +57,9 @@
 | T36 | DesignTree + ParameterPanel 重构 | `done` | T34 | **Codex** | 2026-03-29 |
 | T37 | OCCT→VTK 网格转换 | `done` | T32 | **Codex** | 2026-03-29 |
 | T38 | VTK 场景管理 | `done` | T37 | **Codex** | 2026-03-29 |
-| T39 | 工作台切换 + QML 面板动态加载 | `ready` | T34, T35 | **Gemini** | — |
-| T40 | StatusBar + 右键菜单 + 框选 | `ready` | T36 | Sonnet | — |
-| T41 | ComponentToolStrip 元件插入 | `ready` | T31, T36 | Sonnet | — |
+| T39 | 工作台切换 + QML 面板动态加载 | `done` | T34, T35 | **Gemini** | 2026-03-29 |
+| T40 | StatusBar + 右键菜单 + 框选 | `done` | T36 | Sonnet | 2026-03-29 |
+| T41 | ComponentToolStrip 元件插入 | `done` | T31, T36 | Sonnet | 2026-03-29 |
 | T42 | VTK-QML 桥接 | `ready` | T38 | **Gemini** | — |
 | T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
 | T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
@@ -2029,3 +2029,102 @@ signals:
 
 **后续任务注意**:
 - T40（SceneGraph 树形面板）及其他 QML 组件已经可以被动态加载了，要开发新面板请参考已有的 ComponentToolStrip。
+
+### T40 — StatusBar + 右键菜单 + 框选 (2026-03-29)
+
+**产出文件**:
+- `src/ui/AppController.h` (更新，新增 StatusBar/ContextMenu 属性与方法)
+- `src/ui/AppController.cpp` (更新，实现 selectionInfo/mouseCoord/zoomLevel/deleteSelected/multiSelect 等)
+- `src/visualization/PickHandler.h` (更新，新增 boxSelect/modeFromDrag/BoxSelectMode)
+- `src/visualization/PickHandler.cpp` (更新，实现 boxSelect 基于 ComputeBounds 投影到屏幕坐标)
+- `src/visualization/SceneManager.h` (更新，新增 allUuids())
+- `src/visualization/SceneManager.cpp` (更新，实现 allUuids())
+- `ui/panels/StatusBar.qml` (更新，三区布局：选中信息|鼠标3D坐标|缩放)
+- `ui/components/ContextMenu.qml` (更新，修改/查看/删除三项＋hasSelection禁用逻辑)
+- `ui/panels/Viewport3D.qml` (更新，框选矩形覆盖层＋ContextMenu行为绑定)
+- `ui/main.qml` (更新，删除确认对话框＋ContextMenu信号连接)
+- `tests/test_statusbar_contextmenu.cpp`
+- `tests/CMakeLists.txt` (更新，新增 test_statusbar_contextmenu)
+
+**关键接口** (后续任务需要知道的):
+```cpp
+// ui/AppController — StatusBar 属性
+Q_PROPERTY(QString selectionInfo READ selectionInfo NOTIFY selectionChanged)
+Q_PROPERTY(QString mouseCoord READ mouseCoord NOTIFY mouseCoordChanged)
+Q_PROPERTY(double zoomLevel READ zoomLevel WRITE setZoomLevel NOTIFY zoomLevelChanged)
+Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
+Q_INVOKABLE void updateMouseCoord(double x, double y, double z);
+Q_INVOKABLE void deleteSelected();
+Q_INVOKABLE void selectByUuid(const QString& uuid);
+Q_INVOKABLE void multiSelect(const QStringList& uuids, bool append);
+
+// visualization/PickHandler — 框选
+enum class BoxSelectMode { Window, Crossing };
+std::vector<std::string> boxSelect(const vsg::Camera&, vsg::ref_ptr<vsg::Node>,
+                                    int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                                    BoxSelectMode mode) const;
+static BoxSelectMode modeFromDrag(int32_t startX, int32_t endX);
+
+// visualization/SceneManager — 全部UUID枚举
+std::vector<std::string> allUuids() const;
+```
+
+**设计决策**:
+- StatusBar 三区布局：左区显示选中管件名/类型/坐标（无选中时显示管点统计），中区实时鼠标3D坐标，右区缩放级别
+- ContextMenu 菜单项 (修改/查看/删除) 通过 `hasSelection` 绑定控制可用状态
+- 框选实现：左→右拖动 = Window（实线框，对象完全在框内）；右→左拖动 = Crossing（不同颜色框，部分在框内即选中）
+- boxSelect 使用 `vsg::ComputeBounds` 获取节点 AABB，投影8个角点到屏幕坐标，与选区矩形比较
+- 删除操作通过 Dialog 弹出确认，不会直接删除
+- multiSelect 支持 append 模式（Shift+框选追加）和替换模式
+
+**已知限制**:
+- boxSelect 基于节点 AABB 投影，对于复杂形状可能不够精确（比真实轮廓投影略大）
+- mouseCoord 当前需要由 QML/C++ 桥主动调用 updateMouseCoord()，未自动从 VSG hover 事件获取
+- 删除操作目前只发射 deleteRequested 信号，实际的事务删除需要上层连接实现
+
+**后续任务注意**:
+- T41 (ComponentToolStrip) 可复用 AppController.hasSelection 属性控制工具条状态
+- T44 (AnalysisWorkbench) 切换时 StatusBar 的 selectionInfo 自动清空（SelectionManager.clear）
+- T45 (端到端测试) 可使用 boxSelect API 测试框选功能
+
+---
+
+### T41 — ComponentToolStrip 元件插入 (2026-03-29)
+
+**产出文件**:
+- `ui/panels/ComponentToolStrip.qml` — 双列图标条完整实现（替换占位符）
+- `src/ui/AppController.h` — 新增 `insertComponent()` 方法与 `insertComponentRequested` 信号
+- `src/ui/AppController.cpp` — 实现 `insertComponent()`
+- `ui/main.qml` — ComponentToolStrip 绑定 appController；Connections 处理 insertComponentRequested 显示 toast
+- `tests/test_qml_ui_panels.cpp` — 新增 2 个测试用例
+
+**关键接口**:
+```cpp
+// AppController
+Q_INVOKABLE void insertComponent(const QString& componentType);
+signal void insertComponentRequested(const QString& componentType);
+```
+
+```qml
+// ComponentToolStrip.qml
+Rectangle {
+    property var appController: null
+    // SplitView.minimumWidth/preferredWidth/maximumWidth = 68
+    // 左列 Fittings (6 icons): insert-pipe/elbow/tee/reducer/valve/flange
+    // 右列 Accessories (5 icons): insert-rigid-support/spring-hanger/guide/restraint/beam
+}
+```
+
+**设计决策**:
+- ComponentToolStrip 作为独立面板嵌入 SplitView，固定宽度 68px（不可拖拽调整）
+- 使用 Unicode 字符作为图标（—/↩/⊤/▷/⊗/⊞/△/⌀/→/⊟/I），tooltip 提供完整说明
+- 点击按钮调用 `appController.insertComponent(type)`，AppController 发射信号，main.qml 通过 Connections 弹出 toast 提示
+- 插入流程（管点选择、属性填写）由后续任务或 T45 集成
+
+**已知限制**:
+- 图标目前使用 Unicode 文本，若需专业图标应替换为 SVG/字体图标
+- 实际插入逻辑（创建管点、写文档）尚未实现，insertComponentRequested 信号需上层连接具体处理
+
+**后续任务注意**:
+- T44/T45 若需要插入流程，连接 AppController::insertComponentRequested 信号实现具体逻辑
+- T42 (VTK-QML桥接) 与本任务无接口依赖，可并行推进

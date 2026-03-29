@@ -24,6 +24,27 @@ ApplicationWindow {
         parameterPanel.ensurePropertyPanelVisibleAndFlash()
     }
 
+    Connections {
+        target: appController
+        function onInsertComponentRequested(componentType) {
+            var labels = {
+                "insert-pipe":           "直管段",
+                "insert-elbow":          "弯头",
+                "insert-tee":            "三通",
+                "insert-reducer":        "大小头",
+                "insert-valve":          "阀门",
+                "insert-flange":         "法兰",
+                "insert-rigid-support":  "刚性支撑",
+                "insert-spring-hanger":  "弹簧支吊架",
+                "insert-guide":          "导向约束",
+                "insert-restraint":      "位移限位器",
+                "insert-beam":           "结构梁"
+            }
+            var label = labels[componentType] || componentType
+            statusToast.show("插入 " + label + " — 请在视口中点击管点")
+        }
+    }
+
     Shortcut {
         sequence: StandardKey.Undo
         onActivated: if (appController) appController.undo()
@@ -51,7 +72,31 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Delete"
-        onActivated: statusToast.show("已触发删除快捷键")
+        onActivated: {
+            if (appController && appController.hasSelection) {
+                deleteConfirmDialog.open()
+            }
+        }
+    }
+
+    // Delete confirmation dialog
+    Dialog {
+        id: deleteConfirmDialog
+        title: "确认删除"
+        modal: true
+        anchors.centerIn: parent
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        Label {
+            text: "确定要删除选中的对象吗？"
+        }
+
+        onAccepted: {
+            if (appController) {
+                appController.deleteSelected()
+                statusToast.show("已删除选中对象")
+            }
+        }
     }
 
     NewProjectDialog {
@@ -143,15 +188,38 @@ ApplicationWindow {
                             item.treeModel = Qt.binding(function() { return appController ? appController.segmentTreeModel : null })
                         } else if (modelData === "Viewport3D") {
                             item.objectName = "viewportPanel"
+                            item.appController = Qt.binding(function() { return appController })
                             item.inspectRequested.connect(root.showPropertyPanelHint)
-                            var vsg = item.children[1] // The second child is VsgViewport? Wait, it's safer to find it. But QML doesn't have findChild inside Loader easily without objectName and looping.
-                            // Actually it's exposed as item.findChild in QtQuick since 5.9 maybe?
-                            // Wait, we can just write a function in Viewport3D.qml to emit it.
+                            item.modifyRequested.connect(function() {
+                                if (appController) {
+                                    appController.editModeRequested()
+                                    root.showPropertyPanelHint()
+                                }
+                            })
+                            item.viewModeRequested.connect(function() {
+                                if (appController) {
+                                    appController.viewModeRequested()
+                                    root.showPropertyPanelHint()
+                                }
+                            })
+                            item.deleteRequested.connect(function() {
+                                if (appController && appController.hasSelection) {
+                                    deleteConfirmDialog.open()
+                                }
+                            })
+                            item.boxSelectFinished.connect(function(sx, sy, ex, ey, append) {
+                                // Box selection results are handled by C++ pick handler
+                                // QML signals the coordinates; actual selection is TBD when C++ bridge is wired
+                                statusToast.show("框选完成")
+                            })
                             if (workbenchController) workbenchController.notifyViewportLoaded(item.vsgViewport);
                         } else if (modelData === "ParameterPanel") {
                             item.objectName = "parameterPanel"
                             item.tableModel = Qt.binding(function() { return appController ? appController.pipePointTableModel : null })
                             item.propertyModel = Qt.binding(function() { return appController ? appController.propertyModel : null })
+                        } else if (modelData === "ComponentToolStrip") {
+                            item.objectName = "componentToolStripPanel"
+                            item.appController = Qt.binding(function() { return appController })
                         } else if (modelData === "PropertyPanel") {
                             item.objectName = "propertyPanel"
                             item.propertyModel = Qt.binding(function() { return appController ? appController.propertyModel : null })

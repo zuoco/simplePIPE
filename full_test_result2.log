@@ -1,0 +1,72 @@
+-- Reading 'vsg_...' macros from /home/zcli/TEST/qml-vsg-occt/lib/vsg/lib64/cmake/vsg/vsgMacros.cmake - look there for documentation
+-- Configuring done (0.7s)
+-- Generating done (0.3s)
+-- Build files have been written to: /home/zcli/TEST/qml-vsg-occt/build/debug
+ninja: no work to do.
+Test project /home/zcli/TEST/qml-vsg-occt/build/debug
+      Start  1: BuildSystem
+ 1/31 Test  #1: BuildSystem ......................   Passed    0.01 sec
+      Start  2: Foundation
+ 2/31 Test  #2: Foundation .......................   Passed    0.01 sec
+      Start  3: Geometry
+ 3/31 Test  #3: Geometry .........................   Passed    0.27 sec
+      Start  4: MeshStep
+ 4/31 Test  #4: MeshStep .........................   Passed    0.21 sec
+      Start  5: Model
+ 5/31 Test  #5: Model ............................   Passed    0.01 sec
+      Start  6: Engine
+ 6/31 Test  #6: Engine ...........................   Passed    0.01 sec
+      Start  7: PipeGeometry
+ 7/31 Test  #7: PipeGeometry .....................   Passed   10.18 sec
+      Start  8: ValveFlexBeam
+ 8/31 Test  #8: ValveFlexBeam ....................   Passed    1.48 sec
+      Start  9: ComponentCatalog
+ 9/31 Test  #9: ComponentCatalog .................   Passed   56.94 sec
+      Start 10: AccessoryBeam
+10/31 Test #10: AccessoryBeam ....................   Passed    0.01 sec
+      Start 11: Topology
+11/31 Test #11: Topology .........................   Passed    0.06 sec
+      Start 12: Visualization
+12/31 Test #12: Visualization ....................   Passed    0.07 sec
+      Start 13: SceneManager
+13/31 Test #13: SceneManager .....................   Passed    0.03 sec
+      Start 14: CameraFurniture
+14/31 Test #14: CameraFurniture ..................   Passed    0.03 sec
+      Start 15: PickHighlight
+15/31 Test #15: PickHighlight ....................   Passed    0.03 sec
+      Start 16: VsgQmlBridge
+16/31 Test #16: VsgQmlBridge .....................   Passed    0.05 sec
+      Start 17: AppCore
+17/31 Test #17: AppCore ..........................   Passed    0.18 sec
+      Start 18: ProjectSerializer
+18/31 Test #18: ProjectSerializer ................   Passed    0.19 sec
+      Start 19: StepExporter
+19/31 Test #19: StepExporter .....................   Passed    0.62 sec
+      Start 20: WorkbenchBridge
+20/31 Test #20: WorkbenchBridge ..................   Passed    0.06 sec
+      Start 21: QmlModels
+21/31 Test #21: QmlModels ........................   Passed    0.07 sec
+      Start 22: QmlUiPanels
+22/31 Test #22: QmlUiPanels ......................   Passed    0.31 sec
+      Start 23: Integration
+23/31 Test #23: Integration ......................   Passed   18.45 sec
+      Start 24: ViewManager
+24/31 Test #24: ViewManager ......................   Passed    0.03 sec
+      Start 25: LoadModel
+25/31 Test #25: LoadModel ........................   Passed    0.01 sec
+      Start 26: LoadCase
+26/31 Test #26: LoadCase .........................   Passed    0.01 sec
+      Start 27: DesignWorkbench
+27/31 Test #27: DesignWorkbench ..................   Passed    0.02 sec
+      Start 28: SpecWorkbench
+28/31 Test #28: SpecWorkbench ....................   Passed    0.02 sec
+      Start 29: OcctToVtk
+29/31 Test #29: OcctToVtk ........................   Passed    0.12 sec
+      Start 30: VtkScene
+30/31 Test #30: VtkScene .........................   Passed    0.06 sec
+      Start 31: test_workbench_switch
+31/31 Test #31: test_workbench_switch ............   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 31
+
+Total Test time (real) =  89.64 sec

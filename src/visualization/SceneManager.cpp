@@ -90,4 +90,13 @@ size_t SceneManager::nodeCount() const {
     return nodeMap_.size();
 }
 
+std::vector<std::string> SceneManager::allUuids() const {
+    std::vector<std::string> result;
+    result.reserve(nodeMap_.size());
+    for (const auto& [uuid, node] : nodeMap_) {
+        result.push_back(uuid);
+    }
+    return result;
+}
+
 } // namespace visualization

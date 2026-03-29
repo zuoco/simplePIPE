@@ -8,10 +8,17 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace visualization {
 
 class SceneManager;
+
+/// Box selection mode: Window (fully inside) vs Crossing (partially inside)
+enum class BoxSelectMode {
+    Window,   ///< Left-to-right: objects must be fully inside the rectangle
+    Crossing  ///< Right-to-left: objects partially inside are selected
+};
 
 class PickHandler {
 public:
@@ -41,6 +48,18 @@ public:
                           vsg::ref_ptr<vsg::Node> sceneRoot,
                           int32_t x,
                           int32_t y) const;
+
+    /// Perform box selection. Returns UUIDs of nodes whose screen projections
+    /// intersect (Crossing) or are fully contained (Window) in the given rectangle.
+    /// Rectangle corners are (x0,y0) top-left and (x1,y1) bottom-right in screen coords.
+    std::vector<std::string> boxSelect(const vsg::Camera& camera,
+                                       vsg::ref_ptr<vsg::Node> sceneRoot,
+                                       int32_t x0, int32_t y0,
+                                       int32_t x1, int32_t y1,
+                                       BoxSelectMode mode) const;
+
+    /// Determine box selection mode from drag direction
+    static BoxSelectMode modeFromDrag(int32_t startX, int32_t endX);
 
 private:
     const SceneManager* sceneManager_ = nullptr;

@@ -63,6 +63,9 @@ public:
     /// 当前场景中管理的节点数量
     size_t nodeCount() const;
 
+    /// 返回所有已注册的 UUID 列表
+    std::vector<std::string> allUuids() const;
+
 private:
     vsg::ref_ptr<vsg::Group> root_;
     std::unordered_map<std::string, vsg::ref_ptr<vsg::Node>> nodeMap_;

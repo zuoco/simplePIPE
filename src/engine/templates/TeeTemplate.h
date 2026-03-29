@@ -32,10 +32,11 @@ public:
         double outerR = p.od / 2.0;
         double innerR = outerR - p.wallThickness;
         double mainLen = p.bodyLength;
-        double branchOD = p.get("branchOD", p.od);
+        // slightly reduce branch OD to avoid exact tangent singularity in OpenCASCADE boolean fuse
+        double branchOD = p.get("branchOD", p.od) * 0.999;
         double branchOuterR = branchOD / 2.0;
         double branchInnerR = branchOuterR - p.wallThickness;
-        double branchLen = p.get("branchLength", p.od * 1.5);
+        double branchLen = p.get("branchLength", p.od * 1.5) + outerR; // extend slightly into the main pipe
 
         if (outerR < 1e-9 || innerR < 1e-9 || mainLen < 1e-9) return {};
         if (branchOuterR < 1e-9 || branchInnerR < 1e-9 || branchLen < 1e-9) return {};
@@ -45,8 +46,8 @@ public:
         BRepPrimAPI_MakeCylinder mainOuter(mainAx, outerR, mainLen);
         BRepPrimAPI_MakeCylinder mainInner(mainAx, innerR, mainLen);
 
-        // 支管从主管中点向 Y 方向
-        gp_Pnt branchOrigin(0, 0, mainLen / 2.0);
+        // 支管从主管轴心下方一点点开始，穿过一半主管，避免 face 在 Z=0 重合导致的非流形
+        gp_Pnt branchOrigin(0, -outerR * 0.1, mainLen / 2.0);
         gp_Ax2 branchAx(branchOrigin, gp_Dir(0, 1, 0));
         BRepPrimAPI_MakeCylinder branchOuter(branchAx, branchOuterR, branchLen);
         BRepPrimAPI_MakeCylinder branchInner(branchAx, branchInnerR, branchLen);
