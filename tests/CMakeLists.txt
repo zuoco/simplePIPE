@@ -339,3 +339,14 @@ target_link_libraries(test_occt_to_vtk
 target_include_directories(test_occt_to_vtk PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_occt_to_vtk PRIVATE cxx_std_17)
 add_test(NAME OcctToVtk COMMAND test_occt_to_vtk)
+
+# VTK 场景管理测试 — T38
+add_executable(test_vtk_scene test_vtk_scene.cpp)
+target_link_libraries(test_vtk_scene
+    PRIVATE
+        vtk_visualization
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_vtk_scene PRIVATE cxx_std_17)
+add_test(NAME VtkScene COMMAND test_vtk_scene)

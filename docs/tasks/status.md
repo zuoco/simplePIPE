@@ -56,11 +56,11 @@
 | T35 | SpecWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T36 | DesignTree + ParameterPanel 重构 | `done` | T34 | **Codex** | 2026-03-29 |
 | T37 | OCCT→VTK 网格转换 | `done` | T32 | **Codex** | 2026-03-29 |
-| T38 | VTK 场景管理 | `ready` | T37 | **Codex** | — |
+| T38 | VTK 场景管理 | `done` | T37 | **Codex** | 2026-03-29 |
 | T39 | 工作台切换 + QML 面板动态加载 | `ready` | T34, T35 | **Gemini** | — |
 | T40 | StatusBar + 右键菜单 + 框选 | `ready` | T36 | Sonnet | — |
 | T41 | ComponentToolStrip 元件插入 | `ready` | T31, T36 | Sonnet | — |
-| T42 | VTK-QML 桥接 | `pending` | T38 | **Gemini** | — |
+| T42 | VTK-QML 桥接 | `ready` | T38 | **Gemini** | — |
 | T43 | 序列化扩展 (Load/LoadCase) | `ready` | T33 | **Codex** | — |
 | T44 | AnalysisWorkbench 工作台 | `pending` | T33, T39, T42 | **Opus** | — |
 | T45 | 端到端集成测试 | `pending` | T41, T43, T44 | **Opus** | — |
@@ -1953,5 +1953,45 @@ namespace vtk_vis {
 **后续任务注意**:
 - T38 可直接消费 `toVtkPolyData()` 输出构建 Solid Actor，并消费 `buildBeamMesh()` 输出构建 Beam Actor
 - T42 在 QML 桥接前应先复用 T38 的场景管理接口，避免在 UI 层重复管理 VTK 数据对象
+
+### T38 — VTK 场景管理 (2026-03-29)
+
+**产出文件**:
+- `CMakeLists.txt` (根，VTK 组件扩展为 `RenderingCore`)
+- `src/vtk-visualization/CMakeLists.txt` (新增 `VtkSceneManager.cpp` 并链接 `VTK::RenderingCore`)
+- `src/vtk-visualization/VtkSceneManager.h`
+- `src/vtk-visualization/VtkSceneManager.cpp`
+- `tests/CMakeLists.txt` (新增 `test_vtk_scene`)
+- `tests/test_vtk_scene.cpp`
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace vtk_vis {
+class VtkSceneManager {
+public:
+    enum class RenderMode { Solid, Beam };
+
+    void addActor(const std::string& uuid, vtkSmartPointer<vtkActor> actor);
+    void removeActor(const std::string& uuid);
+    void updateActor(const std::string& uuid, vtkSmartPointer<vtkActor> actor);
+    void setRenderMode(RenderMode mode);
+    vtkSmartPointer<vtkRenderer> renderer() const;
+};
+}
+```
+
+**设计决策**:
+- `VtkSceneManager` 内部维护 `uuid -> ActorEntry` 映射，`updateActor()` 采用“先移除旧 Actor 再添加新 Actor”的覆盖策略，保持 UUID 稳定
+- `RenderMode` 切换通过 `vtkActor::SetVisibility()` 完成，不重建 renderer 场景对象
+- Actor 分类采用输入 `vtkPolyData` 的拓扑特征推断：含 `polys` 视为 Solid，含 `lines` 视为 Beam，避免在接口中额外引入模式参数
+- 对空 UUID / 空 Actor 输入做防御式忽略处理，保证上层批量更新时稳定性
+
+**已知限制**:
+- 当前分类规则基于 `vtkPolyData` 中 `lines/polys` 统计；若单个 Actor 同时承载多种拓扑，默认优先按 Solid 处理
+- 未纳入 `vtkVolume`、约束 glyph、载荷箭头等专用 Actor 类型（将在后续 Analysis/VTK-QML 任务扩展）
+
+**后续任务注意**:
+- T42 请直接复用 `VtkSceneManager::renderer()` 作为 QML 侧渲染桥接入口，避免重复持有 renderer 生命周期
+- Analysis 工作台切换渲染模式时，可直接调用 `setRenderMode(RenderMode::Solid/Beam)` 完成实体/梁单元显示切换
 
 <!-- === COMPLETION LOG END === -->

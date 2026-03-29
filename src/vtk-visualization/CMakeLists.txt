@@ -1,6 +1,7 @@
 add_library(vtk_visualization STATIC
     OcctToVtk.cpp
     BeamMeshBuilder.cpp
+    VtkSceneManager.cpp
 )
 
 target_include_directories(vtk_visualization
@@ -16,4 +17,5 @@ target_link_libraries(vtk_visualization
         geometry
         VTK::CommonCore
         VTK::CommonDataModel
+    VTK::RenderingCore
 )
