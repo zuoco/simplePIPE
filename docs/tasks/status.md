@@ -55,8 +55,8 @@
 | T34 | DesignWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T35 | SpecWorkbench 工作台 | `done` | T31 | Sonnet | 2026-03-29 |
 | T36 | DesignTree + ParameterPanel 重构 | `done` | T34 | **Codex** | 2026-03-29 |
-| T37 | OCCT→VTK 网格转换 | `ready` | T32 | **Codex** | — |
-| T38 | VTK 场景管理 | `pending` | T37 | **Codex** | — |
+| T37 | OCCT→VTK 网格转换 | `done` | T32 | **Codex** | 2026-03-29 |
+| T38 | VTK 场景管理 | `ready` | T37 | **Codex** | — |
 | T39 | 工作台切换 + QML 面板动态加载 | `ready` | T34, T35 | **Gemini** | — |
 | T40 | StatusBar + 右键菜单 + 框选 | `ready` | T36 | Sonnet | — |
 | T41 | ComponentToolStrip 元件插入 | `ready` | T31, T36 | Sonnet | — |
@@ -1917,5 +1917,41 @@ ParameterPanel { objectName: "parameterPanel" }
 - T39 可直接基于 `parameterPanel` / `designTreePanel` 对象名做动态加载与切换适配
 - T40 可复用 `showPropertyPanelHint()` 链路，在右键菜单“查看属性”时触发 `ensurePropertyPanelVisibleAndFlash()`
 - T41 实现 `ComponentToolStrip` 时建议作为 `ParameterPanel` 近视口侧插入，避免破坏当前右侧容器职责
+
+### T37 — OCCT→VTK 网格转换 (2026-03-29)
+
+**产出文件**:
+- `CMakeLists.txt` (根，新增 VTK package)
+- `src/CMakeLists.txt` (新增 `vtk-visualization` 子目录)
+- `src/vtk-visualization/CMakeLists.txt`
+- `src/vtk-visualization/OcctToVtk.h`
+- `src/vtk-visualization/OcctToVtk.cpp`
+- `src/vtk-visualization/BeamMeshBuilder.h`
+- `src/vtk-visualization/BeamMeshBuilder.cpp`
+- `tests/CMakeLists.txt` (新增 `test_occt_to_vtk`)
+- `tests/test_occt_to_vtk.cpp`
+
+**关键接口** (后续任务需要知道的):
+```cpp
+namespace vtk_vis {
+    vtkSmartPointer<vtkPolyData> toVtkPolyData(const TopoDS_Shape& shape,
+                                               double deflection = 0.1);
+    vtkSmartPointer<vtkPolyData> buildBeamMesh(const std::vector<gp_Pnt>& centerline);
+}
+```
+
+**设计决策**:
+- `toVtkPolyData()` 复用 `geometry::ShapeMesher::mesh()`，保持与 VSG 通道一致的三角化来源，降低几何不一致风险
+- 顶点法线通过 `vtkPointData::SetNormals()` 写入点属性，便于 T38 直接做 Surface 渲染
+- 退化输入（空 Shape、空网格、中心线点数 < 2）统一返回 `nullptr`，由上层显式判空处理
+- VTK 依赖限制在 `VTK::CommonCore + VTK::CommonDataModel`，单元测试不依赖 GPU/渲染上下文
+
+**已知限制**:
+- 当前只提供 `vtkPolyData` 数据构建，不包含 `vtkMapper/vtkActor` 封装（由 T38 完成）
+- `buildBeamMesh()` 当前输出单条 `vtkPolyLine`，多段拓扑拆分与节点 glyph 由后续任务实现
+
+**后续任务注意**:
+- T38 可直接消费 `toVtkPolyData()` 输出构建 Solid Actor，并消费 `buildBeamMesh()` 输出构建 Beam Actor
+- T42 在 QML 桥接前应先复用 T38 的场景管理接口，避免在 UI 层重复管理 VTK 数据对象
 
 <!-- === COMPLETION LOG END === -->

@@ -326,3 +326,16 @@ target_link_libraries(test_spec_workbench
 target_include_directories(test_spec_workbench PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_spec_workbench PRIVATE cxx_std_17)
 add_test(NAME SpecWorkbench COMMAND test_spec_workbench)
+
+# OCCT→VTK 网格转换测试 — T37
+add_executable(test_occt_to_vtk test_occt_to_vtk.cpp)
+target_link_libraries(test_occt_to_vtk
+    PRIVATE
+        vtk_visualization
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_occt_to_vtk PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_occt_to_vtk PRIVATE cxx_std_17)
+add_test(NAME OcctToVtk COMMAND test_occt_to_vtk)

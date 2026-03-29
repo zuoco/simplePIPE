@@ -3,6 +3,7 @@ add_subdirectory(geometry)
 add_subdirectory(model)
 add_subdirectory(engine)
 add_subdirectory(visualization)
+add_subdirectory(vtk-visualization)
 add_subdirectory(app)
 add_subdirectory(ui)
 

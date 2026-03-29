@@ -11,11 +11,13 @@ set(CMAKE_AUTORCC ON)
 list(APPEND CMAKE_PREFIX_PATH
   ${PROJECT_SOURCE_DIR}/lib/occt
   ${PROJECT_SOURCE_DIR}/lib/vsg
+  ${PROJECT_SOURCE_DIR}/lib/vtk
 )
 
 # 第三方库
 find_package(OpenCASCADE REQUIRED)
 find_package(vsg REQUIRED)
+find_package(VTK 9.6 REQUIRED COMPONENTS CommonCore CommonDataModel)
 find_package(Qt6 REQUIRED COMPONENTS Quick Qml Test)
 find_package(nlohmann_json REQUIRED)
 
