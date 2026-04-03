@@ -23,35 +23,54 @@ ctest -R <TestName> --output-on-failure   # Filter by name pattern
 ./tests/test_<name>                        # Run directly for gdb debugging
 ```
 
+Run the application:
+```bash
+./build/debug/src/pipecad_app
+# or via build script:
+bash scripts/build.sh run
+```
+
+The `scripts/build.sh` wrapper provides additional subcommands: `test -R <Filter>`, `full` (clean+build+test), `status`, `run`. Environment setup: `bash scripts/setup.sh`.
+
 ## Architecture
 
-7-layer dependency chain (bottom to top), each compiled as a static library under `src/`:
+8-layer dependency chain (bottom to top), each compiled as a static library under `src/`:
 
 ```
-foundation → geometry → model → engine → visualization → app → ui → pipecad_app
-                                              vtk-visualization ↗
+foundation → geometry → model → engine → vtk-visualization ┐
+                                      → visualization ──────┤
+                                                             → app → ui → pipecad_app
 ```
 
 | Layer | Directory | Purpose |
 |-------|-----------|---------|
-| Foundation | `src/foundation/` | UUID, Variant, Math, Signal, Log base types |
+| Foundation | `src/foundation/` | Header-only: UUID, Variant, Math, Signal, Log |
 | Geometry | `src/geometry/` | OCCT wrappers: ShapeBuilder, BooleanOps, StepIO, ShapeMesher |
 | Model | `src/model/` | Header-only domain objects: PipePoint, Segment, Route, PipeSpec, Load hierarchy |
-| Engine | `src/engine/` | Pipeline builders (Bend, Tee, Valve, Beam), ComponentCatalog, TopologyManager, ConstraintSolver, RecomputeEngine |
+| Engine | `src/engine/` | Pipeline builders (Bend, Tee, Valve, Beam, Reducer), ComponentCatalog, TopologyManager, ConstraintSolver, RecomputeEngine |
 | Visualization | `src/visualization/` | VSG rendering: OcctToVsg, SceneManager, PickHandler, ViewManager |
 | VTK Visualization | `src/vtk-visualization/` | VTK analysis viewport: BeamMeshBuilder, VtkSceneManager |
-| Application | `src/app/` | Document, Workbench system (Cad/Design/Spec/Analysis), ProjectSerializer, SelectionManager |
+| Application | `src/app/` | Document, Workbench system, ProjectSerializer, SelectionManager, TransactionManager |
 | UI | `src/ui/` | QML bridge: VsgQuickItem, VtkViewport, table/tree models, AppController |
+
+Notable build quirk: `src/app/CMakeLists.txt` includes `src/engine/RecomputeEngine.cpp` directly (cross-layer source reference for recompute integration).
 
 ### Key Domain Concepts
 
 - **PipePoint**: Core typed document object with coordinates. All pipeline geometry derives from PipePoint sequences and PipeSpec properties.
-- **Workbench system**: CadWorkbench, DesignWorkbench, SpecWorkbench, AnalysisWorkbench — switchable via WorkbenchManager.
-- **Dual rendering**: VSG (Vulkan) for 3D design view + VTK for stress analysis visualization.
+- **Application singleton**: `app::Application::init()` creates the central singleton holding Document, DependencyGraph, TransactionManager, SelectionManager, WorkbenchManager.
+- **Recompute flow**: TransactionManager → RecomputeEngine → SceneManager callback. Changing a PipePoint triggers recompute of dependent geometry and VSG scene node updates.
+- **Workbench system**: CadWorkbench, DesignWorkbench, SpecWorkbench, AnalysisWorkbench — switchable via WorkbenchManager. Each workbench defines its own toolbar actions, tree structure, and panels.
+- **Dual rendering**: VSG (Vulkan) for 3D design view via `VsgQuickItem` + VTK for stress analysis via `VtkViewport`. Both are QML-exposed types registered as `PipeCAD` module.
+- **Component templates**: `src/engine/templates/` contains per-component headers (Elbow, GateValve, Pipe, Reducer, etc.) used by ComponentCatalog.
+
+### Test Organization
+
+Tests in `tests/` follow a per-task naming pattern (`test_<name>.cpp` linked to specific library layer(s) via `tests/CMakeLists.txt`). Integration tests (`test_Integration.cpp`, `test_Phase2Integration.cpp`) link multiple layers. Tests using Qt depend on `Qt6::Test`; all others use `GTest::Main`.
 
 ### UI Structure
 
-QML files in `ui/`: `main.qml` entry, `components/` (reusable widgets), `panels/` (feature panels), `dialogs/`, `style/Theme.qml`.
+QML files in `ui/`: `main.qml` entry, `components/` (reusable widgets), `panels/` (workbench-specific panels), `dialogs/`, `style/Theme.qml`. Panels switch based on active workbench — e.g., AnalysisTree/LoadTable/LoadCaseTable are visible in the Analysis workbench.
 
 ## C++ Coding Conventions
 
@@ -71,7 +90,7 @@ The project uses a task-driven workflow tracked in `docs/tasks/`. When asked to 
 2. Check `docs/tasks/status.md` (first 74 lines) for task status
 3. Read task details from `docs/development-plan.md`
 4. Implement, then verify with `pixi run build-debug && pixi run test`
-5. Update status.md, log file, current.md, and commit with `feat: TXX — description`
+5. Update status.md, log file (`docs/tasks/log/`), current.md, and commit with `feat: TXX — description`
 
 Commit message format: `feat: TXX — 中文描述` / `fix: TXX — 中文描述` / `docs: 中文描述`
 
@@ -87,3 +106,9 @@ Commit message format: `feat: TXX — 中文描述` / `fix: TXX — 中文描述
 | nlohmann_json | * | pixi (conda-forge) |
 
 Build toolchain: pixi + CMake ≥3.24 + Ninja, C++17.
+
+## Reference Documents
+
+- `docs/architecture.md` — Full architecture design (data model, layering, UI design)
+- `docs/development-plan.md` — Task details (deliverables, acceptance criteria)
+- `lib/occt/AGENTS.md`, `lib/vsg/AGENTS.md`, `lib/vtk/AGENTS.md` — Library-specific API guides
