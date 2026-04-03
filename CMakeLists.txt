@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
+# License: Apache-2.0 (see LICENSE file)
 project(qml-vsg-occt VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)

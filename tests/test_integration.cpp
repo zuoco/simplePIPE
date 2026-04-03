@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 /// T25 — 集成测试与端到端验证
 ///
 /// 验收场景:

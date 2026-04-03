@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 #include "engine/AccessoryBuilder.h"
 
 #include <gp_Vec.hxx>

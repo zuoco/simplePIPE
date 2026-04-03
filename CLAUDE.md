@@ -8,6 +8,12 @@ PipeCAD (`qml-vsg-occt`) — parametric pipeline modeling and stress analysis so
 
 ## Build & Test Commands
 
+First-time setup (installs pixi, dependencies, runs initial CMake configure):
+```bash
+bash scripts/setup.sh
+```
+
+Build and test:
 ```bash
 pixi run build-debug          # Configure + compile debug build
 pixi run build-release        # Configure + compile release build
@@ -17,10 +23,11 @@ pixi run clean                # Remove build/ directory
 
 Run a single test:
 ```bash
-pixi shell                    # Enter environment shell
-cd build/debug
-ctest -R <TestName> --output-on-failure   # Filter by name pattern
-./tests/test_<name>                        # Run directly for gdb debugging
+bash scripts/build.sh test -R <TestName>     # e.g. test -R Engine
+# Or manually:
+pixi shell && cd build/debug
+ctest -R <TestName> --output-on-failure      # Filter by name pattern
+./tests/test_<name>                          # Run directly for gdb debugging
 ```
 
 Run the application:
@@ -30,16 +37,15 @@ Run the application:
 bash scripts/build.sh run
 ```
 
-The `scripts/build.sh` wrapper provides additional subcommands: `test -R <Filter>`, `full` (clean+build+test), `status`, `run`. Environment setup: `bash scripts/setup.sh`.
+The `scripts/build.sh` wrapper provides subcommands: `debug`, `release`, `test [-R <Filter>]`, `run`, `full` (clean+build+test), `clean`, `configure`, `status`. Verify environment with `bash scripts/setup.sh --verify`.
 
 ## Architecture
 
 8-layer dependency chain (bottom to top), each compiled as a static library under `src/`:
 
 ```
-foundation → geometry → model → engine → vtk-visualization ┐
-                                      → visualization ──────┤
-                                                             → app → ui → pipecad_app
+foundation → geometry → model → engine → visualization → app → ui → pipecad_app
+               └──→ vtk-visualization ──────────↑
 ```
 
 | Layer | Directory | Purpose |
@@ -49,7 +55,7 @@ foundation → geometry → model → engine → vtk-visualization ┐
 | Model | `src/model/` | Header-only domain objects: PipePoint, Segment, Route, PipeSpec, Load hierarchy |
 | Engine | `src/engine/` | Pipeline builders (Bend, Tee, Valve, Beam, Reducer), ComponentCatalog, TopologyManager, ConstraintSolver, RecomputeEngine |
 | Visualization | `src/visualization/` | VSG rendering: OcctToVsg, SceneManager, PickHandler, ViewManager |
-| VTK Visualization | `src/vtk-visualization/` | VTK analysis viewport: BeamMeshBuilder, VtkSceneManager |
+| VTK Visualization | `src/vtk-visualization/` | VTK analysis viewport: OcctToVtk, BeamMeshBuilder, VtkSceneManager, VtkViewport |
 | Application | `src/app/` | Document, Workbench system, ProjectSerializer, SelectionManager, TransactionManager |
 | UI | `src/ui/` | QML bridge: VsgQuickItem, VtkViewport, table/tree models, AppController |
 
@@ -87,7 +93,7 @@ QML files in `ui/`: `main.qml` entry, `components/` (reusable widgets), `panels/
 
 The project uses a task-driven workflow tracked in `docs/tasks/`. When asked to "完成任务 TXX":
 1. Read `docs/tasks/current.md` for handoff context
-2. Check `docs/tasks/status.md` (first 74 lines) for task status
+2. Check `docs/tasks/status.md` status table (before "完成记录索引" section) for task status
 3. Read task details from `docs/development-plan.md`
 4. Implement, then verify with `pixi run build-debug && pixi run test`
 5. Update status.md, log file (`docs/tasks/log/`), current.md, and commit with `feat: TXX — description`
