@@ -70,6 +70,12 @@ pixi shell                   # 进入 pixi 交互式环境
 - [构建编译说明](docs/build-instructions.md) — 了解基于 pixi 的环境依赖搭建与 CMake/Ninja 快编配置
 - [测试案例说明](docs/test-instructions.md) — 了解覆盖核心几何、工作台联动及渲染视口的全面单元与集成测试策略
 
+## License
+
+本项目基于 [Apache License 2.0](LICENSE) 开源协议发布。
+
+Copyright 2024-2026 PipeCAD Contributors
+
 ---
 
 > 附相关工作开发计划与维护日志，详见：

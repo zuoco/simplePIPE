@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 /// test_loadcase.cpp — T33: LoadCase 与 LoadCombination 单元测试
 
 #include <gtest/gtest.h>

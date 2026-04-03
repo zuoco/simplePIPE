@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 /// T45 — 端到端集成测试 (Phase 2)
 ///
 /// 验收场景:

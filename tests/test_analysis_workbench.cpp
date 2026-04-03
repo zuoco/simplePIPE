@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 #include "app/AnalysisWorkbench.h"
 #include "app/Document.h"
 #include "app/WorkbenchManager.h"

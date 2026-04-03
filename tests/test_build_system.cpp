@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 #include <gtest/gtest.h>
 
 // 构建系统验证占位测试 — 将在后续任务中替换为真实测试
