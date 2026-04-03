@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 #include "geometry/ShapeTransform.h"
 
 #include <BRepBuilderAPI_Transform.hxx>

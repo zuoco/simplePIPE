@@ -1,3 +1,6 @@
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 // Model 层编译占位文件 — 确保 header-only 类模板被实例化检查
 #include "model/DocumentObject.h"
 #include "model/SpatialObject.h"
