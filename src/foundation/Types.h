@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iomanip>
 #include <stdexcept>
+#include "foundation/Math.h"
 
 namespace foundation {
 
@@ -62,10 +63,10 @@ struct UUID {
 };
 
 // ============================================================
-// Variant — double / int / string / enum (int)
+// Variant — double / int / string / bool / Vec3
 // ============================================================
 
-using Variant = std::variant<double, int, std::string>;
+using Variant = std::variant<double, int, std::string, bool, math::Vec3>;
 
 inline double variantToDouble(const Variant& v) {
     if (auto* d = std::get_if<double>(&v)) return *d;
@@ -81,6 +82,16 @@ inline int variantToInt(const Variant& v) {
 
 inline const std::string& variantToString(const Variant& v) {
     if (auto* s = std::get_if<std::string>(&v)) return *s;
+    throw std::bad_variant_access{};
+}
+
+inline bool variantToBool(const Variant& v) {
+    if (auto* b = std::get_if<bool>(&v)) return *b;
+    throw std::bad_variant_access{};
+}
+
+inline const math::Vec3& variantToVec3(const Variant& v) {
+    if (auto* vec = std::get_if<math::Vec3>(&v)) return *vec;
     throw std::bad_variant_access{};
 }
 

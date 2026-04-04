@@ -173,3 +173,54 @@ TEST(ProjectSerializer, RestoresObjectReferences) {
 
     std::remove(path.c_str());
 }
+
+TEST(ProjectSerializer, VariantBoolAndVec3RoundTrip) {
+    // 验证 bool 和 Vec3 类型的 Variant 参数能正确序列化/反序列化
+    app::Document doc;
+
+    auto spec = std::make_shared<model::PipeSpec>("Spec-V");
+    spec->setOd(60.3);
+    spec->setWallThickness(3.9);
+
+    auto p1 = std::make_shared<model::PipePoint>("VP1", model::PipePointType::Bend, gp_Pnt(0, 0, 0));
+    p1->setPipeSpec(spec);
+    // 存储 bool 类型 Variant
+    p1->setParam("isFixed", true);
+    // 存储 Vec3 类型 Variant
+    p1->setParam("normalDir", foundation::math::Vec3{0.0, 0.0, 1.0});
+
+    auto seg = std::make_shared<model::Segment>("VS1");
+    seg->addPoint(p1);
+    auto route = std::make_shared<model::Route>("VR1");
+    route->addSegment(seg);
+
+    doc.addObject(spec);
+    doc.addObject(route);
+    doc.addObject(seg);
+    doc.addObject(p1);
+
+    const std::string path = tempPath("variant_roundtrip.json");
+    ASSERT_TRUE(app::ProjectSerializer::save(doc, path));
+
+    auto loaded = app::ProjectSerializer::load(path);
+    ASSERT_NE(loaded, nullptr);
+
+    auto loadedPoints = loaded->findByType<model::PipePoint>();
+    ASSERT_EQ(loadedPoints.size(), 1u);
+
+    model::PipePoint* vp = loadedPoints[0];
+    ASSERT_NE(vp, nullptr);
+
+    // 验证 bool round-trip
+    ASSERT_TRUE(vp->hasParam("isFixed"));
+    EXPECT_EQ(foundation::variantToBool(vp->param("isFixed")), true);
+
+    // 验证 Vec3 round-trip
+    ASSERT_TRUE(vp->hasParam("normalDir"));
+    const auto& vec = foundation::variantToVec3(vp->param("normalDir"));
+    EXPECT_DOUBLE_EQ(vec.x, 0.0);
+    EXPECT_DOUBLE_EQ(vec.y, 0.0);
+    EXPECT_DOUBLE_EQ(vec.z, 1.0);
+
+    std::remove(path.c_str());
+}

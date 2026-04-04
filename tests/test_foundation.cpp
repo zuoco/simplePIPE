@@ -65,9 +65,34 @@ TEST(Variant, StoreAndRetrieveString) {
     EXPECT_EQ(variantToString(v), "hello");
 }
 
+TEST(Variant, StoreAndRetrieveBool) {
+    Variant vt = true;
+    Variant vf = false;
+    EXPECT_EQ(variantToBool(vt), true);
+    EXPECT_EQ(variantToBool(vf), false);
+}
+
+TEST(Variant, StoreAndRetrieveVec3) {
+    Variant v = Vec3{1.0, 2.0, 3.0};
+    const auto& vec = variantToVec3(v);
+    EXPECT_DOUBLE_EQ(vec.x, 1.0);
+    EXPECT_DOUBLE_EQ(vec.y, 2.0);
+    EXPECT_DOUBLE_EQ(vec.z, 3.0);
+}
+
 TEST(Variant, TypeSafe_WrongTypeThrows) {
     Variant v = std::string("not a number");
     EXPECT_THROW(variantToDouble(v), std::bad_variant_access);
+}
+
+TEST(Variant, BoolWrongTypeThrows) {
+    Variant v = 42;
+    EXPECT_THROW(variantToBool(v), std::bad_variant_access);
+}
+
+TEST(Variant, Vec3WrongTypeThrows) {
+    Variant v = 3.14;
+    EXPECT_THROW(variantToVec3(v), std::bad_variant_access);
 }
 
 TEST(Variant, IntToDouble) {
