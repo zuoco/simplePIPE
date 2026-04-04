@@ -6,7 +6,7 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
+#include "command/CommandStack.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
 #include "model/Route.h"
@@ -36,7 +36,7 @@ namespace {
 struct Fixture {
     app::Document document;
     app::DependencyGraph graph;
-    app::TransactionManager transactionManager{document, graph};
+    command::CommandStack commandStack;
     app::SelectionManager selectionManager;
 
     std::shared_ptr<model::PipeSpec> spec;
@@ -86,7 +86,7 @@ struct Fixture {
 TEST(PipePointTableModelTest, ShowsPipePointsAndEditableTransaction)
 {
     Fixture f;
-    ui::PipePointTableModel model(f.document, f.transactionManager, f.selectionManager);
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
 
     ASSERT_EQ(model.rowCount(), 3);
     const QModelIndex xCell = model.index(0, ui::PipePointTableModel::XColumn);
@@ -94,13 +94,13 @@ TEST(PipePointTableModelTest, ShowsPipePointsAndEditableTransaction)
 
     EXPECT_TRUE(model.setData(xCell, 123.5, Qt::EditRole));
     EXPECT_DOUBLE_EQ(f.runPoint->position().X(), 123.5);
-    EXPECT_TRUE(f.transactionManager.canUndo());
+    EXPECT_TRUE(f.commandStack.canUndo());
 }
 
 TEST(PipePointTableModelTest, BendHelperRowIsReadOnlyWithGrayBackground)
 {
     Fixture f;
-    ui::PipePointTableModel model(f.document, f.transactionManager, f.selectionManager);
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
 
     const QModelIndex helperName = model.index(2, ui::PipePointTableModel::NameColumn);
     ASSERT_TRUE(helperName.isValid());
@@ -161,7 +161,7 @@ TEST(PropertyModelTest, ReflectsSelectedObjectTypeSpecificRows)
 TEST(PipeSpecModelTest, EditFieldThroughTransaction)
 {
     Fixture f;
-    ui::PipeSpecModel model(f.document, f.transactionManager);
+    ui::PipeSpecModel model(f.document, f.commandStack);
 
     ASSERT_EQ(model.rowCount(), 1);
 
@@ -170,5 +170,5 @@ TEST(PipeSpecModelTest, EditFieldThroughTransaction)
 
     EXPECT_TRUE(model.setData(odCell, 219.1, Qt::EditRole));
     EXPECT_DOUBLE_EQ(f.spec->od(), 219.1);
-    EXPECT_TRUE(f.transactionManager.canUndo());
+    EXPECT_TRUE(f.commandStack.canUndo());
 }

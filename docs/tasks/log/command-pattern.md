@@ -130,3 +130,21 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T6 — Application 集成 + main.cpp 信号连线 (2026-04-04)
+
+**产出文件**: `src/app/Application.h` · `src/app/Application.cpp` · `src/main.cpp` · `src/ui/AppController.h` · `src/ui/AppController.cpp` · `src/ui/PipePointTableModel.h` · `src/ui/PipePointTableModel.cpp` · `src/ui/PipeSpecModel.h` · `src/ui/PipeSpecModel.cpp` · `src/app/CMakeLists.txt` · `tests/CMakeLists.txt` · `tests/test_app_core.cpp` · `tests/test_workbench_bridge.cpp` · `tests/test_qml_models.cpp` · `tests/test_qml_ui_panels.cpp`
+
+**接口**: → `src/app/Application.h`, `src/ui/AppController.h`, `src/ui/PipePointTableModel.h`, `src/ui/PipeSpecModel.h`
+
+**设计决策**:
+- `Application` 单例新增 `CommandStack`、`CommandRegistry`、`TopologyManager` 成员和访问器，并提供 `createCommandContext()` 统一构建上下文
+- `main.cpp` 初始化阶段调用 `commandRegistry.registerBuiltins()`；将 `commandCompleted/commandUndone/commandRedone` 连线到脏标记+重算，将 `sceneRemoveRequested` 连线到 `sceneManager.removeNode`
+- `AppController` 构造签名迁移为 `CommandStack&`，`undo/redo/canUndo/canRedo` 全部改走命令栈，并通过 `stackChanged` 驱动 `transactionStateChanged`
+- `PipePointTableModel` 与 `PipeSpecModel` 同步切换到 `SetPropertyCommand::createWithOldValue(...) + commandStack.execute(cmd, ctx)`，移除 UI 层对事务记录 API 的依赖
+- 增加/调整测试覆盖 Application 新成员访问与 UI 构造签名变化，`pixi run test` 结果为 39/39 通过
+
+**已知限制**:
+- 无

@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include "app/Application.h"
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
 #include "app/TransactionManager.h"
@@ -456,6 +457,51 @@ TEST(RecomputeEngine, RecomputeDirty) {
 
     // 只重算 pp1
     EXPECT_NO_THROW(eng.recompute({pp1Id}));
+}
+
+// ============================================================
+// Application 单例新成员测试 — T6
+// ============================================================
+
+TEST(ApplicationTest, CommandStackAndRegistryAccessible) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    // CommandStack 可访问，初始状态无可撤销/重做
+    EXPECT_FALSE(app.commandStack().canUndo());
+    EXPECT_FALSE(app.commandStack().canRedo());
+
+    // CommandRegistry 可访问
+    app.commandRegistry().registerBuiltins();
+    EXPECT_TRUE(app.commandRegistry().hasCommand("SetProperty"));
+    EXPECT_TRUE(app.commandRegistry().hasCommand("BatchSetProperty"));
+    EXPECT_TRUE(app.commandRegistry().hasCommand("Macro"));
+
+    app::Application::destroy();
+}
+
+TEST(ApplicationTest, TopologyManagerAccessible) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    // TopologyManager 可访问（接口不崩溃即可）
+    engine::TopologyManager& topo = app.topologyManager();
+    (void)topo;
+
+    app::Application::destroy();
+}
+
+TEST(ApplicationTest, CreateCommandContextReturnsValidContext) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    auto ctx = app.createCommandContext();
+    EXPECT_NE(ctx.document, nullptr);
+    EXPECT_NE(ctx.dependencyGraph, nullptr);
+    // topologyManager 初始化后应不为空
+    EXPECT_NE(ctx.topologyManager, nullptr);
+
+    app::Application::destroy();
 }
 
 int main(int argc, char** argv) {

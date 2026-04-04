@@ -192,6 +192,7 @@ add_executable(test_app_core test_app_core.cpp)
 target_link_libraries(test_app_core
     PRIVATE
         app
+        command
         GTest::GTest
         GTest::Main
 )

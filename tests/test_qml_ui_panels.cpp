@@ -7,8 +7,8 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
 #include "app/WorkbenchManager.h"
+#include "command/CommandStack.h"
 #include "ui/AppController.h"
 #include "ui/VsgQuickItem.h"
 #include "ui/WorkbenchController.h"
@@ -52,13 +52,13 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
     document.setName("UiPanelSmoke");
 
     app::DependencyGraph graph;
-    app::TransactionManager transactionManager(document, graph);
+    command::CommandStack commandStack;
     app::SelectionManager selectionManager;
 
     app::WorkbenchManager workbenchManager(document);
     workbenchManager.registerWorkbench(std::make_unique<app::DesignWorkbench>());
 
-    ui::AppController appController(document, transactionManager, selectionManager);
+    ui::AppController appController(document, commandStack, selectionManager);
     ui::WorkbenchController workbenchController(workbenchManager);
 
     QQmlApplicationEngine engine;
@@ -96,11 +96,10 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
 TEST(QmlUiPanelsTest, InsertComponentEmitsSignal)
 {
     app::Document document;
-    app::DependencyGraph graph;
-    app::TransactionManager transactionManager(document, graph);
+    command::CommandStack commandStack;
     app::SelectionManager selectionManager;
 
-    ui::AppController controller(document, transactionManager, selectionManager);
+    ui::AppController controller(document, commandStack, selectionManager);
 
     QString capturedType;
     QObject::connect(&controller, &ui::AppController::insertComponentRequested,

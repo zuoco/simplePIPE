@@ -8,6 +8,7 @@
 #include "app/Document.h"
 #include "app/SelectionManager.h"
 #include "app/WorkbenchManager.h"
+#include "command/CommandStack.h"
 #include "ui/AppController.h"
 #include "ui/WorkbenchController.h"
 
@@ -90,11 +91,10 @@ TEST(WorkbenchControllerTest, ExposesActivePanelsAndSignals)
 TEST(AppControllerTest, MirrorsSelectionState)
 {
     app::Document document;
-    app::DependencyGraph graph;
-    app::TransactionManager tm(document, graph);
+    command::CommandStack commandStack;
     app::SelectionManager selection;
 
-    ui::AppController controller(document, tm, selection);
+    ui::AppController controller(document, commandStack, selection);
     QSignalSpy spy(&controller, &ui::AppController::selectionChanged);
 
     const foundation::UUID id = foundation::UUID::generate();

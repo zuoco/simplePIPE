@@ -14,6 +14,9 @@ Application::Application()
     , transactionManager_(std::make_unique<TransactionManager>(*document_, *dependencyGraph_))
     , selectionManager_(std::make_unique<SelectionManager>())
     , workbenchManager_(std::make_unique<WorkbenchManager>(*document_))
+    , commandStack_(std::make_unique<command::CommandStack>())
+    , commandRegistry_(std::make_unique<command::CommandRegistry>())
+    , topologyManager_(std::make_unique<engine::TopologyManager>())
 {
 }
 

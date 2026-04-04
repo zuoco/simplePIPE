@@ -5,7 +5,7 @@
 
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
+#include "command/CommandStack.h"
 
 #include <QObject>
 #include <QString>
@@ -40,7 +40,7 @@ class AppController : public QObject {
 
 public:
     AppController(app::Document& document,
-                  app::TransactionManager& transactionManager,
+                  command::CommandStack& commandStack,
                   app::SelectionManager& selectionManager,
                   QObject* parent = nullptr);
     ~AppController() override;
@@ -90,7 +90,7 @@ signals:
 
 private:
     app::Document& document_;
-    app::TransactionManager& transactionManager_;
+    command::CommandStack& commandStack_;
     app::SelectionManager& selectionManager_;
 
     std::unique_ptr<PipePointTableModel> pipePointTableModel_;

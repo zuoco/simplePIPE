@@ -5,7 +5,7 @@
 
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
+#include "command/CommandStack.h"
 
 #include <QAbstractTableModel>
 #include <QColor>
@@ -37,7 +37,7 @@ public:
     Q_ENUM(Column)
 
     PipePointTableModel(app::Document& document,
-                        app::TransactionManager& transactionManager,
+                        command::CommandStack& commandStack,
                         app::SelectionManager& selectionManager,
                         QObject* parent = nullptr);
 
@@ -58,7 +58,7 @@ signals:
 
 private:
     app::Document& document_;
-    app::TransactionManager& transactionManager_;
+    command::CommandStack& commandStack_;
     app::SelectionManager& selectionManager_;
     std::vector<model::PipePoint*> rows_;
     int selectedRow_ = -1;

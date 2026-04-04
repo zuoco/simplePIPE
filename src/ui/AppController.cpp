@@ -3,6 +3,7 @@
 
 #include "ui/AppController.h"
 
+#include "app/Application.h"
 #include "model/PipePoint.h"
 #include "ui/PipePointTableModel.h"
 #include "ui/PipeSpecModel.h"
@@ -27,17 +28,17 @@ static QString pipePointTypeName(model::PipePointType type) {
 }
 
 AppController::AppController(app::Document& document,
-                             app::TransactionManager& transactionManager,
+                             command::CommandStack& commandStack,
                              app::SelectionManager& selectionManager,
                              QObject* parent)
     : QObject(parent)
     , document_(document)
-    , transactionManager_(transactionManager)
+    , commandStack_(commandStack)
     , selectionManager_(selectionManager)
-    , pipePointTableModel_(std::make_unique<PipePointTableModel>(document_, transactionManager_, selectionManager_))
+    , pipePointTableModel_(std::make_unique<PipePointTableModel>(document_, commandStack_, selectionManager_))
     , segmentTreeModel_(std::make_unique<SegmentTreeModel>(document_, selectionManager_))
     , propertyModel_(std::make_unique<PropertyModel>(document_, selectionManager_))
-    , pipeSpecModel_(std::make_unique<PipeSpecModel>(document_, transactionManager_))
+    , pipeSpecModel_(std::make_unique<PipeSpecModel>(document_, commandStack_))
 {
     wireCallbacks();
 }
@@ -78,12 +79,12 @@ QStringList AppController::selectedUuids() const
 
 bool AppController::canUndo() const
 {
-    return transactionManager_.canUndo();
+    return commandStack_.canUndo();
 }
 
 bool AppController::canRedo() const
 {
-    return transactionManager_.canRedo();
+    return commandStack_.canRedo();
 }
 
 QObject* AppController::pipePointTableModel() const
@@ -168,19 +169,21 @@ void AppController::clearSelection()
 
 void AppController::undo()
 {
-    if (!transactionManager_.canUndo()) {
+    if (!commandStack_.canUndo()) {
         return;
     }
-    transactionManager_.undo();
+    auto ctx = app::Application::instance().createCommandContext();
+    commandStack_.undo(ctx);
     emit transactionStateChanged();
 }
 
 void AppController::redo()
 {
-    if (!transactionManager_.canRedo()) {
+    if (!commandStack_.canRedo()) {
         return;
     }
-    transactionManager_.redo();
+    auto ctx = app::Application::instance().createCommandContext();
+    commandStack_.redo(ctx);
     emit transactionStateChanged();
 }
 
@@ -231,6 +234,10 @@ void AppController::wireCallbacks()
 {
     selectionManager_.addSelectionChangedCallback([this](const std::vector<foundation::UUID>&) {
         emit selectionChanged();
+    });
+
+    commandStack_.stackChanged.connect([this]() {
+        emit transactionStateChanged();
     });
 }
 
