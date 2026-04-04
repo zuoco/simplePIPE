@@ -449,3 +449,16 @@ target_link_libraries(test_property_commands
 target_include_directories(test_property_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_property_commands PRIVATE cxx_std_17)
 add_test(NAME PropertyCommands COMMAND test_property_commands)
+
+# CommandRegistry 测试 — T5
+add_executable(test_command_registry test_command_registry.cpp)
+target_link_libraries(test_command_registry
+    PRIVATE
+        command
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_command_registry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_command_registry PRIVATE cxx_std_17)
+add_test(NAME CommandRegistry COMMAND test_command_registry)

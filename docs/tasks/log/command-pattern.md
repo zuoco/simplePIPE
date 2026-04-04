@@ -108,3 +108,25 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T5 — CommandRegistry 统一工厂 + 序列化 (2026-04-04)
+
+**产出文件**: `src/command/CommandRegistry.h` · `src/command/CommandRegistry.cpp` · `tests/test_command_registry.cpp`
+
+**接口**: → `src/command/CommandRegistry.h`
+
+**设计决策**:
+- `Factory = std::function<unique_ptr<Command>(const nlohmann::json&)>` — 工厂 lambda 接收完整 JSON（含 "type" 字段）
+- `createFromParams(name, params)`：将 params 字段平铺后注入 `"type"` 字段，再分派给工厂 lambda；外部协议和脚本分派共用同一入口
+- `createFromFullJson(j)` / `deserialize(j)`：等价，从含 "type" 字段的完整 JSON 创建命令
+- `serialize(cmd)`：静态方法，直接委托 `cmd.toJson()`；`serializeSequence` 构建 JSON 数组
+- Macro 工厂用 `[this]` 捕获，以便递归调用 `deserialize()` 反序列化子命令
+- Variant JSON 辅助函数（variantToJson/jsonToVariant）和 UUID 解析在匿名 namespace 中复制，避免跨层依赖
+- `registerBuiltins()` 注册三种内置命令（SetProperty、BatchSetProperty、Macro）；重复调用安全（后注册覆盖同 key）
+- 未知命令名 `createFromParams`/`createFromFullJson` 均抛 `std::out_of_range`
+- 测试：21 个测试全部通过（hasCommand、registeredCommands、registerFactory、createFromParams×4、serialize×2、createFromFullJson、deserialize、round-trip×2、serializeSequence×3、Macro 子命令反序列化×1、边界条件×4）
+
+**已知限制**:
+- 无

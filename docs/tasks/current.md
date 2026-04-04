@@ -8,16 +8,87 @@
 ## 当前状态
 
 Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
-Phase 3 T0、T1、T2、T3、T4 已完成。
+Phase 3 T0、T1、T2、T3、T4、T5 已完成。
 
-**T4 完成内容**：
-- `src/command/SetPropertyCommand.h` / `SetPropertyCommand.cpp` — 单属性修改命令（autoCapture + withOldValue 工厂、tryMerge 500ms、JSON 序列化）
-- `src/command/BatchSetPropertyCommand.h` / `BatchSetPropertyCommand.cpp` — 批量属性修改命令（原子回滚、逆序 undo）
-- `src/command/CMakeLists.txt` — 追加两个 cpp 文件到 command 静态库
-- `tests/test_property_commands.cpp` — 24 个测试全部通过
-- `tests/CMakeLists.txt` — 追加 `test_property_commands` 目标（链接 command + app）
+**T5 完成内容**：
+- `src/command/CommandRegistry.h` — 统一命令工厂注册表接口
+- `src/command/CommandRegistry.cpp` — 实现：registerFactory / createFromParams / createFromFullJson / serialize / deserialize / serializeSequence / deserializeSequence / registeredCommands / hasCommand / registerBuiltins
+- `src/command/CMakeLists.txt` — 追加 `CommandRegistry.cpp` 到 command 静态库
+- `tests/test_command_registry.cpp` — 21 个测试全部通过
+- `tests/CMakeLists.txt` — 追加 `test_command_registry` 目标（链接 command + app）
 
-**关键修复**：
+**关键上下文**：
+- `Factory = std::function<unique_ptr<Command>(const nlohmann::json&)>` — 统一接收完整 JSON（含 "type" 字段）
+- `createFromParams(name, params)` 将 params 平铺并注入 `"type"` 字段后分派工厂
+- Macro 工厂用 `[this]` 捕获以递归调用 `deserialize()` 反序列化子命令
+- Variant JSON 辅助函数和 UUID 解析在 CommandRegistry.cpp 匿名 namespace 中复制，避免跨层依赖
+- `registerBuiltins()` 注册 SetProperty、BatchSetProperty、Macro 三种内置命令；重复注册安全
+
+**T6 需要做的**：
+- `Application` 单例新增 `CommandStack`、`CommandRegistry`、`TopologyManager` 成员
+- `Application::createCommandContext()` 便利方法
+- `main.cpp` 连线 CommandStack 六个信号（commandCompleted/commandUndone/commandRedone 做脏传播 + recompute；sceneRemoveRequested 做场景移除）
+- `commandRegistry.registerBuiltins()` 在 main.cpp 初始化时调用
+- `AppController` 构造函数改为接收 `CommandStack&` 替代 `TransactionManager&`（undo/redo/canUndo 迁移）
+- 同步迁移 `PipePointTableModel`、`PipeSpecModel` 使用 `SetPropertyCommand::createWithOldValue()`
+- `tests/test_app_core.cpp` / `test_workbench_bridge.cpp` 等保持全部通过
+
+## 下一个任务
+
+| 属性 | 值 |
+|------|---|
+| **任务 ID** | T6 |
+| **任务名** | Application 集成 + main.cpp 信号连线 |
+| **推荐模型** | Sonnet 4.6 |
+| **前置依赖** | T0-T5（均已完成） |
+
+### 具体工作
+
+1. **`src/app/Application.h` / `Application.cpp`**（修改现有文件）：
+   - 新增 `#include "command/CommandStack.h"` / `CommandRegistry.h`
+   - 新增私有成员：`unique_ptr<CommandStack> commandStack_`、`unique_ptr<CommandRegistry> commandRegistry_`、`unique_ptr<engine::TopologyManager> topologyManager_`
+   - 新增公有访问方法：`commandStack()` / `commandRegistry()` / `topologyManager()`
+   - 新增 `CommandContext createCommandContext()` 便利方法
+
+2. **`src/main.cpp`**（修改现有文件）：
+   - 从 `appSingleton` 获取 `commandStack` 和 `commandRegistry`
+   - 调用 `commandRegistry.registerBuiltins()`
+   - 连线 `commandStack.commandCompleted`、`commandUndone`、`commandRedone` → markDirty + recompute
+   - 连线 `commandStack.sceneRemoveRequested` → `sceneManager.removeNode`
+   - 将 `AppController` 构造改为接收 `commandStack`（替代 `transactionManager`）
+
+3. **`src/ui/AppController.h` / `AppController.cpp`**（修改现有文件）：
+   - 构造函数参数改为 `CommandStack&` 替代 `TransactionManager&`
+   - `undo()` → `auto ctx = Application::instance().createCommandContext(); commandStack_.undo(ctx)`
+   - `redo()` → `commandStack_.redo(ctx)`
+   - `canUndo()` → `commandStack_.canUndo()`
+   - `canRedo()` → `commandStack_.canRedo()`
+   - 栈变化通知：连线 `commandStack_.stackChanged` → emit `undoRedoStateChanged` 等信号
+
+4. **`src/ui/PipePointTableModel.cpp`** 和 **`src/ui/PipeSpecModel.cpp`**（同步迁移）：
+   - 用 `SetPropertyCommand::createWithOldValue(objectId, key, oldVal, newVal)` + `commandStack_.execute(cmd, ctx)` 替代 `open()/recordChange()/commit()`
+
+5. **`tests/test_app_core.cpp`**：验证 Application 单例新增的三个成员可正常访问
+
+6. **`tests/CMakeLists.txt`** 若需要新增测试目标则添加
+
+### 验收标准
+
+- `pixi run test` 全部通过（保持 T4 + T5 的 21+24+29 = 74 条测试）
+- Application::instance().commandStack() 和 commandRegistry() 可正常访问
+- AppController undo/redo 通过 CommandStack 执行，TransactionManager 不再被 AppController 调用
+
+## 需要读取的文件
+
+1. `docs/command-pattern-design.md` §6.1–6.4（Application/main.cpp/AppController/TableModel 改造规格）
+2. `src/app/Application.h` — 现有单例结构（已读）
+3. `src/main.cpp` — 现有信号连线方式（已读）
+4. `src/ui/AppController.h` — 现有构造函数签名
+5. `src/ui/PipePointTableModel.h` / `PipePointTableModel.cpp` — 现有属性修改路径
+6. `src/command/CommandStack.h` — CommandStack 六个信号 + execute/undo/redo 签名
+7. `src/command/CommandRegistry.h` — registerBuiltins() 签名
+8. `src/command/CommandContext.h` — CommandContext 结构体字段
+
 - `CommandStack::execute` tryMerge 合并成功后需执行新命令（cmd2->execute）以将新值写入文档；原实现只更新参数而不更新文档，导致文档值为旧值
 
 **关键上下文**：

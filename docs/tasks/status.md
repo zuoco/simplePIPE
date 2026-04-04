@@ -76,8 +76,8 @@
 | T2 | Command 基类 + MacroCommand + PropertyApplier | `done` | T1 | Sonnet 4.6 | 2026-04-04 |
 | T3 | CommandStack 命令栈管理器 | `done` | T2 | **Opus 4.6** | 2026-04-04 |
 | T4 | PropertyCommands (SetProperty/BatchSetProperty) | `done` | T2, T3 | Sonnet 4.6 | 2026-04-04 |
-| T5 | CommandRegistry 统一工厂 + 序列化 | `ready` | T4 | Sonnet 4.6 | |
-| T6 | Application 集成 + main.cpp 信号连线 | `pending` | T3, T5 | Sonnet 4.6 | |
+| T5 | CommandRegistry 统一工厂 + 序列化 | `done` | T4 | Sonnet 4.6 | 2026-04-04 |
+| T6 | Application 集成 + main.cpp 信号连线 | `ready` | T3, T5 | Sonnet 4.6 | |
 | T7 | UI 原子迁移 (AppController/TableModel) | `pending` | T4, T6 | **Opus 4.6** | |
 | T8 | 结构命令 (CreatePipePoint/DeletePipePoint) | `pending` | T3, T5 | **Opus 4.6** | |
 | T9 | InsertComponentCommand + 完整迁移 | `pending` | T7, T8 | **Opus 4.6** | |

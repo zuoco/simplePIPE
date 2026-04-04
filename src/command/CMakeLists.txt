@@ -3,6 +3,7 @@ add_library(command STATIC
     CommandStack.cpp
     SetPropertyCommand.cpp
     BatchSetPropertyCommand.cpp
+    CommandRegistry.cpp
 )
 
 target_include_directories(command
