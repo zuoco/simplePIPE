@@ -11,7 +11,7 @@
 
 namespace command {
 
-/// 属性变更薄转发层：替代 TransactionManager 中集中式 dynamic_cast 分派链
+/// 属性变更薄转发层：通过多态分派属性变更，避免集中式 dynamic_cast 分派链
 ///
 /// 通过 DocumentObject 虚方法 setProperty/getProperty 多态分派到各模型子类。
 /// 新增模型类型只需覆写自身的 setProperty/getProperty，无需修改此类。

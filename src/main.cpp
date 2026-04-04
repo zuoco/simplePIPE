@@ -9,7 +9,6 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
 #include "app/WorkbenchManager.h"
 #include "command/CommandStack.h"
 #include "command/CommandRegistry.h"
@@ -49,7 +48,6 @@ int main(int argc, char* argv[])
 
     auto& document           = appSingleton.document();
     auto& dependencyGraph    = appSingleton.dependencyGraph();
-    auto& transactionManager = appSingleton.transactionManager();
     auto& selectionManager   = appSingleton.selectionManager();
     auto& workbenchManager   = appSingleton.workbenchManager();
     auto& commandStack       = appSingleton.commandStack();
@@ -97,10 +95,6 @@ int main(int argc, char* argv[])
         } else {
             sceneManager.addNode(uuid, node);
         }
-    });
-
-    transactionManager.setRecomputeCallback([&recomputeEngine](const std::vector<foundation::UUID>& dirtyIds) {
-        recomputeEngine.recompute(dirtyIds);
     });
 
     // ---- CommandStack 信号连线：脏传播 + 场景重算 ----

@@ -5,7 +5,6 @@
 
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
-#include "app/TransactionManager.h"
 #include "app/SelectionManager.h"
 #include "app/WorkbenchManager.h"
 #include "command/CommandStack.h"
@@ -48,7 +47,6 @@ public:
 
     Document&           document()           { return *document_; }
     DependencyGraph&    dependencyGraph()     { return *dependencyGraph_; }
-    TransactionManager& transactionManager()  { return *transactionManager_; }
     SelectionManager&   selectionManager()    { return *selectionManager_; }
     WorkbenchManager&   workbenchManager()    { return *workbenchManager_; }
 
@@ -58,7 +56,6 @@ public:
 
     const Document&           document()           const { return *document_; }
     const DependencyGraph&    dependencyGraph()     const { return *dependencyGraph_; }
-    const TransactionManager& transactionManager()  const { return *transactionManager_; }
     const SelectionManager&   selectionManager()    const { return *selectionManager_; }
     const WorkbenchManager&   workbenchManager()    const { return *workbenchManager_; }
 
@@ -83,7 +80,6 @@ private:
 
     std::unique_ptr<Document>           document_;
     std::unique_ptr<DependencyGraph>    dependencyGraph_;
-    std::unique_ptr<TransactionManager> transactionManager_;
     std::unique_ptr<SelectionManager>   selectionManager_;
     std::unique_ptr<WorkbenchManager>   workbenchManager_;
     std::unique_ptr<command::CommandStack>    commandStack_;

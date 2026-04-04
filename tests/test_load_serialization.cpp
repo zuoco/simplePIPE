@@ -6,7 +6,6 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/ProjectSerializer.h"
-#include "app/TransactionManager.h"
 #include "model/DeadWeightLoad.h"
 #include "model/DisplacementLoad.h"
 #include "model/LoadCase.h"
@@ -253,7 +252,7 @@ TEST(LoadSerialization, LoadBuildsDependencyChainInGraph) {
     std::remove(path.c_str());
 }
 
-TEST(LoadSerialization, UndoRedoWorksForLoadPropertyChanges) {
+TEST(LoadSerialization, LoadDependencyChainPropagation) {
     app::Document doc;
     app::DependencyGraph graph;
 
@@ -271,34 +270,13 @@ TEST(LoadSerialization, UndoRedoWorksForLoadPropertyChanges) {
 
     graph.rebuildLoadDependencyChain(doc);
 
-    app::TransactionManager tm(doc, graph);
-    std::vector<foundation::UUID> lastDirty;
-    int recomputeCount = 0;
-
-    tm.setRecomputeCallback([&](const std::vector<foundation::UUID>& dirty) {
-        lastDirty = dirty;
-        ++recomputeCount;
-    });
-
-    const double oldOperatingTemp = thermal->operatingTemp();
-    const double newOperatingTemp = 150.0;
-
-    tm.open("Update thermal operating temp");
-    thermal->setOperatingTemp(newOperatingTemp);
-    tm.recordChange(thermal->id(), "operatingTemp", oldOperatingTemp, newOperatingTemp);
-    tm.commit();
-
-    EXPECT_EQ(recomputeCount, 1);
-    EXPECT_DOUBLE_EQ(thermal->operatingTemp(), newOperatingTemp);
-    EXPECT_TRUE(containsId(lastDirty, thermal->id()));
-    EXPECT_TRUE(containsId(lastDirty, loadCase->id()));
-    EXPECT_TRUE(containsId(lastDirty, combination->id()));
-
-    tm.undo();
-    EXPECT_EQ(recomputeCount, 2);
-    EXPECT_DOUBLE_EQ(thermal->operatingTemp(), oldOperatingTemp);
-
-    tm.redo();
-    EXPECT_EQ(recomputeCount, 3);
-    EXPECT_DOUBLE_EQ(thermal->operatingTemp(), newOperatingTemp);
+    // 修改载荷属性后 markDirty，验证依赖链传播
+    thermal->setOperatingTemp(150.0);
+    graph.markDirty(thermal->id());
+    auto dirtyIds = graph.collectDirty();
+    EXPECT_DOUBLE_EQ(thermal->operatingTemp(), 150.0);
+    EXPECT_TRUE(containsId(dirtyIds, thermal->id()));
+    EXPECT_TRUE(containsId(dirtyIds, loadCase->id()));
+    EXPECT_TRUE(containsId(dirtyIds, combination->id()));
+    graph.clearDirty();
 }

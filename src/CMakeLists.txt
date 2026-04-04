@@ -1,11 +1,11 @@
 add_subdirectory(foundation)
 add_subdirectory(geometry)
 add_subdirectory(model)
-add_subdirectory(command)
 add_subdirectory(engine)
 add_subdirectory(visualization)
 add_subdirectory(vtk-visualization)
 add_subdirectory(app)
+add_subdirectory(command)  # INTERFACE 别名，必须在 app 之后
 add_subdirectory(ui)
 
 add_executable(pipecad_app

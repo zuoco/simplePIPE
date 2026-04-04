@@ -1,6 +1,6 @@
 # Phase 3 完成记录 — 命令模式 (T0–T10)
 
-> **设计文档**: `docs/command-pattern-design.md` (v3.0)
+> **设计文档**: `docs/archive/task-specs/command-pattern-design.md` (v3.0)
 > **任务状态**: `docs/tasks/status.md`
 
 ---
@@ -207,4 +207,24 @@
 
 **已知限制**:
 - insert-flange 尚未实现（需要 CreateAccessoryCommand，属于后续迭代）
+
+---
+
+### T10 — 清理 TransactionManager (2026-04-05)
+
+**产出文件**: `tests/test_integration.cpp` · `tests/test_phase2_integration.cpp` · `tests/test_load_serialization.cpp` · `src/engine/RecomputeEngine.h` · `src/command/PropertyApplier.h`
+
+**接口**: 无新增接口（纯清理任务）
+
+**设计决策**:
+- 删除 `TransactionManager.h` 和 `TransactionManager.cpp`，从 `src/app/CMakeLists.txt` 移除编译条目
+- 将 `command` 库合并入 `app` 静态库（解决 app↔command 循环依赖），`command` 改为 INTERFACE 别名
+- 集成测试 fixture 移除 `txn` 成员，新增 `triggerRecompute(id)` 辅助方法（markDirty→collectDirty→recompute→clearDirty）
+- 删除所有 Undo/Redo 测试用例（Scenario5_UndoRedo、UndoRedo_CrossWorkbench、UndoRedo_LoadParameters），已由 test_command_stack/test_property_commands 覆盖
+- Scenario4_PipeSpecModification 和 EndToEnd_FullPipeline 改为直接 triggerRecompute 调用
+- `test_load_serialization` 的 UndoRedoWorksForLoadPropertyChanges 重写为 LoadDependencyChainPropagation（验证 markDirty 传播而非 TxnMgr undo/redo）
+- 更新 `RecomputeEngine.h` 和 `PropertyApplier.h` 中的注释引用
+
+**已知限制**:
+- 文档文件（AGENTS.md、CLAUDE.md、command-pattern-design.md）仍保留 TransactionManager 文字作为历史参考
 - 未支持的组件类型（insert-beam, insert-rigid-support 等）静默忽略

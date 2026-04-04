@@ -27,7 +27,6 @@ target_link_libraries(engine
     PUBLIC
         model
         geometry
-        command
     PRIVATE
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
 )

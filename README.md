@@ -66,9 +66,9 @@ pixi shell                   # 进入 pixi 交互式环境
 
 ## 核心指南文档
 
-- [架构设计说明](docs/architecture.md) — 了解完整的7层架构、管点(PipePoint)建模理论与业务引擎流转体系
-- [构建编译说明](docs/build-instructions.md) — 了解基于 pixi 的环境依赖搭建与 CMake/Ninja 快编配置
-- [测试案例说明](docs/test-instructions.md) — 了解覆盖核心几何、工作台联动及渲染视口的全面单元与集成测试策略
+- [架构设计说明](docs/architecture.md) — 了解当前 8 层工程分层、命令模式编辑链路与业务引擎流转体系
+- [AI 准则](AGENTS.md) — 了解当前任务接力流程、构建/测试约束和文档入口
+- [任务状态机(status)](docs/tasks/status.md) — 查看项目阶段完成情况与历史记录索引
 
 ## License
 
@@ -78,5 +78,5 @@ Copyright 2024-2026 PipeCAD Contributors
 
 ---
 
-> 附相关工作开发计划与维护日志，详见：
+> 附相关工作维护状态，详见：
 > [任务状态机(status)](docs/tasks/status.md) 以及 [AI 准则(AGENTS)](AGENTS.md)。

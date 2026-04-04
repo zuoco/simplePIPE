@@ -1,6 +1,6 @@
 # 管道系统参数化建模软件 — 架构设计文档
 
-> **版本**: 0.2.0 | **日期**: 2026-03-28 | **状态**: 二期设计更新
+> **版本**: 0.3.0 | **日期**: 2026-04-05 | **状态**: 三期命令模式实现同步
 
 ---
 
@@ -10,7 +10,9 @@
 
 **核心设计理念**: 以 **管点(PipePoint)** 为中心的数据模型 — 管点是带坐标和类型的文档对象，管件几何由管点序列 + 管线特性(PipeSpec) 推导生成。管点按段(Segment)组织，段按树状结构组成路由(Route)。
 
-采用 **7 层架构**，QML 通过 FBO 嵌入 VSG 3D 视口，仅法兰连接，STEP 格式数据交换。
+采用 **8 层工程分层（7 个核心库层 + 1 个应用入口层）**，QML 通过 FBO 嵌入 VSG 3D 视口，仅法兰连接，STEP 格式数据交换。
+
+**2026-04-05 同步说明**: 原 `TransactionManager` 事务设计已由 `CommandStack` + `CommandRegistry` + `CommandContext` 的命令模式替代；`src/command/` 的实现源文件已并入 `app` 静态库，`command` target 仅保留为指向 `app` 的兼容别名。
 
 ---
 
@@ -282,11 +284,14 @@ public:
 
 ```
 ┌─────────────────────────────────────────────┐
+│         Layer 8: App Entry Layer            │
+│  (main.cpp / QML 注册 / 命令连线 / 启动)      │
+├─────────────────────────────────────────────┤
 │           Layer 7: QML UI Layer             │
 │  (表格编辑器/属性面板/段树/3D视口)            │
 ├─────────────────────────────────────────────┤
 │           Layer 6: Application Layer        │
-│  (文档管理/Undo-Redo/选择管理/工作台系统)      │
+│  (文档管理/命令栈/选择管理/工作台系统)         │
 ├─────────────────────────────────────────────┤
 │     Layer 5: Visualization Bridge           │
 │  (ViewManager/VSG场景/VTK场景/拾取/LOD)      │
@@ -306,7 +311,7 @@ public:
 └─────────────────────────────────────────────┘
 ```
 
-Layer 3 是"文档模型层"，构件不持有几何生成逻辑；Layer 4 "管道领域引擎"负责从管点序列+PipeSpec推导几何。
+Layer 3 是"文档模型层"，构件不持有几何生成逻辑；Layer 4 "管道领域引擎"负责从管点序列+PipeSpec推导几何。VTK 可视化以 Layer 5b 支线存在，由 `ViewManager` 在工作台切换时路由。
 
 ---
 
@@ -424,8 +429,10 @@ engine              → model + geometry
 visualization       → engine + geometry + vsg
 app                 → engine + visualization + nlohmann_json
 ui                  → app + Qt6::Quick + Qt6::Qml
-qml-vsg-occt (exe)  → ui (应用入口)
+pipecad_app         → ui (应用入口)
 ```
+
+当前实现中，`command` target 不再单独编译源文件，而是作为指向 `app` 的 INTERFACE 别名保留；命令模式实现统一由 `app` 静态库承载。
 
 ### 5.6 日常开发流程
 
@@ -798,56 +805,57 @@ class LoadCombination : public DocumentObject {
 
 ---
 
-## 7. 事务管理机制
+## 7. 命令栈与重算机制
 
 ### 7.1 设计原则
 
-- **事务内不触发重算**: 属性变更只记录到事务日志并标脏，不立即触发级联更新
-- **提交后统一重算**: commit 后走依赖图拓扑排序，批量重算受影响对象
-- **单步操作=单事务**: 每个用户操作对应一个事务，即一次 Undo 步骤
-- **单线程**: 所有文档变更在主线程执行
-- **会话级**: 事务历史仅在内存中，关闭应用后丢失
+- **单步操作=单命令**: 每个用户编辑动作封装为一个 `Command`，对应一次 Undo/Redo 步骤
+- **命令完成后统一重算**: `CommandStack` 在执行、撤销、重做后发射 affectedIds，主线程统一触发脏传播与重算
+- **支持宏命令**: 复合操作通过 `MacroCommand` / `CommandStack::openMacro()` 聚合为单个历史项
+- **单线程**: 所有文档变更与重算均在主线程执行
+- **会话级**: 命令历史仅在内存中，关闭应用后丢失；保存状态由 `CommandStack::markClean()` 追踪
 
 ### 7.2 核心组件
 
 ```
 ┌──────────────────────────────────────────────┐
-│     TransactionManager (Layer 6: app/)       │
-│  open(desc) / commit() / abort()             │
-│  undo() / redo()                             │
-│  事务日志: vector<PropertyChange{obj,key,old,new}> │
+│       CommandStack (Layer 6: app/)           │
+│  execute() / undo() / redo() / openMacro()   │
+│  commandCompleted / commandUndone /          │
+│  commandRedone / sceneRemoveRequested        │
 ├──────────────────────────────────────────────┤
-│     DependencyGraph (Layer 6: app/)          │
-│  PipeSpec ──→ PipePoint[]                    │
-│  PipePoint ──→ 相邻PipePoint[]               │
-│  PipePoint ──→ Accessory[] / Beam[]          │
+│   CommandRegistry + CommandContext           │
+│  工厂注册 / 序列化 / 运行时依赖注入          │
+├──────────────────────────────────────────────┤
+│      DependencyGraph (Layer 6: app/)         │
+│  markDirty() / collectDirty() / clearDirty() │
 ├──────────────────────────────────────────────┤
 │     RecomputeEngine (Layer 4: engine/)       │
 │  收集脏对象 → 拓扑排序 → 批量重算Shape        │
-│  → SceneManager批量更新VSG → UI信号通知       │
+│  → SceneManager/VtkSceneManager 更新场景      │
 └──────────────────────────────────────────────┘
 ```
 
-### 7.3 事务生命周期
+### 7.3 命令执行生命周期
 
 ```
-1. TransactionManager::open("修改OD")
-2. pipeSpec->setField("OD", 219.1)
-   → 记录日志: {pipeSpec, "OD", old:168.3, new:219.1}
-   → 标记脏: pipeSpec + 所有引用它的PipePoint
-3. TransactionManager::commit()
-4. RecomputeEngine::recompute()
-   ├─ 收集脏对象 → 依赖图拓扑排序
-   ├─ 对每个脏PipePoint: GeometryDeriver重算Shape
-   ├─ 对每个变更的Shape: SceneManager批量更新VSG节点
-   └─ 发出 documentChanged 信号 → UI批量刷新
+1. UI 创建 `SetPropertyCommand` / `BatchSetPropertyCommand` / 结构命令
+2. `Application::createCommandContext()` 构建 `CommandContext{document, dependencyGraph, topologyManager}`
+3. `CommandStack::execute(cmd, ctx)` 执行命令，命令返回 `affectedIds` / `deletedIds`
+4. `commandCompleted` 信号触发主线程重算处理器
+5. 重算处理器执行：
+  ├─ `DependencyGraph::markDirty(affectedIds)`
+  ├─ `collectDirty()` 收集受影响对象
+  ├─ `RecomputeEngine::recompute(dirtyIds)` 批量重算几何
+  ├─ `SceneManager` / `VtkSceneManager` 更新节点
+  └─ `clearDirty()` 清空脏标记
 ```
 
 ### 7.4 Undo/Redo
 
 ```
-undo(): 取最近事务日志 → 反向回放(恢复旧值) → 标脏 → recompute()
-redo(): 取下一个事务日志 → 正向回放(恢复新值) → 标脏 → recompute()
+undo(): `CommandStack::undo(ctx)` → `commandUndone(affectedIds)` → 标脏 → recompute()
+redo(): `CommandStack::redo(ctx)` → `commandRedone(affectedIds)` → 标脏 → recompute()
 ```
 
 ### 7.5 依赖关系
@@ -963,7 +971,7 @@ qml-vsg-occt/
 │   │   ├── BeamMeshBuilder.h/cpp    # 管路中心线→梁单元网格
 │   │   └── VtkViewport.h/cpp        # VTK渲染器
 │   ├── app/                         # Layer 6
-│   │   ├── Application.h/cpp        # 中央单例(Meyers' Singleton, 线程安全)
+│   │   ├── Application.h/cpp        # 中央单例(std::call_once 初始化, 线程安全)
 
 `Application` 是中央单例，持有所有管理器，使用 `std::call_once` 保证线程安全初始化:
 
@@ -975,9 +983,13 @@ class Application {
 
     Document&           document();
     DependencyGraph&    dependencyGraph();
-    TransactionManager& transactionManager();
     SelectionManager&   selectionManager();
     WorkbenchManager&   workbenchManager();
+  command::CommandStack&    commandStack();
+  command::CommandRegistry& commandRegistry();
+  engine::TopologyManager&  topologyManager();
+
+  command::CommandContext createCommandContext();
 };
 // 任意位置访问: Application::instance().document().findByName("A06")
 ```
@@ -1008,7 +1020,6 @@ class Document {
     std::size_t objectCount() const;
 };
 ```
-│   │   ├── TransactionManager.h/cpp # 事务管理
 │   │   ├── DependencyGraph.h/cpp    # 依赖图
 │   │   ├── ProjectSerializer.h/cpp  # JSON序列化
 │   │   ├── SelectionManager.h/cpp   # 选择管理
@@ -1018,6 +1029,16 @@ class Document {
 │   │   ├── SpecWorkbench.h/cpp      # 管线规格管理工作台
 │   │   ├── DesignWorkbench.h/cpp    # 管线路由设计工作台
 │   │   └── AnalysisWorkbench.h/cpp  # 管道应力分析工作台
+│   ├── command/                     # 命令接口目录（target 为 app 的兼容别名）
+│   │   ├── Command.h                # 命令基类
+│   │   ├── CommandContext.h         # 运行时依赖上下文
+│   │   ├── CommandStack.h/cpp       # Undo/Redo 命令栈
+│   │   ├── CommandRegistry.h/cpp    # 命令工厂与序列化
+│   │   ├── SetPropertyCommand.h/cpp # 属性修改命令
+│   │   ├── BatchSetPropertyCommand.h/cpp
+│   │   ├── CreatePipePointCommand.h/cpp
+│   │   ├── DeletePipePointCommand.h/cpp
+│   │   └── InsertComponentCommand.h/cpp
 │   └── ui/                          # Layer 7 - QML Bridge
 │       ├── VsgQuickItem.h/cpp       # QQuickFramebufferObject
 │       ├── AppController.h/cpp      # QML控制器
@@ -1068,8 +1089,8 @@ class Document {
 
 1. 创建 `QGuiApplication`
 2. 注册 C++ 类型到 QML (`qmlRegisterType<VsgQuickItem>`, `qmlRegisterSingletonType<AppController>` 等)
-3. 调用 `Application::init()` 初始化中央单例（线程安全，内部自动创建 Document/DependencyGraph/TransactionManager/SelectionManager/WorkbenchManager）
-4. 通过 `Application::instance()` 获取各管理器引用，注册工作台、配置回调
+3. 调用 `Application::init()` 初始化中央单例（线程安全，内部自动创建 Document/DependencyGraph/SelectionManager/WorkbenchManager/CommandStack/CommandRegistry/TopologyManager）
+4. 通过 `Application::instance()` 获取各管理器引用，注册工作台、注册内置命令工厂、配置回调
 5. 创建 `ViewManager`, 注入 VSG/VTK 视口实例
 6. 创建 `QQmlApplicationEngine`, 设置根上下文属性, 将 `Application` 和 `ViewManager` 暴露给 QML
 7. 加载 `ui/main.qml`
@@ -1162,7 +1183,7 @@ class Document {
 
 **编辑规则**:
 - 参数化面板最下方有一个 **模式切换按钮**，在“🔒 只读模式”和“✏️ 编辑模式”之间切换
-- **编辑模式**: 可编辑字段显示输入框/下拉菜单，修改即走事务(open→set→commit→recompute)
+- **编辑模式**: 可编辑字段显示输入框/下拉菜单，修改即走命令（SetProperty/BatchSetProperty → CommandStack → recompute）
 - **只读模式**: 所有字段均为只读显示，无输入框，仅供查看
 - 右键菜单“修改”自动切换到编辑模式，“查看”自动切换到只读模式
 - 默认打开时为编辑模式
@@ -1192,8 +1213,8 @@ class Document {
 | 表格行选中 | 树展开到对应节点 + 3D 视口高亮 |
 | 3D 视口拾取(管点) | 树+表格同步选中该管点行，属性面板显示管点属性 |
 | 3D 视口拾取(管段) | 树+表格同步选中该管段两端管点，属性面板显示管段信息 |
-| 表格编辑坐标 | 事务→recompute→3D 视口实时更新 |
-| 属性面板修改 PipeSpec | 事务→recompute→所有引用管点 3D 更新 |
+| 表格编辑坐标 | 命令执行→recompute→3D 视口实时更新 |
+| 属性面板修改 PipeSpec | 命令执行→recompute→所有引用管点 3D 更新 |
 
 ### 9.6 TopBar / StatusBar
 
@@ -1301,7 +1322,7 @@ struct Selection {
 |--------|--------|---------|------|
 | **修改** | Enter | 有选中对象 | 参数化面板若已折叠则自动展开，属性面板进入编辑模式并聚焦到选中对象 |
 | **查看** | — | 有选中对象 | 参数化面板若已折叠则自动展开，属性面板以只读模式显示选中对象信息 |
-| **删除** | Delete | 有选中对象 | 弹出确认对话框，确认后执行删除（走事务） |
+| **删除** | Delete | 有选中对象 | 弹出确认对话框，确认后执行删除命令 |
 
 **参数化面板弹出逻辑**:
 - 选择"修改"或"查看"时，如果右侧参数化面板已折叠 → 自动展开
@@ -1490,7 +1511,8 @@ WorkbenchManager::switchTo("Analysis")
 - 鼠标/键盘事件转发
 
 **Step 14 — 应用层**
-- `Document` / `TransactionManager` / `DependencyGraph` / `RecomputeEngine`
+- `Document` / `DependencyGraph` / `RecomputeEngine`
+- `Command` / `CommandStack` / `CommandRegistry` / `CommandContext`
 - `SelectionManager` / `Workbench` + `WorkbenchManager`
 - `DesignWorkbench` (取代 CadWorkbench): 设计树+ComponentToolStrip+参数化面板
 - `WorkbenchController`: C++→QML 桥接
@@ -1541,6 +1563,24 @@ WorkbenchManager::switchTo("Analysis")
 - 载荷/工况 Undo/Redo 和 JSON round-trip 验证
 - VTK 实体/线条模式切换验证
 
+### Phase 8: 三期扩展 — 命令模式 (T0-T10, 已完成)
+
+**Step T0-T3 — 命令基础设施**
+- `Variant` 扩展 `bool` / `Vec3`
+- `DocumentObject` 增加 `setProperty()` / `getProperty()` 虚接口
+- `Command` / `MacroCommand` / `PropertyApplier` / `CommandStack`
+
+**Step T4-T7 — 属性命令与 UI 迁移**
+- `SetPropertyCommand` / `BatchSetPropertyCommand`
+- `CommandRegistry` 统一工厂与 JSON 序列化
+- `Application` 与 `main.cpp` 接入命令信号
+- `AppController` / `PipePointTableModel` / `PipeSpecModel` 改为通过命令驱动编辑
+
+**Step T8-T10 — 结构命令与清理**
+- `CreatePipePointCommand` / `DeletePipePointCommand` / `InsertComponentCommand`
+- 删除 `TransactionManager`
+- `src/command/` 源文件并入 `app` 静态库，消除循环依赖
+
 ---
 
 ## 13. 关键技术文件
@@ -1583,6 +1623,7 @@ WorkbenchManager::switchTo("Analysis")
 5. **Phase 5**: 手动 — QML 启动→表格输入管点→3D 渲染→参数修改→几何更新
 6. **Phase 6**: 导出 STEP→FreeCAD 验证
 7. **Phase 7**: test_loads — 载荷/工况 CRUD + 依赖图 + 序列化 round-trip; VTK 渲染模式切换; 端到端多工作台流程
+8. **Phase 8**: test_command_base / test_command_stack / test_command_registry / test_property_commands / test_structural_commands / test_insert_component — 验证命令执行、撤销重做、序列化、结构编辑与 UI 迁移链路
 
 ---
 
@@ -1598,7 +1639,7 @@ WorkbenchManager::switchTo("Analysis")
 | 工程文件=JSON | nlohmann/json 序列化参数，3D 几何不存储，打开时重建 |
 | STEP 仅导出 | 用于与其他 CAD 软件交换最终几何 |
 | 表格输入为主交互 | 管点通过表格输入坐标和参数 |
-| FreeCAD 风格事务 | 事务内不触发重算，commit 后统一 recompute |
+| 命令栈驱动编辑 | `CommandStack` / `CommandRegistry` 取代 `TransactionManager`，命令完成/撤销/重做后统一重算 |
 | VTK 用于分析工作台 | 管道应力分析采用 VTK 渲染，支持实体/线条双模式 |
 | 三工作台架构 | Specification(规格管理) → Design(路由设计) → Analysis(应力分析) |
 | 载荷两层模型 | Load→LoadCase(基本工况,独立求解) → LoadCombination(组合工况,后处理代数运算) |
@@ -1606,10 +1647,11 @@ WorkbenchManager::switchTo("Analysis")
 | 工作台系统 | FreeCAD 风格，CAD/CAE 两个工作台，文档模型共享 |
 | 初期全公制 | 内部统一公制存储，单位转换后续增加 |
 | pixi + CMake + Ninja | 通用依赖 pixi 管理，OCCT/VSG 本地 lib/ fallback |
+| command 兼容别名 | `src/command` target 指向 `app`，避免 app↔command 循环依赖 |
 | 单文档模式 | 一次只打开一个工程 |
 | 3D 鼠标映射 | 滚轮=缩放, 滚轮拖=平移, Ctrl+左键拖=旋转, 左键=选择, 右键=菜单 |
 | ViewManager 统一门面 | 视口路由+渲染状态+交互协调，QML 只与 ViewManager 交互，不感知 VSG/VTK |
-| Application 中央单例 | 所有管理器由 Application 单例持有，Meyers' Singleton + std::call_once 保证线程安全，测试可独立构造各 Manager |
+| Application 中央单例 | 所有管理器由 Application 单例持有，使用 `std::call_once` 保证线程安全初始化，并提供 `createCommandContext()` 供 UI/命令调用 |
 
 ---
 

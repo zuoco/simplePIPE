@@ -7,16 +7,14 @@
 ///   1. Spec→Design→Analysis 全流程: PipeSpec → 管路设计(多管点+弯头) → 载荷 → 工况/组合
 ///   2. 工作台切换: Design ↔ Analysis 来回切换，数据和视口状态正确恢复
 ///   3. 序列化 round-trip: 保存→加载→所有对象(含载荷/工况)完整恢复
-///   4. Undo/Redo: 跨工作台操作的事务回退正确
-///   5. 渲染模式切换: Solid ↔ Beam 切换不崩溃
-///   6. 编译零错误零警告
+///   4. 渲染模式切换: Solid ↔ Beam 切换不崩溃
+///   5. 编译零错误零警告
 
 #include <gtest/gtest.h>
 
 // Application layer
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
-#include "app/TransactionManager.h"
 #include "app/ProjectSerializer.h"
 #include "app/SelectionManager.h"
 #include "app/StepExporter.h"
@@ -74,7 +72,6 @@ class Phase2IntegrationTest : public ::testing::Test {
 protected:
     app::Document        doc;
     app::DependencyGraph graph;
-    std::unique_ptr<app::TransactionManager> txn;
     std::unique_ptr<engine::RecomputeEngine> engine;
     app::WorkbenchManager wm{doc};
 
@@ -82,18 +79,21 @@ protected:
     int recomputeCallCount = 0;
 
     void SetUp() override {
-        txn = std::make_unique<app::TransactionManager>(doc, graph);
         engine = std::make_unique<engine::RecomputeEngine>(doc, graph);
-
-        txn->setRecomputeCallback([this](const std::vector<foundation::UUID>& dirtyIds) {
-            engine->recompute(dirtyIds);
-            ++recomputeCallCount;
-        });
 
         engine->setSceneUpdateCallback(
             [this](const std::string& uuid, const TopoDS_Shape& shape) {
                 generatedShapes[uuid] = shape;
             });
+    }
+
+    /// 直接修改后触发 recompute（替代旧 TransactionManager 流程）
+    void triggerRecompute(const foundation::UUID& id) {
+        graph.markDirty(id);
+        auto dirtyIds = graph.collectDirty();
+        engine->recompute(dirtyIds);
+        graph.clearDirty();
+        ++recomputeCallCount;
     }
 
     std::shared_ptr<model::PipeSpec> makeSpec(const std::string& name,
@@ -623,111 +623,7 @@ TEST_F(Phase2IntegrationTest, SerializationRoundTrip_Idempotent) {
 }
 
 // ============================================================
-// 4. Undo/Redo — 跨工作台操作的事务回退
-// ============================================================
-
-TEST_F(Phase2IntegrationTest, UndoRedo_CrossWorkbench) {
-    // Register workbenches
-    wm.registerWorkbench(std::make_unique<app::DesignWorkbench>());
-    wm.registerWorkbench(std::make_unique<app::AnalysisWorkbench>());
-
-    auto spec = makeSpec("Spec-Undo", 168.3, 7.11);
-
-    auto p0 = makePoint("U0", model::PipePointType::Run,
-                         gp_Pnt(0, 0, 0), spec);
-    auto p1 = makePoint("U1", model::PipePointType::Run,
-                         gp_Pnt(1000, 0, 0), spec);
-
-    auto seg = std::make_shared<model::Segment>("S-Undo");
-    seg->addPoint(p0);
-    seg->addPoint(p1);
-    auto route = std::make_shared<model::Route>("R-Undo");
-    route->addSegment(seg);
-    doc.addObject(seg);
-    doc.addObject(route);
-
-    // Initial recompute
-    engine->recomputeAll();
-
-    // --- In Design workbench: modify OD ---
-    wm.switchWorkbench("Design");
-
-    txn->open("Design: 修改OD为219.1");
-    double oldOd = spec->od();
-    spec->setOd(219.1);
-    txn->recordChange(spec->id(), "OD", oldOd, 219.1);
-    txn->commit();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    // --- Switch to Analysis workbench: modify wall thickness ---
-    wm.switchWorkbench("Analysis");
-
-    txn->open("Analysis: 修改壁厚为12.0");
-    double oldWT = spec->wallThickness();
-    spec->setWallThickness(12.0);
-    txn->recordChange(spec->id(), "wallThickness", oldWT, 12.0);
-    txn->commit();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 12.0);
-
-    // --- Undo Analysis change ---
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 7.11);
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);  // Design change unaffected
-
-    // --- Undo Design change ---
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->od(), 168.3);
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 7.11);
-
-    // --- Redo both ---
-    txn->redo();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    txn->redo();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 12.0);
-
-    // --- New change after undo should clear redo stack ---
-    txn->undo();
-    txn->undo();
-    EXPECT_FALSE(txn->canUndo());
-    EXPECT_TRUE(txn->canRedo());
-
-    txn->open("New: 设置OD为273.0");
-    spec->setOd(273.0);
-    txn->recordChange(spec->id(), "OD", 168.3, 273.0);
-    txn->commit();
-    EXPECT_FALSE(txn->canRedo());
-    EXPECT_DOUBLE_EQ(spec->od(), 273.0);
-}
-
-// ============================================================
-// 4b. Undo/Redo — 载荷参数事务回退
-// ============================================================
-
-TEST_F(Phase2IntegrationTest, UndoRedo_LoadParameters) {
-    auto th = std::make_shared<model::ThermalLoad>("Thermal-Undo");
-    th->setOperatingTemp(200.0);
-    doc.addObject(th);
-
-    // Modify operating temp via transaction
-    txn->open("修改操作温度");
-    double oldTemp = th->operatingTemp();
-    th->setOperatingTemp(350.0);
-    txn->recordChange(th->id(), "operatingTemp", oldTemp, 350.0);
-    txn->commit();
-    EXPECT_DOUBLE_EQ(th->operatingTemp(), 350.0);
-
-    // Undo
-    txn->undo();
-    EXPECT_DOUBLE_EQ(th->operatingTemp(), 200.0);
-
-    // Redo
-    txn->redo();
-    EXPECT_DOUBLE_EQ(th->operatingTemp(), 350.0);
-}
-
-// ============================================================
-// 5. 渲染模式切换 — AnalysisWorkbench Solid ↔ Beam
+// 4. 渲染模式切换 — AnalysisWorkbench Solid ↔ Beam
 // ============================================================
 
 TEST_F(Phase2IntegrationTest, RenderModeSwitch_SolidBeam) {
@@ -1024,13 +920,10 @@ TEST_F(Phase2IntegrationTest, EndToEnd_Phase2FullPipeline) {
     auto errors = solver.checkAll(*route);
     EXPECT_TRUE(errors.empty());
 
-    // --- Phase 3: Modify OD via transaction ---
+    // --- Phase 3: Modify OD and trigger recompute ---
     generatedShapes.clear();
-    txn->open("修改OD");
-    double oldOd = spec->od();
     spec->setOd(273.0);
-    txn->recordChange(spec->id(), "OD", oldOd, 273.0);
-    txn->commit();
+    triggerRecompute(spec->id());
     EXPECT_DOUBLE_EQ(spec->od(), 273.0);
     EXPECT_FALSE(generatedShapes.empty());
 
@@ -1087,12 +980,7 @@ TEST_F(Phase2IntegrationTest, EndToEnd_Phase2FullPipeline) {
     analysisWB->setRenderMode(app::RenderMode::Solid);
     EXPECT_EQ(analysisWB->renderMode(), app::RenderMode::Solid);
 
-    // --- Phase 5: Undo OD change ---
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    // Redo
-    txn->redo();
+    // --- Phase 5: Verify OD is still 273.0 ---
     EXPECT_DOUBLE_EQ(spec->od(), 273.0);
 
     // --- Phase 6: Save ---

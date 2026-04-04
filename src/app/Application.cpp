@@ -11,7 +11,6 @@ std::once_flag Application::initFlag_;
 Application::Application()
     : document_(std::make_unique<Document>())
     , dependencyGraph_(std::make_unique<DependencyGraph>())
-    , transactionManager_(std::make_unique<TransactionManager>(*document_, *dependencyGraph_))
     , selectionManager_(std::make_unique<SelectionManager>())
     , workbenchManager_(std::make_unique<WorkbenchManager>(*document_))
     , commandStack_(std::make_unique<command::CommandStack>())

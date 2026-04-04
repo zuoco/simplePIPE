@@ -33,7 +33,7 @@ public:
     /// 设置场景更新回调（可选，不设置时仅推导几何不更新场景）
     void setSceneUpdateCallback(SceneUpdateCallback cb);
 
-    /// 重算脏对象（由 TransactionManager 的 recomputeCallback 调用）
+    /// 重算脏对象（由 CommandStack 执行命令后调用）
     void recompute(const std::vector<foundation::UUID>& dirtyIds);
 
     /// 重算文档中所有 PipePoint（全量刷新）

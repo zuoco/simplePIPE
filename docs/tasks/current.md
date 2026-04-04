@@ -7,54 +7,35 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
-Phase 3 命令模式 T0–T9 已完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）和 Phase 3（T0-T10）已全部完成。
 
-**T9 完成内容**：
-- 实现 `InsertComponentCommand`（继承 MacroCommand，componentType→PipePointType 映射）
-- 迁移 `AppController::insertComponent()` → InsertComponentCommand + commandStack_.execute()
-- 迁移 `AppController::deleteSelected()` → DeletePipePointCommand + commandStack_.execute()
-- 移除 `insertComponentRequested` / `deleteRequested` 信号
-- 注册到 `CommandRegistry::registerBuiltins()`（InsertComponent + Macro 路由）
-- 编译通过 125/125，测试通过 **41/41**
+在现有基线之上，已新增 **Phase 4 — lib/apps 架构重构** 的实施计划与正式任务体系：
+- 总体实施计划书已创建：`docs/lib-app-refactor-plan.md`
+- 正式任务卡已拆分到：`docs/tasks/phase4-lib-app-refactor/`
+- 新阶段状态已追加到：`docs/tasks/status.md`
 
-**关键上下文**：
-- `TransactionManager` 不再被任何 UI 代码调用
-- 所有结构命令（Create/Delete PipePoint, InsertComponent）和属性命令（SetProperty, BatchSetProperty）均已实现并注册
-- `AppController` 完全使用 `CommandStack` 替代 `TransactionManager`（undo/redo/insertComponent/deleteSelected）
-- `PipePointTableModel` 和 `PipeSpecModel` 也已在 T7 迁移到 `CommandStack`
-- `TransactionManager` 仍存在于代码中（Application 单例持有），但不再被调用
-- main.cpp 中 `transactionManager.setRecomputeCallback(...)` 仍存在但不影响新流程
+**当前基线事实**：
+- 代码仍处于旧目录结构：`src/foundation`、`src/geometry`、`src/model`、`src/engine`、`src/app`、`src/command`、`src/ui` 等
+- `TransactionManager` 已移除，命令模式由 `CommandStack` 体系承接
+- `app` 静态库仍吞并 `command` 与 `RecomputeEngine.cpp`，这是 Phase 4 的关键结构阻塞点之一
+- 当前接力目标已切换到重构阶段，而不是继续旧 Phase 任务
 
 ## 下一个任务
 
-| 属性 | 值 |
-|------|---|
-| **任务 ID** | T10 |
-| **任务名** | 清理 TransactionManager |
-| **推荐模型** | Sonnet 4.6 |
-| **前置依赖** | T9（已完成） |
+**T50 — 冻结目录与目标命名规则**
 
-### 具体工作
+工作目标：
+1. 将 `src/lib` 与 `src/apps` 固化为唯一长期代码根目录
+2. 冻结 `pipecad_lib`、`pipecad_app`、`pipecad` 等目标命名规则
+3. 明确未来新增 app 的目录模板与命名约定
 
-1. 从 `Application` 单例中移除 `TransactionManager` 成员和访问方法
-2. 从 `main.cpp` 中移除 `transactionManager.setRecomputeCallback(...)` 连线
-3. 移除或弃用 `TransactionManager` 类本身（若无其他依赖）
-4. 清理所有残余引用：头文件 include、前向声明
-5. 确保编译通过、全部测试通过
-6. 验证 undo/redo 流程完整可用（通过 CommandStack）
-
-### 设计参考
-
-- `docs/command-pattern-design.md` §8（迁移策略 — 最终清理阶段）
+推荐模型：**GPT-5.4**
 
 ## 需要读取的文件
 
-1. `docs/tasks/status.md`（确认 T10 状态与依赖）
-2. `docs/command-pattern-design.md` §8（清理策略）
-3. `src/app/Application.h`（TransactionManager 成员 — 待移除）
-4. `src/app/Application.cpp`（构造函数中的 TransactionManager 初始化）
-5. `src/main.cpp`（transactionManager 连线 — 待移除）
-6. `src/app/TransactionManager.h`（类定义 — 评估是否可完全移除）
-7. `src/app/TransactionManager.cpp`（实现 — 评估引用关系）
-8. `tests/test_app_core.cpp`（可能有 TransactionManager 测试需要移除/更新）
+1. `docs/lib-app-refactor-plan.md`
+2. `docs/tasks/status.md`
+3. `docs/tasks/phase4-lib-app-refactor/README.md`
+4. `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md`
+5. `src/CMakeLists.txt`
+6. `src/app/CMakeLists.txt`
