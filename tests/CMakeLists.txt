@@ -412,3 +412,16 @@ target_link_libraries(test_phase2_integration
 target_include_directories(test_phase2_integration PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_phase2_integration PRIVATE cxx_std_17)
 add_test(NAME Phase2Integration COMMAND test_phase2_integration)
+
+# Command 基类 + MacroCommand + PropertyApplier 测试 — T2
+add_executable(test_command_base test_command_base.cpp)
+target_link_libraries(test_command_base
+    PRIVATE
+        command
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_command_base PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_command_base PRIVATE cxx_std_17)
+add_test(NAME CommandBase COMMAND test_command_base)

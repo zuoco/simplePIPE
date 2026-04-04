@@ -1,6 +1,7 @@
 add_subdirectory(foundation)
 add_subdirectory(geometry)
 add_subdirectory(model)
+add_subdirectory(command)
 add_subdirectory(engine)
 add_subdirectory(visualization)
 add_subdirectory(vtk-visualization)

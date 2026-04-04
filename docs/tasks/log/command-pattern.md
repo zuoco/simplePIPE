@@ -44,3 +44,22 @@
 **已知限制**:
 - 无
 
+---
+
+### T2 — Command 基类 + MacroCommand + PropertyApplier (2026-04-04)
+
+**产出文件**: `src/command/CommandResult.h` · `src/command/CommandType.h` · `src/command/CommandContext.h` · `src/command/Command.h` · `src/command/MacroCommand.h` · `src/command/MacroCommand.cpp` · `src/command/PropertyApplier.h` · `src/command/CMakeLists.txt` · `tests/test_command_base.cpp`
+
+**接口**: → `src/command/Command.h`、`src/command/CommandContext.h`、`src/command/PropertyApplier.h`
+
+**设计决策**:
+- 新建 `src/command/` 层，位于 `model` 与 `engine` 之间；`engine` 的 `target_link_libraries` 加入 `command`，确保上层可传递使用
+- `CommandContext` 使用前向声明 + 指针（`app::Document*`、`app::DependencyGraph*`、`engine::TopologyManager*`），避免与 `app` 层循环依赖；空指针对于不需要 Document 的命令（如 MacroCommand 自身）安全
+- `Command` 抽象基类：`execute/undo/description/type/toJson` 纯虚；`tryMerge` 默认返回 false；成员 `id_`、`lastResult_`、`timestamp_` 在 protected 区
+- `MacroCommand::execute()` 实现回滚语义：顺序执行，任一子命令抛异常则逆序 undo 已执行的子命令，回滚中的 undo 失败只打印 stderr 警告，最后重新抛出原始异常
+- `MacroCommand` 累积所有子命令的 `createdIds/deletedIds/affectedIds` 到自身 `lastResult_`
+- `PropertyApplier` 完全 header-only，`apply()` 对 `setProperty` 返回 false 的 key 抛 `std::invalid_argument`；`read()` 对 null 对象抛 `std::invalid_argument`，对未知 key 传播 `getProperty` 的 `std::out_of_range`
+- 测试：29 个测试全部通过（CommandResult 2、CommandBase 8、MacroCommand 9、PropertyApplier 9、CommandType 1）
+
+**已知限制**:
+- 无
