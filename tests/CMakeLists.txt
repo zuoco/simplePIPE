@@ -425,3 +425,14 @@ target_link_libraries(test_command_base
 target_include_directories(test_command_base PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_command_base PRIVATE cxx_std_17)
 add_test(NAME CommandBase COMMAND test_command_base)
+
+# CommandStack 命令栈管理器测试 — T3
+add_executable(test_command_stack test_command_stack.cpp)
+target_link_libraries(test_command_stack
+    PRIVATE
+        command
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_command_stack PRIVATE cxx_std_17)
+add_test(NAME CommandStack COMMAND test_command_stack)

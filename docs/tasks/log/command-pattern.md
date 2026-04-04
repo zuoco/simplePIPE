@@ -63,3 +63,26 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T3 — CommandStack 命令栈管理器 (2026-04-04)
+
+**产出文件**: `src/command/CommandStack.h` · `src/command/CommandStack.cpp` · `tests/test_command_stack.cpp`
+
+**接口**: → `src/command/CommandStack.h`
+
+**设计决策**:
+- 不持有 `Document&` / `DependencyGraph&`；通过 `foundation::Signal` 解耦（六种信号：stackChanged / commandCompleted / commandUndone / commandRedone / cleanStateChanged / sceneRemoveRequested）
+- `execute()` 分两路：若 `macroOpen_`，子命令先执行再放入 `pendingMacro_`，不推入 undoStack_；否则尝试 `tryMerge` → 执行 → 入栈 → 清空 redo → trim → emit 信号
+- `tryMerge` 合并路径：顶部命令合并成功后不 push 新命令，emit `commandCompleted/stackChanged`，undoStack_ 仍只有 1 条
+- `closeMacro()`：直接将 `pendingMacro_` 推入 undoStack_（子命令已在 execute 阶段执行，不重新执行），收集所有子命令 affectedIds emit `commandCompleted`
+- `abortMacro()`：对 `pendingMacro_.children()` 逆序调用 `undo()`，单个 undo 失败仅捕获忽略，整体丢弃宏
+- `markClean()`：undoStack_ 空时 cleanTopId_ 置零（isNull）；非空时记录 back()->id()；仅在状态变化时 emit `cleanStateChanged`
+- `isClean()`：undoStack_ 空时返回 `cleanTopId_.isNull()`；非空时比较 back()->id() == cleanTopId_
+- `setMaxSize()` 调用时立即截断；`trimToMaxSize()` 从 undoStack_ front 删除最旧命令
+- `emitSceneRemove()` 将 `lastResult_.deletedIds` 转为 UUID 字符串逐一 emit `sceneRemoveRequested`
+- 测试：29 个全部通过（InitialState、Execute×3、UndoRedo×3、Macro×4、abortMacro×2、markClean×6、maxSize×2、sceneRemove×2、tryMerge×2、信号×2、clear×1）
+
+**已知限制**:
+- 无

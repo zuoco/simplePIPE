@@ -1,5 +1,6 @@
 add_library(command STATIC
     MacroCommand.cpp
+    CommandStack.cpp
 )
 
 target_include_directories(command
