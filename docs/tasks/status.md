@@ -65,6 +65,24 @@
 | T44 | AnalysisWorkbench 工作台 | `done` | T33, T39, T42 | **Opus** | 2026-03-29 |
 | T45 | 端到端集成测试 | `done` | T41, T43, T44 | **Opus** | 2026-03-29 |
 
+### 三期任务 (Phase 3 — 命令模式)
+
+> **设计文档**: `docs/command-pattern-design.md` (v3.0)
+
+| ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
+|----|--------|------|------|---------|---------|
+| T0 | Variant 类型扩展 (bool/Vec3) | `ready` | — | Sonnet 4.6 | |
+| T1 | DocumentObject setProperty/getProperty 虚方法 | `pending` | T0 | Sonnet 4.6 | |
+| T2 | Command 基类 + MacroCommand + PropertyApplier | `pending` | T1 | Sonnet 4.6 | |
+| T3 | CommandStack 命令栈管理器 | `pending` | T2 | **Opus 4.6** | |
+| T4 | PropertyCommands (SetProperty/BatchSetProperty) | `pending` | T2, T3 | Sonnet 4.6 | |
+| T5 | CommandRegistry 统一工厂 + 序列化 | `pending` | T4 | Sonnet 4.6 | |
+| T6 | Application 集成 + main.cpp 信号连线 | `pending` | T3, T5 | Sonnet 4.6 | |
+| T7 | UI 原子迁移 (AppController/TableModel) | `pending` | T4, T6 | **Opus 4.6** | |
+| T8 | 结构命令 (CreatePipePoint/DeletePipePoint) | `pending` | T3, T5 | **Opus 4.6** | |
+| T9 | InsertComponentCommand + 完整迁移 | `pending` | T7, T8 | **Opus 4.6** | |
+| T10 | 清理 TransactionManager | `pending` | T9 | Sonnet 4.6 | |
+
 ---
 
 ## 完成记录索引
@@ -75,5 +93,4 @@
 |------|---------|
 | `docs/tasks/log/t01-t25.md` | Phase 1: T01–T25（构建系统、Foundation、几何、模型、场景、应用层、UI） |
 | `docs/tasks/log/t30-t45.md` | Phase 2: T30–T45（ViewManager、载荷、工作台、VTK、序列化扩展） |
-
-> **Phase 3 任务完成记录**: 每 10 个任务一个文件，命名规则 `log/t50-t59.md`、`log/t60-t69.md`，以此类推。
+| `docs/tasks/log/command-pattern.md` | Phase 3: T0–T10（命令模式架构实现） |

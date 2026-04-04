@@ -5,32 +5,47 @@
 
 ---
 
-## 当前阶段
+## 当前状态
 
-Phase 1 和 Phase 2 已全部完成（45/45 个任务），等待 Phase 3 任务规划。
+Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
+Phase 3（命令模式 T0-T10）已规划完成，设计文档 `docs/command-pattern-design.md` v3.0 已就绪。
+
+**关键上下文**：
+- `foundation::Variant` 当前定义为 `std::variant<double, int, std::string>`，**需扩展** bool 和 Vec3
+- `foundation::math::Vec3` 已存在于 `src/foundation/Math.h`
+- `ProjectSerializer` 中已有 `variantToJson()`/`jsonToVariant()` 辅助函数，需同步扩展
+- 现有 35 个测试全部通过
+
+## 下一个任务
 
 | 属性 | 值 |
 |------|---|
-| **下一个任务** | 待规划（Phase 3） |
-| **推荐模型** | 根据任务性质选择（参见 status.md 状态表） |
-| **前置依赖** | 全部 Phase 1 + Phase 2 任务均已 `done` |
-| **前置状态** | ✅ 所有 Phase 2 依赖已满足 |
+| **任务 ID** | T0 |
+| **任务名** | Variant 类型扩展 (bool/Vec3) |
+| **推荐模型** | Sonnet 4.6 |
+| **前置依赖** | 无 |
 
-## 项目进度
+### 具体工作
 
-- 已完成: 45/45 个任务（Phase 1 T01–T25 + Phase 2 T30–T45）
-- 当前阶段: Phase 2 — 全部完成 ✅
-- 测试状态: 35/35 passed（100%，最后确认于 2026-03-29）
+1. 修改 `src/foundation/Types.h`：将 `Variant` 从 `std::variant<double, int, std::string>` 扩展为 `std::variant<double, int, std::string, bool, foundation::math::Vec3>`
+2. 添加辅助函数 `variantToBool()`，类似已有的 `variantToDouble()/variantToInt()/variantToString()`
+3. 扩展 `src/app/ProjectSerializer.cpp` 中 `variantToJson()`/`jsonToVariant()`：
+   - bool: `{"type":"bool","value":true}`
+   - Vec3: `{"type":"vec3","x":1.0,"y":0.0,"z":0.0}`
+4. 检查 model 层是否有受影响的属性（如 `PressureLoad::isExternal` 可改用 bool Variant）
+5. 更新 `tests/test_foundation.cpp` 和 `tests/test_load_serialization.cpp` 验证新类型 round-trip
 
-## 给 AI 的指令
+### 验收标准
 
-1. 确认状态: 读取 `docs/tasks/status.md` 状态表（前 74 行）
-2. 读取 Phase 3 任务详情: `docs/development-plan.md` — 查找 Phase 3 章节
-3. 如需了解已有接口（按需，精确选择）:
-   - Phase 1 关键接口: 直接读取 `src/model/PipePoint.h`, `src/app/Document.h` 等头文件
-   - Phase 2 关键接口: 直接读取 `src/visualization/ViewManager.h`, `src/app/AnalysisWorkbench.h` 等
-   - Phase 2 设计决策（如需）: `docs/tasks/log/t30-t45.md`
-4. 如需架构参考: `docs/architecture.md` 相关章节
-5. 如需库指南: `lib/occt/AGENTS.md` 或 `lib/vsg/AGENTS.md` 或 `lib/vtk/AGENTS.md`
-6. 完成后运行 `pixi run build-debug && pixi run test`
-7. 验证通过后按 AGENTS.md Step 9 更新 `status.md`、日志文件、本文件
+- `pixi run test` 全部通过
+- Variant 可持有 bool 和 Vec3 值
+- JSON 序列化/反序列化双向正确
+
+## 需要读取的文件
+
+1. `docs/command-pattern-design.md` — §2.7（Variant 扩展规格）和 §5.5（序列化格式）
+2. `src/foundation/Types.h` — 当前 Variant 定义
+3. `src/foundation/Math.h` — Vec3 结构体
+4. `src/app/ProjectSerializer.h` / `src/app/ProjectSerializer.cpp` — variantToJson/jsonToVariant
+5. `tests/test_foundation.cpp` — 已有测试结构
+6. `tests/test_load_serialization.cpp` — 序列化测试

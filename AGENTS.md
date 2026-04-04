@@ -10,7 +10,7 @@
 
 **核心设计理念**: 以 **管点(PipePoint)** 为中心的数据模型 —— 管点是带坐标和类型的文档对象，管件几何由管点序列 + 管线特性(PipeSpec) 推导生成。
 
-**项目状态**: Phase 1 (T01-T25) 和 Phase 2 (T30-T45) 已全部完成，共 45/45 个任务。
+**项目状态**: Phase 1 (T01-T25) 和 Phase 2 (T30-T45) 已全部完成（45/45）。Phase 3（命令模式 T0-T10）进行中。
 
 ---
 
@@ -152,27 +152,28 @@ ctest --test-dir build/debug -R <TestName> --output-on-failure
 
 ---
 
-## 工作流程 (完成任务 TXX)
+## 工作流程
 
-当用户说 **"完成任务 TXX"** 或 **"继续下一个任务"** 时，按以下步骤执行:
+当用户说 **"完成任务 TXX"**、**"继续下一个任务"** 或新会话开始时，按以下步骤执行：
 
-### Step 1: 从接力文件出发（必读）
+### Step 1: 读取状态文件（必读入口）
 ```
 读取 docs/tasks/current.md
 ```
-- 此文件包含下一个任务 ID、前置依赖状态、需要读取的精确文件列表
-- **严禁自行决定读取文件清单**，必须以此文件为唯一入口
+- 这是**唯一入口**，包含：当前上下文、下一个任务 ID、推荐模型、需要读取的文件列表
+- **严禁自行决定读取文件清单**，必须以此文件为唯一起点
 
-### Step 2: 确认任务状态
+### Step 2: 确认任务前置依赖
 ```
-读取 docs/tasks/status.md （仅状态表部分，前 74 行）
+读取 docs/tasks/status.md 状态表
 ```
 - 找到目标任务，确认其前置依赖均为 `done`
 - 如果前置未完成，报告阻塞原因
 
 ### Step 3: 读取任务详情
 ```
-读取 docs/development-plan.md 中该任务的章节
+读取 docs/command-pattern-design.md 中对应章节（命令模式任务）
+或 docs/development-plan.md 中对应章节（其他任务）
 ```
 - 获取: 交付物列表、接口定义、验收标准
 
@@ -180,44 +181,32 @@ ctest --test-dir build/debug -R <TestName> --output-on-failure
 ```
 按 current.md「给 AI 的指令」中列出的文件逐一读取
 ```
-- 只读 current.md 明确列出的日志文件、头文件
+- 只读 current.md 明确列出的头文件、源文件
 - **直接读取前置任务的 `.h` 头文件**比读日志更准确
 
-### Step 5: 读取架构参考（如需）
-```
-读取 docs/architecture.md 中相关章节
-```
-
-### Step 6: 读取库指南（如需）
-```
-读取 lib/vsg/AGENTS.md 或 lib/vtk/AGENTS.md
-```
-
-### Step 7: 实现代码
+### Step 5: 实现代码
 - 按交付物列表创建/编辑文件
-- C++17 标准
-- 遵循已有代码风格
+- C++17 标准，遵循已有代码风格
 - 必须包含单元测试
 
-### Step 8: 编译验证
+### Step 6: 编译验证
 ```bash
 pixi run build-debug
 pixi run test
 ```
-- 确保编译通过、测试通过
+- 确保编译通过、**全部**测试通过
 
-### Step 9: 更新任务状态
+### Step 7: 更新状态（任务完成后立即执行）
 
-**Step 9a**: 更新 `docs/tasks/status.md` 状态表:
+**Step 7a**: 更新 `docs/tasks/status.md` 状态表:
 1. 将当前任务标记为 `done`，填写完成日期
 2. 检查依赖当前任务的后续任务，若所有依赖都 `done`，将其状态从 `pending` 改为 `ready`
 
-**Step 9b**: 追加完成记录到对应的日志文件:
-- Phase 3 任务: `docs/tasks/log/t50-t59.md`、`t60-t69.md`……以此类推
+**Step 7b**: 追加完成记录到日志文件 `docs/tasks/log/command-pattern.md`
 
-使用以下精简格式（**禁止粘贴 C++ 代码块，禁止添加「后续任务注意」字段**）:
+使用以下精简格式（**禁止粘贴 C++ 代码块**）:
 ```markdown
-### TXX — 任务名 (YYYY-MM-DD)
+### TX — 任务名 (YYYY-MM-DD)
 
 **产出文件**: `A.h` · `A.cpp` · `test_a.cpp`
 
@@ -231,25 +220,55 @@ pixi run test
 - 限制1（如无则写"无"）
 ```
 
-**Step 9c**: Git 提交
+**Step 7c**: Git 提交
 ```bash
 git add -A
-git commit -m "feat: TXX — 使用中文详细描述实现的功能"
+git commit -m "feat: TX — 功能描述
+
+- 功能点1
+- 功能点2
+- 功能点3"
 ```
-- 功能开发: `feat: TXX — ...`
-- Bug 修复: `fix: TXX — ...`
-- 文档更新: `docs: ...`
+- 提交信息使用**中文**，`feat:` 前缀
+- 正文逐条罗列功能点，逻辑清晰
 
-**Step 9d**: 覆盖重写 `docs/tasks/current.md`，写入下一个任务的信息
+**Step 7d**: **清空并重写** `docs/tasks/current.md`，写入：
+1. **当前状态**（对下一个任务有价值的上下文信息）
+2. **下一个任务** ID + 名称 + 具体工作描述
+3. **推荐模型**（Opus 4.6 / Sonnet 4.6 / Gemini 3.1 Pro / GPT 5.3 Codex）
+4. **需要读取的文件列表**（精确到文件路径）
 
-### Step 10: 报告完成
-向用户报告:
-- 完成了什么
-- 创建/修改了哪些文件
-- 测试是否通过
-- Git 提交信息
-- 下一个 `ready` 的任务是什么
-- **提示用户切换到什么模型**（从 status.md 推荐模型读取）
+### Step 8: 输出切换指令
+向用户报告：
+- 完成了什么 + 创建/修改了哪些文件
+- 测试是否通过 + Git 提交信息
+- **输出下一步指令**，格式：`将模型切换到 XXX，开始任务 TY`
+
+---
+
+### 循环机制
+
+```
+┌─────────────────────────────────────────┐
+│  新会话开始                              │
+│  ↓                                      │
+│  读取 docs/tasks/current.md             │
+│  ↓                                      │
+│  确认任务 + 读取上下文                    │
+│  ↓                                      │
+│  实现代码 + 编译测试                      │
+│  ↓                                      │
+│  更新 status.md + 日志 + Git 提交         │
+│  ↓                                      │
+│  清空并重写 current.md（写入下一个任务）    │
+│  ↓                                      │
+│  输出：「将模型切换到 XXX，开始任务 TY」    │
+│  ↓                                      │
+│  用户切换模型 → 新会话 → 回到顶部 ↑       │
+└─────────────────────────────────────────┘
+```
+
+AI 读取状态文件 → 执行指定任务 → 更新状态 → 输出下一步指令 → 循环往复，直到所有任务完成。
 
 ---
 
@@ -257,12 +276,14 @@ git commit -m "feat: TXX — 使用中文详细描述实现的功能"
 
 | 文件 | 用途 |
 |------|------|
+| `docs/tasks/current.md` | **状态文件 — 当前上下文 + 下一个任务 + 推荐模型（AI 入口）** |
+| `docs/tasks/status.md` | **任务状态表 + 完成记录索引** |
+| `docs/command-pattern-design.md` | **命令模式架构设计 v3.0（Phase 3 实现规格）** |
 | `docs/architecture.md` | 架构设计（数据模型、分层、UI设计、工作台系统） |
-| `docs/development-plan.md` | 任务详情（交付物、验收标准、依赖关系） |
-| `docs/tasks/status.md` | **任务状态表（前 74 行）+ 完成记录索引** |
-| `docs/tasks/current.md` | **接力文件 — 下一个任务 + 推荐模型** |
+| `docs/development-plan.md` | Phase 1/2 任务详情（交付物、验收标准、依赖关系） |
 | `docs/tasks/log/t01-t25.md` | Phase 1 完成记录（T01–T25） |
 | `docs/tasks/log/t30-t45.md` | Phase 2 完成记录（T30–T45） |
+| `docs/tasks/log/command-pattern.md` | Phase 3 完成记录（命令模式 T0–T10） |
 | `lib/vsg/AGENTS.md` | VSG API 使用指南 |
 
 ---
