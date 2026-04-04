@@ -3,9 +3,9 @@
 
 #include <gtest/gtest.h>
 
+#include "app/Application.h"
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
-#include "app/TransactionManager.h"
 #include "engine/RecomputeEngine.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
@@ -180,203 +180,6 @@ TEST(DependencyGraph, ChainPropagation) {
 }
 
 // ============================================================
-// TransactionManager 测试
-// ============================================================
-
-class TxnTest : public ::testing::Test {
-protected:
-    app::Document        doc;
-    app::DependencyGraph graph;
-    std::unique_ptr<app::TransactionManager> tm;
-
-    std::vector<foundation::UUID> lastDirty;
-    int recomputeCount = 0;
-
-    void SetUp() override {
-        tm = std::make_unique<app::TransactionManager>(doc, graph);
-        tm->setRecomputeCallback([this](const std::vector<foundation::UUID>& dirty) {
-            lastDirty = dirty;
-            ++recomputeCount;
-        });
-    }
-
-    // 向 doc 加入一个 PipeSpec 并返回其 UUID
-    foundation::UUID addSpec(const std::string& name, double od) {
-        auto spec = std::make_shared<model::PipeSpec>(name);
-        spec->setOd(od);
-        foundation::UUID id = spec->id();
-        doc.addObject(spec);
-        return id;
-    }
-};
-
-TEST_F(TxnTest, CommitAppliesChange) {
-    foundation::UUID specId = addSpec("S", 100.0);
-
-    tm->open("修改OD");
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-    double oldOD = obj->od();
-    obj->setOd(219.1);
-    tm->recordChange(specId, "OD", oldOD, 219.1);
-    tm->commit();
-
-    EXPECT_DOUBLE_EQ(obj->od(), 219.1);
-    EXPECT_EQ(recomputeCount, 1);
-    EXPECT_FALSE(tm->isOpen());
-}
-
-TEST_F(TxnTest, AbortRollsBack) {
-    foundation::UUID specId = addSpec("S", 100.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-
-    tm->open("修改OD");
-    double oldOD = obj->od();
-    obj->setOd(500.0);
-    tm->recordChange(specId, "OD", oldOD, 500.0);
-    tm->abort();
-
-    // abort 应将属性恢复为 oldOD
-    EXPECT_DOUBLE_EQ(obj->od(), 100.0);
-    EXPECT_EQ(recomputeCount, 0); // abort 不触发重算
-    EXPECT_FALSE(tm->isOpen());
-}
-
-TEST_F(TxnTest, UndoRestoresPreviousValue) {
-    foundation::UUID specId = addSpec("S", 100.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-
-    tm->open("修改OD");
-    obj->setOd(200.0);
-    tm->recordChange(specId, "OD", 100.0, 200.0);
-    tm->commit();
-
-    EXPECT_DOUBLE_EQ(obj->od(), 200.0);
-
-    tm->undo();
-    EXPECT_DOUBLE_EQ(obj->od(), 100.0);
-    EXPECT_EQ(recomputeCount, 2); // commit + undo 各一次
-}
-
-TEST_F(TxnTest, RedoRestoresNewValue) {
-    foundation::UUID specId = addSpec("S", 100.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-
-    tm->open("修改OD");
-    obj->setOd(200.0);
-    tm->recordChange(specId, "OD", 100.0, 200.0);
-    tm->commit();
-
-    tm->undo();
-    EXPECT_DOUBLE_EQ(obj->od(), 100.0);
-
-    tm->redo();
-    EXPECT_DOUBLE_EQ(obj->od(), 200.0);
-    EXPECT_EQ(recomputeCount, 3); // commit + undo + redo
-}
-
-TEST_F(TxnTest, MultipleUndo) {
-    foundation::UUID specId = addSpec("S", 100.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-
-    tm->open("Step1");
-    obj->setOd(200.0);
-    tm->recordChange(specId, "OD", 100.0, 200.0);
-    tm->commit();
-
-    tm->open("Step2");
-    obj->setOd(300.0);
-    tm->recordChange(specId, "OD", 200.0, 300.0);
-    tm->commit();
-
-    EXPECT_EQ(tm->undoStackSize(), 2u);
-
-    tm->undo(); // Step2 → 200.0
-    EXPECT_DOUBLE_EQ(obj->od(), 200.0);
-
-    tm->undo(); // Step1 → 100.0
-    EXPECT_DOUBLE_EQ(obj->od(), 100.0);
-
-    EXPECT_FALSE(tm->canUndo());
-}
-
-TEST_F(TxnTest, NewCommitClearsRedo) {
-    foundation::UUID specId = addSpec("S", 100.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    ASSERT_NE(obj, nullptr);
-
-    tm->open("Step1");
-    obj->setOd(200.0);
-    tm->recordChange(specId, "OD", 100.0, 200.0);
-    tm->commit();
-
-    tm->undo();
-    EXPECT_EQ(tm->redoStackSize(), 1u);
-
-    // 新提交后 redo 栈应清空
-    tm->open("Step2");
-    obj->setOd(999.0);
-    tm->recordChange(specId, "OD", 100.0, 999.0);
-    tm->commit();
-
-    EXPECT_EQ(tm->redoStackSize(), 0u);
-}
-
-TEST_F(TxnTest, CanUndoRedo) {
-    EXPECT_FALSE(tm->canUndo());
-    EXPECT_FALSE(tm->canRedo());
-
-    foundation::UUID specId = addSpec("S", 1.0);
-    auto* obj = dynamic_cast<model::PipeSpec*>(doc.findObject(specId));
-    tm->open("x");
-    obj->setOd(2.0);
-    tm->recordChange(specId, "OD", 1.0, 2.0);
-    tm->commit();
-
-    EXPECT_TRUE(tm->canUndo());
-    EXPECT_FALSE(tm->canRedo());
-
-    tm->undo();
-    EXPECT_FALSE(tm->canUndo());
-    EXPECT_TRUE(tm->canRedo());
-}
-
-TEST_F(TxnTest, DependencyPropagation) {
-    // PipeSpec → PipePoint 依赖关系
-    auto spec = std::make_shared<model::PipeSpec>("Spec");
-    auto pp   = std::make_shared<model::PipePoint>("PP1");
-    pp->setPipeSpec(spec);
-
-    foundation::UUID specId = spec->id();
-    foundation::UUID ppId   = pp->id();
-
-    doc.addObject(spec);
-    doc.addObject(pp);
-
-    // 注册依赖：pp 依赖 spec
-    graph.addDependency(ppId, specId);
-
-    tm->open("修改Spec.OD");
-    spec->setOd(219.1);
-    tm->recordChange(specId, "OD", 0.0, 219.1);
-    tm->commit();
-
-    // spec 和 pp 都应在 dirty 列表中
-    ASSERT_FALSE(lastDirty.empty());
-    bool hasSpec = false, hasPP = false;
-    for (const auto& id : lastDirty) {
-        if (id == specId) hasSpec = true;
-        if (id == ppId)   hasPP  = true;
-    }
-    EXPECT_TRUE(hasSpec);
-    EXPECT_TRUE(hasPP);
-}
-
-// ============================================================
 // RecomputeEngine 测试
 // ============================================================
 
@@ -456,6 +259,51 @@ TEST(RecomputeEngine, RecomputeDirty) {
 
     // 只重算 pp1
     EXPECT_NO_THROW(eng.recompute({pp1Id}));
+}
+
+// ============================================================
+// Application 单例新成员测试 — T6
+// ============================================================
+
+TEST(ApplicationTest, CommandStackAndRegistryAccessible) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    // CommandStack 可访问，初始状态无可撤销/重做
+    EXPECT_FALSE(app.commandStack().canUndo());
+    EXPECT_FALSE(app.commandStack().canRedo());
+
+    // CommandRegistry 可访问
+    app.commandRegistry().registerBuiltins();
+    EXPECT_TRUE(app.commandRegistry().hasCommand("SetProperty"));
+    EXPECT_TRUE(app.commandRegistry().hasCommand("BatchSetProperty"));
+    EXPECT_TRUE(app.commandRegistry().hasCommand("Macro"));
+
+    app::Application::destroy();
+}
+
+TEST(ApplicationTest, TopologyManagerAccessible) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    // TopologyManager 可访问（接口不崩溃即可）
+    engine::TopologyManager& topo = app.topologyManager();
+    (void)topo;
+
+    app::Application::destroy();
+}
+
+TEST(ApplicationTest, CreateCommandContextReturnsValidContext) {
+    app::Application::init();
+    auto& app = app::Application::instance();
+
+    auto ctx = app.createCommandContext();
+    EXPECT_NE(ctx.document, nullptr);
+    EXPECT_NE(ctx.dependencyGraph, nullptr);
+    // topologyManager 初始化后应不为空
+    EXPECT_NE(ctx.topologyManager, nullptr);
+
+    app::Application::destroy();
 }
 
 int main(int argc, char** argv) {

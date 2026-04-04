@@ -4,7 +4,7 @@
 #pragma once
 
 #include "app/Document.h"
-#include "app/TransactionManager.h"
+#include "command/CommandStack.h"
 
 #include <QAbstractTableModel>
 
@@ -30,7 +30,7 @@ public:
     Q_ENUM(Column)
 
     PipeSpecModel(app::Document& document,
-                  app::TransactionManager& transactionManager,
+                  command::CommandStack& commandStack,
                   QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -44,7 +44,7 @@ public:
 
 private:
     app::Document& document_;
-    app::TransactionManager& transactionManager_;
+    command::CommandStack& commandStack_;
     std::vector<model::PipeSpec*> rows_;
 
     void rebuildRows();

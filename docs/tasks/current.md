@@ -5,32 +5,37 @@
 
 ---
 
-## 当前阶段
+## 当前状态
 
-Phase 1 和 Phase 2 已全部完成（45/45 个任务），等待 Phase 3 任务规划。
+Phase 1（T01-T25）、Phase 2（T30-T45）和 Phase 3（T0-T10）已全部完成。
 
-| 属性 | 值 |
-|------|---|
-| **下一个任务** | 待规划（Phase 3） |
-| **推荐模型** | 根据任务性质选择（参见 status.md 状态表） |
-| **前置依赖** | 全部 Phase 1 + Phase 2 任务均已 `done` |
-| **前置状态** | ✅ 所有 Phase 2 依赖已满足 |
+在现有基线之上，已新增 **Phase 4 — lib/apps 架构重构** 的实施计划与正式任务体系：
+- 总体实施计划书已创建：`docs/lib-app-refactor-plan.md`
+- 正式任务卡已拆分到：`docs/tasks/phase4-lib-app-refactor/`
+- 新阶段状态已追加到：`docs/tasks/status.md`
 
-## 项目进度
+**当前基线事实**：
+- 代码仍处于旧目录结构：`src/foundation`、`src/geometry`、`src/model`、`src/engine`、`src/app`、`src/command`、`src/ui` 等
+- `TransactionManager` 已移除，命令模式由 `CommandStack` 体系承接
+- `app` 静态库仍吞并 `command` 与 `RecomputeEngine.cpp`，这是 Phase 4 的关键结构阻塞点之一
+- 当前接力目标已切换到重构阶段，而不是继续旧 Phase 任务
 
-- 已完成: 45/45 个任务（Phase 1 T01–T25 + Phase 2 T30–T45）
-- 当前阶段: Phase 2 — 全部完成 ✅
-- 测试状态: 35/35 passed（100%，最后确认于 2026-03-29）
+## 下一个任务
 
-## 给 AI 的指令
+**T50 — 冻结目录与目标命名规则**
 
-1. 确认状态: 读取 `docs/tasks/status.md` 状态表（前 74 行）
-2. 读取 Phase 3 任务详情: `docs/development-plan.md` — 查找 Phase 3 章节
-3. 如需了解已有接口（按需，精确选择）:
-   - Phase 1 关键接口: 直接读取 `src/model/PipePoint.h`, `src/app/Document.h` 等头文件
-   - Phase 2 关键接口: 直接读取 `src/visualization/ViewManager.h`, `src/app/AnalysisWorkbench.h` 等
-   - Phase 2 设计决策（如需）: `docs/tasks/log/t30-t45.md`
-4. 如需架构参考: `docs/architecture.md` 相关章节
-5. 如需库指南: `lib/occt/AGENTS.md` 或 `lib/vsg/AGENTS.md` 或 `lib/vtk/AGENTS.md`
-6. 完成后运行 `pixi run build-debug && pixi run test`
-7. 验证通过后按 AGENTS.md Step 9 更新 `status.md`、日志文件、本文件
+工作目标：
+1. 将 `src/lib` 与 `src/apps` 固化为唯一长期代码根目录
+2. 冻结 `pipecad_lib`、`pipecad_app`、`pipecad` 等目标命名规则
+3. 明确未来新增 app 的目录模板与命名约定
+
+推荐模型：**GPT-5.4**
+
+## 需要读取的文件
+
+1. `docs/lib-app-refactor-plan.md`
+2. `docs/tasks/status.md`
+3. `docs/tasks/phase4-lib-app-refactor/README.md`
+4. `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md`
+5. `src/CMakeLists.txt`
+6. `src/app/CMakeLists.txt`

@@ -90,6 +90,27 @@ public:
 
     size_t accessoryCount() const { return accessories_.size(); }
 
+    /// "x"/"y"/"z" → setPosition；"type" → setType；"name" → setName；其余 → typeParams_
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "type") {
+            setType(static_cast<PipePointType>(foundation::variantToInt(value)));
+            return true;
+        }
+        if (key == "x" || key == "y" || key == "z" || key == "name") {
+            return SpatialObject::setProperty(key, value);
+        }
+        // 其余 key（pipeSpecId, bendMultiplier, valveType 等）存入 typeParams_
+        setParam(key, value);
+        return true;
+    }
+
+    /// "type" 返回 int；其余先查 typeParams_，再代理到 SpatialObject（处理 x/y/z/name）
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "type") return static_cast<int>(type_);
+        if (hasParam(key)) return param(key);
+        return SpatialObject::getProperty(key);
+    }
+
 private:
     PipePointType type_;
     std::shared_ptr<PipeSpec> pipeSpec_;

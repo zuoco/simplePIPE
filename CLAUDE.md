@@ -94,9 +94,9 @@ QML files in `ui/`: `main.qml` entry, `components/` (reusable widgets), `panels/
 The project uses a task-driven workflow tracked in `docs/tasks/`. When asked to "完成任务 TXX":
 1. Read `docs/tasks/current.md` for handoff context
 2. Check `docs/tasks/status.md` status table (before "完成记录索引" section) for task status
-3. Read task details from `docs/development-plan.md`
+3. Read task details from `docs/archive/task-specs/development-plan.md` or `docs/archive/task-specs/command-pattern-design.md`
 4. Implement, then verify with `pixi run build-debug && pixi run test`
-5. Update status.md, log file (`docs/tasks/log/`), current.md, and commit with `feat: TXX — description`
+5. Update status.md, archived log file (`docs/archive/task-logs/`), current.md, and commit with `feat: TXX — description`
 
 Commit message format: `feat: TXX — 中文描述` / `fix: TXX — 中文描述` / `docs: 中文描述`
 
@@ -116,5 +116,6 @@ Build toolchain: pixi + CMake ≥3.24 + Ninja, C++17.
 ## Reference Documents
 
 - `docs/architecture.md` — Full architecture design (data model, layering, UI design)
-- `docs/development-plan.md` — Task details (deliverables, acceptance criteria)
+- `docs/archive/task-specs/development-plan.md` — Archived task details (deliverables, acceptance criteria)
+- `docs/archive/task-specs/command-pattern-design.md` — Archived Phase 3 command pattern specification
 - `lib/occt/AGENTS.md`, `lib/vsg/AGENTS.md`, `lib/vtk/AGENTS.md` — Library-specific API guides

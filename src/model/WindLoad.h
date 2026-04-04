@@ -32,6 +32,18 @@ public:
         changed.emit();
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "speed")     { setSpeed(foundation::variantToDouble(value));    return true; }
+        if (key == "direction") { setDirection(foundation::variantToVec3(value)); return true; }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "speed")     return speed_;
+        if (key == "direction") return direction_;
+        return DocumentObject::getProperty(key);
+    }
+
 private:
     double               speed_     = 0.0;           ///< 风速 (m/s)
     foundation::math::Vec3 direction_ = {1.0, 0.0, 0.0}; ///< 默认 +X 方向

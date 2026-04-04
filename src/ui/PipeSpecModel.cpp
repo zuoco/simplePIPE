@@ -3,6 +3,8 @@
 
 #include "ui/PipeSpecModel.h"
 
+#include "command/CommandContext.h"
+#include "command/SetPropertyCommand.h"
 #include "model/PipeSpec.h"
 
 #include <algorithm>
@@ -10,11 +12,11 @@
 namespace ui {
 
 PipeSpecModel::PipeSpecModel(app::Document& document,
-                             app::TransactionManager& transactionManager,
+                             command::CommandStack& commandStack,
                              QObject* parent)
     : QAbstractTableModel(parent)
     , document_(document)
-    , transactionManager_(transactionManager)
+    , commandStack_(commandStack)
 {
     rebuildRows();
 }
@@ -99,73 +101,59 @@ bool PipeSpecModel::setData(const QModelIndex& index, const QVariant& value, int
         return false;
     }
 
-    transactionManager_.open("Edit PipeSpec Cell");
-    bool changed = false;
+    foundation::Variant oldVal;
+    foundation::Variant newVal;
+    std::string key;
 
     switch (index.column()) {
     case NameColumn: {
-        const std::string oldValue = spec->name();
-        const std::string newValue = value.toString().toStdString();
-        if (oldValue != newValue) {
-            spec->setName(newValue);
-            transactionManager_.recordChange(spec->id(), "name", oldValue, newValue);
-            changed = true;
-        }
+        const std::string oldStr = spec->name();
+        const std::string newStr = value.toString().toStdString();
+        if (oldStr == newStr) return false;
+        key = "name";
+        oldVal = oldStr;
+        newVal = newStr;
         break;
     }
     case OdColumn: {
         bool ok = false;
-        const double newValue = value.toDouble(&ok);
-        if (!ok) {
-            transactionManager_.abort();
-            return false;
-        }
-
-        const double oldValue = spec->od();
-        if (oldValue != newValue) {
-            spec->setOd(newValue);
-            transactionManager_.recordChange(spec->id(), "OD", oldValue, newValue);
-            changed = true;
-        }
+        const double nv = value.toDouble(&ok);
+        if (!ok) return false;
+        const double ov = spec->od();
+        if (ov == nv) return false;
+        key = "OD";
+        oldVal = ov;
+        newVal = nv;
         break;
     }
     case WallThicknessColumn: {
         bool ok = false;
-        const double newValue = value.toDouble(&ok);
-        if (!ok) {
-            transactionManager_.abort();
-            return false;
-        }
-
-        const double oldValue = spec->wallThickness();
-        if (oldValue != newValue) {
-            spec->setWallThickness(newValue);
-            transactionManager_.recordChange(spec->id(), "wallThickness", oldValue, newValue);
-            changed = true;
-        }
+        const double nv = value.toDouble(&ok);
+        if (!ok) return false;
+        const double ov = spec->wallThickness();
+        if (ov == nv) return false;
+        key = "wallThickness";
+        oldVal = ov;
+        newVal = nv;
         break;
     }
     case MaterialColumn: {
-        const std::string oldValue = spec->material();
-        const std::string newValue = value.toString().toStdString();
-        if (oldValue != newValue) {
-            spec->setMaterial(newValue);
-            transactionManager_.recordChange(spec->id(), "material", oldValue, newValue);
-            changed = true;
-        }
+        const std::string ov = spec->material();
+        const std::string nv = value.toString().toStdString();
+        if (ov == nv) return false;
+        key = "material";
+        oldVal = ov;
+        newVal = nv;
         break;
     }
     default:
-        transactionManager_.abort();
         return false;
     }
 
-    if (!changed) {
-        transactionManager_.abort();
-        return false;
-    }
+    auto cmd = command::SetPropertyCommand::createWithOldValue(spec->id(), key, oldVal, newVal);
+    command::CommandContext ctx{&document_, nullptr, nullptr};
+    commandStack_.execute(std::move(cmd), ctx);
 
-    transactionManager_.commit();
     emit dataChanged(index, index);
     rebuildRows();
     return true;

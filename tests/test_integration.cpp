@@ -8,16 +8,14 @@
 ///   2. 管点输入 → 几何自动生成
 ///   3. 弯头标记 → N/M/F 自动计算 → 弯头几何生成
 ///   4. PipeSpec 修改 → 所有引用管点几何更新
-///   5. Undo/Redo → 属性正确回退/重做
-///   6. 保存/加载 → 全部恢复
-///   7. STEP 导出 → 文件有效
+///   5. 保存/加载 → 全部恢复
+///   6. STEP 导出 → 文件有效
 
 #include <gtest/gtest.h>
 
 // Application layer
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
-#include "app/TransactionManager.h"
 #include "app/ProjectSerializer.h"
 #include "app/SelectionManager.h"
 #include "app/StepExporter.h"
@@ -65,14 +63,13 @@
 
 // ============================================================
 // Integration test fixture: wires up the full application stack
-// (Document + DependencyGraph + TransactionManager + RecomputeEngine)
+// (Document + DependencyGraph + RecomputeEngine)
 // ============================================================
 
 class IntegrationTest : public ::testing::Test {
 protected:
     app::Document        doc;
     app::DependencyGraph graph;
-    std::unique_ptr<app::TransactionManager> txn;
     std::unique_ptr<engine::RecomputeEngine> engine;
 
     // Track shapes produced by recompute
@@ -80,20 +77,22 @@ protected:
     int recomputeCallCount = 0;
 
     void SetUp() override {
-        txn = std::make_unique<app::TransactionManager>(doc, graph);
         engine = std::make_unique<engine::RecomputeEngine>(doc, graph);
-
-        // Wire RecomputeEngine as the transaction commit callback
-        txn->setRecomputeCallback([this](const std::vector<foundation::UUID>& dirtyIds) {
-            engine->recompute(dirtyIds);
-            ++recomputeCallCount;
-        });
 
         // Capture generated shapes
         engine->setSceneUpdateCallback(
             [this](const std::string& uuid, const TopoDS_Shape& shape) {
                 generatedShapes[uuid] = shape;
             });
+    }
+
+    /// 直接修改后触发 recompute（替代旧 TransactionManager 流程）
+    void triggerRecompute(const foundation::UUID& id) {
+        graph.markDirty(id);
+        auto dirtyIds = graph.collectDirty();
+        engine->recompute(dirtyIds);
+        graph.clearDirty();
+        ++recomputeCallCount;
     }
 
     // Helper: create a PipeSpec and register it
@@ -266,86 +265,15 @@ TEST_F(IntegrationTest, Scenario4_PipeSpecModification) {
     generatedShapes.clear();
     recomputeCallCount = 0;
 
-    // Modify OD via transaction
-    txn->open("修改OD");
-    double oldOd = spec->od();
+    // Modify OD and trigger recompute
     spec->setOd(219.1);
-    txn->recordChange(spec->id(), "OD", oldOd, 219.1);
-    txn->commit();
+    triggerRecompute(spec->id());
 
     // Transaction should have triggered recompute
     EXPECT_GE(recomputeCallCount, 1);
 
     // Verify the shapes were regenerated (with new OD they'll differ)
     EXPECT_FALSE(generatedShapes.empty());
-}
-
-// ============================================================
-// Scenario 5: Undo/Redo — Full cycle with geometry recompute
-// ============================================================
-
-TEST_F(IntegrationTest, Scenario5_UndoRedo) {
-    auto spec = makeSpec("Spec-D", 114.3, 6.0);
-
-    auto p0 = makePoint("A00", model::PipePointType::Run,
-                         gp_Pnt(0, 0, 0), spec);
-    auto p1 = makePoint("A01", model::PipePointType::Run,
-                         gp_Pnt(800, 0, 0), spec);
-
-    auto seg = std::make_shared<model::Segment>("S1");
-    seg->addPoint(p0);
-    seg->addPoint(p1);
-
-    auto route = std::make_shared<model::Route>("R1");
-    route->addSegment(seg);
-    doc.addObject(seg);
-    doc.addObject(route);
-
-    // Step 1: Modify OD 114.3 → 219.1
-    txn->open("Step1: 修改OD");
-    spec->setOd(219.1);
-    txn->recordChange(spec->id(), "OD", 114.3, 219.1);
-    txn->commit();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    // Step 2: Modify wall thickness 6.0 → 10.0
-    txn->open("Step2: 修改壁厚");
-    spec->setWallThickness(10.0);
-    txn->recordChange(spec->id(), "wallThickness", 6.0, 10.0);
-    txn->commit();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 10.0);
-
-    EXPECT_EQ(txn->undoStackSize(), 2u);
-
-    // Undo Step2: WT back to 6.0
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 6.0);
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1); // OD unchanged
-
-    // Undo Step1: OD back to 114.3
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->od(), 114.3);
-    EXPECT_FALSE(txn->canUndo());
-    EXPECT_TRUE(txn->canRedo());
-
-    // Redo Step1: OD → 219.1
-    txn->redo();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    // Redo Step2: WT → 10.0
-    txn->redo();
-    EXPECT_DOUBLE_EQ(spec->wallThickness(), 10.0);
-    EXPECT_FALSE(txn->canRedo());
-
-    // New commit after undo clears redo stack
-    txn->undo();
-    txn->undo();
-    txn->open("Step3: 新OD");
-    spec->setOd(323.9);
-    txn->recordChange(spec->id(), "OD", 114.3, 323.9);
-    txn->commit();
-    EXPECT_FALSE(txn->canRedo()); // redo cleared
-    EXPECT_DOUBLE_EQ(spec->od(), 323.9);
 }
 
 // ============================================================
@@ -553,33 +481,19 @@ TEST_F(IntegrationTest, EndToEnd_FullPipeline) {
     auto warnings = validator.validateAll(*route);
     EXPECT_TRUE(warnings.empty());
 
-    // --- Phase 5: Modify OD via transaction ---
+    // --- Phase 5: Modify OD and trigger recompute ---
     generatedShapes.clear();
-    txn->open("修改OD到219.1");
-    double oldOd = spec->od();
     spec->setOd(219.1);
-    txn->recordChange(spec->id(), "OD", oldOd, 219.1);
-    txn->commit();
+    triggerRecompute(spec->id());
 
     // All points should be recomputed since they depend on spec
     EXPECT_FALSE(generatedShapes.empty());
 
-    // --- Phase 6: Undo the OD change ---
-    generatedShapes.clear();
-    txn->undo();
-    EXPECT_DOUBLE_EQ(spec->od(), 168.3);
-    // Undo should also trigger recompute
-    EXPECT_FALSE(generatedShapes.empty());
-
-    // Redo
-    txn->redo();
-    EXPECT_DOUBLE_EQ(spec->od(), 219.1);
-
-    // --- Phase 7: Save project ---
+    // --- Phase 6: Save project ---
     const std::string jsonPath = tempPath("e2e.json");
     ASSERT_TRUE(app::ProjectSerializer::save(doc, jsonPath));
 
-    // --- Phase 8: Load project ---
+    // --- Phase 7: Load project ---
     auto loaded = app::ProjectSerializer::load(jsonPath);
     ASSERT_NE(loaded, nullptr);
 
@@ -590,10 +504,10 @@ TEST_F(IntegrationTest, EndToEnd_FullPipeline) {
 
     auto loadedSpecs = loaded->findByType<model::PipeSpec>();
     ASSERT_EQ(loadedSpecs.size(), 1u);
-    // Note: after redo, OD should be 219.1
+    // OD was modified to 219.1 in Phase 5
     EXPECT_DOUBLE_EQ(loadedSpecs[0]->od(), 219.1);
 
-    // --- Phase 9: Recompute loaded document ---
+    // --- Phase 8: Recompute loaded document ---
     app::DependencyGraph loadedGraph;
     engine::RecomputeEngine loadedEngine(*loaded, loadedGraph);
 
@@ -605,7 +519,7 @@ TEST_F(IntegrationTest, EndToEnd_FullPipeline) {
     loadedEngine.recomputeAll();
     EXPECT_FALSE(loadedShapes.empty());
 
-    // --- Phase 10: STEP export from loaded document ---
+    // --- Phase 9: STEP export from loaded document ---
     const std::string stepPath = tempPath("e2e.step");
     ASSERT_TRUE(app::StepExporter::exportAll(*loaded, stepPath));
 
@@ -696,7 +610,7 @@ TEST_F(IntegrationTest, WorkbenchManagerIntegration) {
 }
 
 // ============================================================
-// Cross-cutting: Dependency graph + transaction + recompute chain
+// Cross-cutting: Dependency graph + recompute chain
 // ============================================================
 
 TEST_F(IntegrationTest, DependencyChain_SpecToPipePointRecompute) {
@@ -726,11 +640,8 @@ TEST_F(IntegrationTest, DependencyChain_SpecToPipePointRecompute) {
     recomputeCallCount = 0;
 
     // Modify spec should mark all 5 points dirty
-    txn->open("修改Spec");
-    double oldOd = spec->od();
     spec->setOd(323.9);
-    txn->recordChange(spec->id(), "OD", oldOd, 323.9);
-    txn->commit();
+    triggerRecompute(spec->id());
 
     EXPECT_GE(recomputeCallCount, 1);
     // Should have recomputed multiple points (not just the spec)

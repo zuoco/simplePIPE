@@ -5,9 +5,12 @@
 
 #include "app/Document.h"
 #include "app/DependencyGraph.h"
-#include "app/TransactionManager.h"
 #include "app/SelectionManager.h"
 #include "app/WorkbenchManager.h"
+#include "command/CommandStack.h"
+#include "command/CommandRegistry.h"
+#include "command/CommandContext.h"
+#include "engine/TopologyManager.h"
 
 #include <memory>
 #include <mutex>
@@ -44,15 +47,26 @@ public:
 
     Document&           document()           { return *document_; }
     DependencyGraph&    dependencyGraph()     { return *dependencyGraph_; }
-    TransactionManager& transactionManager()  { return *transactionManager_; }
     SelectionManager&   selectionManager()    { return *selectionManager_; }
     WorkbenchManager&   workbenchManager()    { return *workbenchManager_; }
 
+    command::CommandStack&    commandStack()    { return *commandStack_; }
+    command::CommandRegistry& commandRegistry() { return *commandRegistry_; }
+    engine::TopologyManager&  topologyManager() { return *topologyManager_; }
+
     const Document&           document()           const { return *document_; }
     const DependencyGraph&    dependencyGraph()     const { return *dependencyGraph_; }
-    const TransactionManager& transactionManager()  const { return *transactionManager_; }
     const SelectionManager&   selectionManager()    const { return *selectionManager_; }
     const WorkbenchManager&   workbenchManager()    const { return *workbenchManager_; }
+
+    /// 便利方法：构建命令执行上下文，供 AppController、TableModel 等调用方使用
+    command::CommandContext createCommandContext() {
+        return command::CommandContext{
+            document_.get(),
+            dependencyGraph_.get(),
+            topologyManager_.get()
+        };
+    }
 
     // 禁止拷贝和移动
     Application(const Application&) = delete;
@@ -66,9 +80,11 @@ private:
 
     std::unique_ptr<Document>           document_;
     std::unique_ptr<DependencyGraph>    dependencyGraph_;
-    std::unique_ptr<TransactionManager> transactionManager_;
     std::unique_ptr<SelectionManager>   selectionManager_;
     std::unique_ptr<WorkbenchManager>   workbenchManager_;
+    std::unique_ptr<command::CommandStack>    commandStack_;
+    std::unique_ptr<command::CommandRegistry> commandRegistry_;
+    std::unique_ptr<engine::TopologyManager>  topologyManager_;
 
     static Application* instance_;
     static std::once_flag initFlag_;

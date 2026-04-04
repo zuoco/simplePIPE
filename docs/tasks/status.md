@@ -65,6 +65,61 @@
 | T44 | AnalysisWorkbench 工作台 | `done` | T33, T39, T42 | **Opus** | 2026-03-29 |
 | T45 | 端到端集成测试 | `done` | T41, T43, T44 | **Opus** | 2026-03-29 |
 
+### 三期任务 (Phase 3 — 命令模式)
+
+> **设计文档**: `docs/archive/task-specs/command-pattern-design.md` (v3.0, 已归档)
+
+| ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
+|----|--------|------|------|---------|---------|
+| T0 | Variant 类型扩展 (bool/Vec3) | `done` | — | Sonnet 4.6 | 2026-04-04 |
+| T1 | DocumentObject setProperty/getProperty 虚方法 | `done` | T0 | Sonnet 4.6 | 2026-04-04 |
+| T2 | Command 基类 + MacroCommand + PropertyApplier | `done` | T1 | Sonnet 4.6 | 2026-04-04 |
+| T3 | CommandStack 命令栈管理器 | `done` | T2 | **Opus 4.6** | 2026-04-04 |
+| T4 | PropertyCommands (SetProperty/BatchSetProperty) | `done` | T2, T3 | Sonnet 4.6 | 2026-04-04 |
+| T5 | CommandRegistry 统一工厂 + 序列化 | `done` | T4 | Sonnet 4.6 | 2026-04-04 |
+| T6 | Application 集成 + main.cpp 信号连线 | `done` | T3, T5 | Sonnet 4.6 | 2026-04-04 |
+| T7 | UI 原子迁移 (AppController/TableModel) | `done` | T4, T6 | **Opus 4.6** | 2026-04-04 |
+| T8 | 结构命令 (CreatePipePoint/DeletePipePoint) | `done` | T3, T5 | **Opus 4.6** | 2026-04-04 |
+| T9 | InsertComponentCommand + 完整迁移 | `done` | T7, T8 | **Opus 4.6** | 2026-04-04 |
+| T10 | 清理 TransactionManager | `done` | T9 | Sonnet 4.6 | 2026-04-05 |
+
+### 四期任务 (Phase 4 — lib/apps 架构重构)
+
+> **实施计划书**: `docs/lib-app-refactor-plan.md`
+>  
+> **任务卡目录**: `docs/tasks/phase4-lib-app-refactor/`
+
+| ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
+|----|--------|------|------|---------|---------|
+| T50 | 冻结目录与目标命名规则 | `ready` | — | GPT-5.4 | — |
+| T51 | 冻结 include/import 规则 | `pending` | T50 | GPT-5.4 | — |
+| T52 | 冻结线程安全边界 | `pending` | T50 | GPT-5.4 | — |
+| T53 | 设计 lib/apps 顶层 CMake 拓扑 | `pending` | T50, T51, T52 | GPT-5.4 | — |
+| T54 | 解除 RecomputeEngine 源文件级拼接 | `pending` | T53 | GPT-5.4 | — |
+| T55 | 设计过渡兼容层 | `pending` | T53 | GPT-5.4 | — |
+| T56 | 建立 src/lib 目录骨架 | `pending` | T53 | GPT-5.4 | — |
+| T57 | 建立 src/apps/pipecad 目录骨架 | `pending` | T53 | GPT-5.4 | — |
+| T58 | 迁移 foundation 到 src/lib/base | `pending` | T56 | GPT-5.4 | — |
+| T59 | 迁移 geometry 到 src/lib/platform/occt | `pending` | T56 | GPT-5.4 | — |
+| T60 | 拆分 visualization 与 vtk-visualization | `pending` | T56, T57 | GPT-5.4 | — |
+| T61 | 迁移 app 与 command 到 lib | `pending` | T56 | GPT-5.4 | — |
+| T62 | 迁移 model/engine/ui/main 到 apps | `pending` | T57, T61 | GPT-5.4 | — |
+| T63 | 为 lib/base 建立第一批模块接口单元 | `pending` | T58 | GPT-5.4 | — |
+| T64 | 为 lib/platform 建立 facade 模块 | `pending` | T59, T60, T63 | GPT-5.4 | — |
+| T65 | 为 lib/runtime 建立核心模块 | `pending` | T61, T63 | GPT-5.4 | — |
+| T66 | 为 lib/framework 建立框架模块 | `pending` | T60, T61, T65 | GPT-5.4 | — |
+| T67 | 定义 DocumentSnapshot 契约 | `pending` | T61 | GPT-5.4 | — |
+| T68 | 建立任务队列与线程工作组 | `pending` | T52, T65 | GPT-5.4 | — |
+| T69 | 建立结果回投与任务版本控制 | `pending` | T68 | GPT-5.4 | — |
+| T70 | 为共享状态补齐同步策略 | `pending` | T67, T69 | GPT-5.4 | — |
+| T71 | 重构 RecomputeEngine 异步管线 | `pending` | T62, T67, T68, T69, T70 | GPT-5.4 | — |
+| T72 | 后台化 ShapeMesher 与批量重算 | `pending` | T71 | GPT-5.4 | — |
+| T73 | 后台化加载恢复与保存前准备 | `pending` | T68, T69, T71 | GPT-5.4 | — |
+| T74 | 建立并发回归测试 | `pending` | T71, T72, T73 | GPT-5.4 | — |
+| T75 | 清理旧目录兼容层 | `pending` | T62, T64, T65, T66, T74 | GPT-5.4 | — |
+| T76 | 固化 pipecad app 模板 | `pending` | T62, T75 | GPT-5.4 | — |
+| T77 | 更新文档与开发规范 | `pending` | T75 | GPT-5.4 | — |
+
 ---
 
 ## 完成记录索引
@@ -73,7 +128,6 @@
 
 | 文件 | 覆盖范围 |
 |------|---------|
-| `docs/tasks/log/t01-t25.md` | Phase 1: T01–T25（构建系统、Foundation、几何、模型、场景、应用层、UI） |
-| `docs/tasks/log/t30-t45.md` | Phase 2: T30–T45（ViewManager、载荷、工作台、VTK、序列化扩展） |
-
-> **Phase 3 任务完成记录**: 每 10 个任务一个文件，命名规则 `log/t50-t59.md`、`log/t60-t69.md`，以此类推。
+| `docs/archive/task-logs/t01-t25.md` | Phase 1: T01–T25（构建系统、Foundation、几何、模型、场景、应用层、UI） |
+| `docs/archive/task-logs/t30-t45.md` | Phase 2: T30–T45（ViewManager、载荷、工作台、VTK、序列化扩展） |
+| `docs/archive/task-logs/command-pattern.md` | Phase 3: T0–T10（命令模式架构实现） |

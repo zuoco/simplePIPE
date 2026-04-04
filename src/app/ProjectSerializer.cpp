@@ -78,6 +78,12 @@ json variantToJson(const foundation::Variant& value) {
     if (const auto* i = std::get_if<int>(&value)) {
         return json{{"type", "int"}, {"value", *i}};
     }
+    if (const auto* b = std::get_if<bool>(&value)) {
+        return json{{"type", "bool"}, {"value", *b}};
+    }
+    if (const auto* vec = std::get_if<foundation::math::Vec3>(&value)) {
+        return json{{"type", "vec3"}, {"x", vec->x}, {"y", vec->y}, {"z", vec->z}};
+    }
     return json{{"type", "string"}, {"value", std::get<std::string>(value)}};
 }
 
@@ -86,6 +92,14 @@ foundation::Variant jsonToVariant(const json& j) {
     if (type == "double") return j.at("value").get<double>();
     if (type == "int") return j.at("value").get<int>();
     if (type == "string") return j.at("value").get<std::string>();
+    if (type == "bool") return j.at("value").get<bool>();
+    if (type == "vec3") {
+        return foundation::math::Vec3{
+            j.at("x").get<double>(),
+            j.at("y").get<double>(),
+            j.at("z").get<double>()
+        };
+    }
     throw std::runtime_error("unsupported variant type: " + type);
 }
 

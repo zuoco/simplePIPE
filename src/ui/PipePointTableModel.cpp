@@ -3,6 +3,8 @@
 
 #include "ui/PipePointTableModel.h"
 
+#include "command/CommandContext.h"
+#include "command/SetPropertyCommand.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
 #include "model/Route.h"
@@ -31,12 +33,12 @@ bool endsWithBendSuffix(const std::string& name)
 } // namespace
 
 PipePointTableModel::PipePointTableModel(app::Document& document,
-                                         app::TransactionManager& transactionManager,
+                                         command::CommandStack& commandStack,
                                          app::SelectionManager& selectionManager,
                                          QObject* parent)
     : QAbstractTableModel(parent)
     , document_(document)
-    , transactionManager_(transactionManager)
+    , commandStack_(commandStack)
     , selectionManager_(selectionManager)
 {
     rebuildRows();
@@ -167,18 +169,17 @@ bool PipePointTableModel::setData(const QModelIndex& index, const QVariant& valu
         return false;
     }
 
-    transactionManager_.open("Edit PipePoint Cell");
+    foundation::Variant oldVal;
+    foundation::Variant newVal;
     bool changed = false;
 
     switch (index.column()) {
     case NameColumn: {
-        const std::string oldValue = point->name();
-        const std::string newValue = value.toString().toStdString();
-        if (oldValue != newValue) {
-            point->setName(newValue);
-            transactionManager_.recordChange(point->id(), "name", oldValue, newValue);
-            changed = true;
-        }
+        oldVal = point->name();
+        const std::string newStr = value.toString().toStdString();
+        if (point->name() == newStr) return false;
+        newVal = newStr;
+        changed = true;
         break;
     }
     case XColumn:
@@ -186,45 +187,24 @@ bool PipePointTableModel::setData(const QModelIndex& index, const QVariant& valu
     case ZColumn: {
         bool ok = false;
         const double newCoord = value.toDouble(&ok);
-        if (!ok) {
-            transactionManager_.abort();
-            return false;
-        }
-
+        if (!ok) return false;
         const gp_Pnt current = point->position();
         const double oldCoord = (index.column() == XColumn) ? current.X()
-            : (index.column() == YColumn)                     ? current.Y()
-                                                              : current.Z();
-        if (oldCoord != newCoord) {
-            if (index.column() == XColumn) {
-                point->setPosition(gp_Pnt(newCoord, current.Y(), current.Z()));
-                transactionManager_.recordChange(point->id(), "x", oldCoord, newCoord);
-            } else if (index.column() == YColumn) {
-                point->setPosition(gp_Pnt(current.X(), newCoord, current.Z()));
-                transactionManager_.recordChange(point->id(), "y", oldCoord, newCoord);
-            } else {
-                point->setPosition(gp_Pnt(current.X(), current.Y(), newCoord));
-                transactionManager_.recordChange(point->id(), "z", oldCoord, newCoord);
-            }
-            changed = true;
-        }
+            : (index.column() == YColumn) ? current.Y() : current.Z();
+        if (oldCoord == newCoord) return false;
+        oldVal = oldCoord;
+        newVal = newCoord;
+        changed = true;
         break;
     }
     case TypeColumn: {
         model::PipePointType oldType = point->type();
         model::PipePointType newType = oldType;
-        if (!tryParseType(value, newType)) {
-            transactionManager_.abort();
-            return false;
-        }
-
-        if (oldType != newType) {
-            point->setType(newType);
-            transactionManager_.recordChange(point->id(), "type",
-                                             static_cast<int>(oldType),
-                                             static_cast<int>(newType));
-            changed = true;
-        }
+        if (!tryParseType(value, newType)) return false;
+        if (oldType == newType) return false;
+        oldVal = static_cast<int>(oldType);
+        newVal = static_cast<int>(newType);
+        changed = true;
         break;
     }
     case PipeSpecColumn: {
@@ -232,42 +212,40 @@ bool PipePointTableModel::setData(const QModelIndex& index, const QVariant& valu
             ? foundation::variantToString(point->param("pipeSpecId"))
             : std::string{};
         const std::string newSpec = value.toString().toStdString();
-        if (oldSpec != newSpec) {
-            point->setParam("pipeSpecId", newSpec);
-            transactionManager_.recordChange(point->id(), "pipeSpecId", oldSpec, newSpec);
-            changed = true;
-        }
+        if (oldSpec == newSpec) return false;
+        oldVal = oldSpec;
+        newVal = newSpec;
+        changed = true;
         break;
     }
     case BendMultiplierColumn: {
         bool ok = false;
         const double nextMultiplier = value.toDouble(&ok);
-        if (!ok) {
-            transactionManager_.abort();
-            return false;
-        }
-
+        if (!ok) return false;
         const double oldMultiplier = point->hasParam("bendMultiplier")
             ? foundation::variantToDouble(point->param("bendMultiplier"))
             : 0.0;
-        if (!point->hasParam("bendMultiplier") || oldMultiplier != nextMultiplier) {
-            point->setParam("bendMultiplier", nextMultiplier);
-            transactionManager_.recordChange(point->id(), "bendMultiplier", oldMultiplier, nextMultiplier);
-            changed = true;
-        }
+        if (point->hasParam("bendMultiplier") && oldMultiplier == nextMultiplier) return false;
+        oldVal = oldMultiplier;
+        newVal = nextMultiplier;
+        changed = true;
         break;
     }
     default:
-        transactionManager_.abort();
         return false;
     }
 
-    if (!changed) {
-        transactionManager_.abort();
-        return false;
-    }
+    if (!changed) return false;
 
-    transactionManager_.commit();
+    static const std::string columnKey[] = {
+        "name", "x", "y", "z", "type", "pipeSpecId", "bendMultiplier"
+    };
+    const std::string& key = columnKey[index.column()];
+
+    auto cmd = command::SetPropertyCommand::createWithOldValue(point->id(), key, oldVal, newVal);
+    command::CommandContext ctx{&document_, nullptr, nullptr};
+    commandStack_.execute(std::move(cmd), ctx);
+
     emit dataChanged(index, index);
     rebuildRows();
     return true;

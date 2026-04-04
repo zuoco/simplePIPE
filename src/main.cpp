@@ -9,8 +9,9 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
 #include "app/WorkbenchManager.h"
+#include "command/CommandStack.h"
+#include "command/CommandRegistry.h"
 #include "engine/RecomputeEngine.h"
 #include "ui/AppController.h"
 #include "ui/VsgQuickItem.h"
@@ -47,9 +48,10 @@ int main(int argc, char* argv[])
 
     auto& document           = appSingleton.document();
     auto& dependencyGraph    = appSingleton.dependencyGraph();
-    auto& transactionManager = appSingleton.transactionManager();
     auto& selectionManager   = appSingleton.selectionManager();
     auto& workbenchManager   = appSingleton.workbenchManager();
+    auto& commandStack       = appSingleton.commandStack();
+    auto& commandRegistry    = appSingleton.commandRegistry();
 
     document.setName("Untitled");
     workbenchManager.registerWorkbench(std::make_unique<app::CadWorkbench>());
@@ -57,6 +59,9 @@ int main(int argc, char* argv[])
     workbenchManager.registerWorkbench(std::make_unique<app::SpecWorkbench>());
     workbenchManager.registerWorkbench(std::make_unique<app::AnalysisWorkbench>());
     workbenchManager.switchWorkbench("Design");
+
+    // 注册内置命令工厂（SetProperty, BatchSetProperty, Macro）
+    commandRegistry.registerBuiltins();
 
     engine::RecomputeEngine recomputeEngine(document, dependencyGraph);
 
@@ -92,11 +97,26 @@ int main(int argc, char* argv[])
         }
     });
 
-    transactionManager.setRecomputeCallback([&recomputeEngine](const std::vector<foundation::UUID>& dirtyIds) {
+    // ---- CommandStack 信号连线：脏传播 + 场景重算 ----
+    auto recomputeHandler = [&](const std::vector<foundation::UUID>& affectedIds) {
+        for (const auto& id : affectedIds) {
+            dependencyGraph.markDirty(id);
+        }
+        auto dirtyIds = dependencyGraph.collectDirty();
         recomputeEngine.recompute(dirtyIds);
+        dependencyGraph.clearDirty();
+    };
+
+    commandStack.commandCompleted.connect(recomputeHandler);
+    commandStack.commandUndone.connect(recomputeHandler);
+    commandStack.commandRedone.connect(recomputeHandler);
+
+    // ---- sceneRemoveRequested：命令删除对象后通知场景移除节点 ----
+    commandStack.sceneRemoveRequested.connect([&sceneManager](const std::string& uuid) {
+        sceneManager.removeNode(uuid);
     });
 
-    ui::AppController appController(document, transactionManager, selectionManager);
+    ui::AppController appController(document, commandStack, selectionManager);
     ui::WorkbenchController workbenchController(workbenchManager, &viewManager);
 
     QQmlApplicationEngine engine;

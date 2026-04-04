@@ -6,6 +6,7 @@
 #include "foundation/Types.h"
 #include "foundation/Signal.h"
 
+#include <stdexcept>
 #include <string>
 
 namespace model {
@@ -39,6 +40,26 @@ public:
 
     /// 属性变更信号
     foundation::ChangeSignal changed;
+
+    /// 通过 key 设置属性值。返回 true 表示成功，返回 false 表示 key 不被该对象类型识别。
+    /// 基类只处理 "name"。子类可覆写以支持更多属性，未识别的 key 应调用基类并返回其结果。
+    virtual bool setProperty(const std::string& key, const foundation::Variant& value) {
+        if (key == "name") {
+            if (const std::string* s = std::get_if<std::string>(&value)) {
+                setName(*s);
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /// 通过 key 读取属性值。
+    /// @throws std::out_of_range 若 key 不被识别
+    virtual foundation::Variant getProperty(const std::string& key) const {
+        if (key == "name") return name_;
+        throw std::out_of_range("DocumentObject::getProperty: unknown key '" + key + "'");
+    }
 
 protected:
     foundation::UUID id_;

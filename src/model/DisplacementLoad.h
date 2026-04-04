@@ -30,6 +30,18 @@ public:
         changed.emit();
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "translation") { setTranslation(foundation::variantToVec3(value)); return true; }
+        if (key == "rotation")    { setRotation(foundation::variantToVec3(value));    return true; }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "translation") return translation_;
+        if (key == "rotation")    return rotation_;
+        return DocumentObject::getProperty(key);
+    }
+
 private:
     foundation::math::Vec3 translation_ = {0.0, 0.0, 0.0}; ///< 强制平移 (mm)
     foundation::math::Vec3 rotation_    = {0.0, 0.0, 0.0}; ///< 强制转角 (deg)
