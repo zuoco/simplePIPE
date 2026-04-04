@@ -4,7 +4,12 @@
 #include "ui/AppController.h"
 
 #include "app/Application.h"
+#include "command/InsertComponentCommand.h"
+#include "command/DeletePipePointCommand.h"
+#include "command/MacroCommand.h"
 #include "model/PipePoint.h"
+#include "model/Route.h"
+#include "model/Segment.h"
 #include "ui/PipePointTableModel.h"
 #include "ui/PipeSpecModel.h"
 #include "ui/PropertyModel.h"
@@ -200,7 +205,25 @@ void AppController::deleteSelected()
     if (selectionManager_.selected().empty()) {
         return;
     }
-    emit deleteRequested(selectedUuids());
+
+    auto ctx = app::Application::instance().createCommandContext();
+    const auto& selected = selectionManager_.selected();
+
+    if (selected.size() == 1) {
+        // 单点删除
+        auto cmd = command::DeletePipePointCommand::create(selected.front());
+        commandStack_.execute(std::move(cmd), ctx);
+    } else {
+        // 多点删除：包装为 MacroCommand
+        auto macro = std::make_unique<command::MacroCommand>("删除选中对象");
+        for (const auto& id : selected) {
+            macro->addCommand(command::DeletePipePointCommand::create(id));
+        }
+        commandStack_.execute(std::move(macro), ctx);
+    }
+
+    selectionManager_.clear();
+    emit transactionStateChanged();
 }
 
 void AppController::selectByUuid(const QString& uuid)
@@ -227,7 +250,74 @@ void AppController::multiSelect(const QStringList& uuids, bool append)
 
 void AppController::insertComponent(const QString& componentType)
 {
-    emit insertComponentRequested(componentType);
+    const std::string compType = componentType.toStdString();
+
+    // 检查是否为已支持的管点组件类型
+    try {
+        command::InsertComponentCommand::mapComponentType(compType);
+    } catch (...) {
+        // 不支持的组件类型（如 insert-beam, insert-rigid-support），暂不处理
+        return;
+    }
+
+    // 查找目标路由和段
+    auto routes = document_.findByType<model::Route>();
+    if (routes.empty()) {
+        return;  // 无路由，无法插入
+    }
+
+    model::Route* targetRoute = nullptr;
+    model::Segment* targetSeg = nullptr;
+
+    // 优先从选中对象推导路由/段
+    if (!selectionManager_.selected().empty()) {
+        const auto& selId = selectionManager_.selected().front();
+        auto* selObj = document_.findObject(selId);
+        if (auto* pp = dynamic_cast<model::PipePoint*>(selObj)) {
+            // 查找包含此管点的路由和段
+            for (auto* r : routes) {
+                for (const auto& s : r->segments()) {
+                    for (const auto& p : s->points()) {
+                        if (p->id() == selId) {
+                            targetRoute = r;
+                            targetSeg = s.get();
+                            break;
+                        }
+                    }
+                    if (targetSeg) break;
+                }
+                if (targetRoute) break;
+            }
+        }
+    }
+
+    // 回退：使用第一个路由的第一个段
+    if (!targetRoute) {
+        targetRoute = routes.front();
+        if (!targetRoute->segments().empty()) {
+            targetSeg = targetRoute->segments().front().get();
+        } else {
+            return;  // 路由无段，无法插入
+        }
+    }
+
+    // 确定插入坐标：若段有管点，偏移最后一个管点；否则原点
+    double x = 0.0, y = 0.0, z = 0.0;
+    if (targetSeg->pointCount() > 0) {
+        auto* lastPt = targetSeg->pointAt(targetSeg->pointCount() - 1);
+        if (lastPt) {
+            x = lastPt->position().X() + 1000.0;
+            y = lastPt->position().Y();
+            z = lastPt->position().Z();
+        }
+    }
+
+    auto ctx = app::Application::instance().createCommandContext();
+    auto cmd = command::InsertComponentCommand::create(
+        compType, targetRoute->id(), targetSeg->id(),
+        x, y, z);
+    commandStack_.execute(std::move(cmd), ctx);
+    emit transactionStateChanged();
 }
 
 void AppController::wireCallbacks()

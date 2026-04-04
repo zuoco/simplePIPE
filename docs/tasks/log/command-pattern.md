@@ -187,3 +187,24 @@
 
 **已知限制**:
 - 无
+
+### T9 — InsertComponentCommand + 完整迁移 (2026-04-04)
+
+**产出文件**: `InsertComponentCommand.h` · `InsertComponentCommand.cpp` · `CommandRegistry.cpp`（追加注册） · `AppController.h`（移除信号） · `AppController.cpp`（迁移插入/删除） · `main.qml`（移除信号处理） · `test_insert_component.cpp` · `test_qml_ui_panels.cpp`（更新）
+
+**接口**: → `src/command/InsertComponentCommand.h`, `src/ui/AppController.h`
+
+**设计决策**:
+- `InsertComponentCommand` 继承 `MacroCommand`，`type()` 返回 `CommandType::Macro`（不覆写）
+- `componentType_` 字段区分组件类型，`toJson()` 额外输出 `"type": "InsertComponent"` + `"componentType"` 字段
+- 静态 `mapComponentType()` 映射：insert-pipe→Run, insert-elbow→Bend, insert-tee→Tee, insert-reducer→Reducer, insert-valve→Valve
+- 构造时自动组合 `CreatePipePointCommand` 作为子命令
+- `CommandRegistry` 注册两个入口：`"InsertComponent"` 直接路由 + `"Macro"` 工厂检查 `componentType` 字段路由
+- `AppController::insertComponent()` 迁移：mapComponentType 校验 → findByType<Route> 查找路由/段 → 选中对象推导插入位置 → InsertComponentCommand::create → commandStack_.execute
+- `AppController::deleteSelected()` 迁移：单点 → DeletePipePointCommand，多点 → MacroCommand 包装
+- 移除 `insertComponentRequested` 和 `deleteRequested` 信号，main.qml 移除 `onInsertComponentRequested` 处理器
+- 对未知组件类型（insert-beam 等）静默忽略，无路由时安全返回
+
+**已知限制**:
+- insert-flange 尚未实现（需要 CreateAccessoryCommand，属于后续迭代）
+- 未支持的组件类型（insert-beam, insert-rigid-support 等）静默忽略

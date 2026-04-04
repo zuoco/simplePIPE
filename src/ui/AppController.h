@@ -82,11 +82,8 @@ signals:
     void transactionStateChanged();
     void mouseCoordChanged();
     void zoomLevelChanged();
-    void deleteRequested(const QStringList& uuids);
     void editModeRequested();
     void viewModeRequested();
-    /// 通知上层：用户请求插入指定类型的元件
-    void insertComponentRequested(const QString& componentType);
 
 private:
     app::Document& document_;

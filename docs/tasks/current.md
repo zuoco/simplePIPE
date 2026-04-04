@@ -8,57 +8,53 @@
 ## 当前状态
 
 Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
-Phase 3 命令模式 T0–T7 已完成。
+Phase 3 命令模式 T0–T9 已完成。
 
-**T7 完成内容**：
-- 逐项复核 T6 完成的 UI 层迁移，确认 `AppController`、`PipePointTableModel`、`PipeSpecModel` 所有写操作全部通过 `CommandStack + SetPropertyCommand` 路径
-- 确认 `src/ui/` 中无任何 `TransactionManager` 引用残留
-- 新增 12 项 undo/redo 专项测试（8 项 TableModel + 4 项 AppController）
-- 全量验证：`pixi run test` — **39/39** 测试通过
+**T9 完成内容**：
+- 实现 `InsertComponentCommand`（继承 MacroCommand，componentType→PipePointType 映射）
+- 迁移 `AppController::insertComponent()` → InsertComponentCommand + commandStack_.execute()
+- 迁移 `AppController::deleteSelected()` → DeletePipePointCommand + commandStack_.execute()
+- 移除 `insertComponentRequested` / `deleteRequested` 信号
+- 注册到 `CommandRegistry::registerBuiltins()`（InsertComponent + Macro 路由）
+- 编译通过 125/125，测试通过 **41/41**
 
 **关键上下文**：
-- UI 层写操作完全通过 CommandStack，Phase 2 (原子迁移) 验证完成
-- 命令执行后的重算路径：`CommandStack` 信号 → `DependencyGraph` 脏标记 → `RecomputeEngine`
-- 删除对象的场景同步由 `CommandStack::sceneRemoveRequested` 统一触发
-- `TopologyManager` 已在 Application 单例中初始化，可通过 `createCommandContext()` 获取
+- `TransactionManager` 不再被任何 UI 代码调用
+- 所有结构命令（Create/Delete PipePoint, InsertComponent）和属性命令（SetProperty, BatchSetProperty）均已实现并注册
+- `AppController` 完全使用 `CommandStack` 替代 `TransactionManager`（undo/redo/insertComponent/deleteSelected）
+- `PipePointTableModel` 和 `PipeSpecModel` 也已在 T7 迁移到 `CommandStack`
+- `TransactionManager` 仍存在于代码中（Application 单例持有），但不再被调用
+- main.cpp 中 `transactionManager.setRecomputeCallback(...)` 仍存在但不影响新流程
 
 ## 下一个任务
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T8 |
-| **任务名** | 结构命令 (CreatePipePoint/DeletePipePoint) |
-| **推荐模型** | Opus 4.6 |
-| **前置依赖** | T3, T5（均已完成） |
+| **任务 ID** | T10 |
+| **任务名** | 清理 TransactionManager |
+| **推荐模型** | Sonnet 4.6 |
+| **前置依赖** | T9（已完成） |
 
 ### 具体工作
 
-1. 实现 `CreatePipePointCommand`：创建管点 + 关联 PipeSpec + 加入 Segment + 注册 DependencyGraph 依赖
-2. 实现 `DeletePipePointCommand`：捕获完整 PipePointState → 删除 → undo 时用 `setIdForDeserialization()` 恢复原 UUID
-3. 两个命令均需支持 JSON 序列化/反序列化，注册到 `CommandRegistry`
-4. Tee 类型管点需处理分支段的创建和恢复
-5. Delete 需捕获附属构件状态用于 undo 恢复
-6. 编写完整单元测试覆盖 execute/undo/redo、Tee 分支、UUID 稳定性、DependencyGraph 注册、JSON round-trip
+1. 从 `Application` 单例中移除 `TransactionManager` 成员和访问方法
+2. 从 `main.cpp` 中移除 `transactionManager.setRecomputeCallback(...)` 连线
+3. 移除或弃用 `TransactionManager` 类本身（若无其他依赖）
+4. 清理所有残余引用：头文件 include、前向声明
+5. 确保编译通过、全部测试通过
+6. 验证 undo/redo 流程完整可用（通过 CommandStack）
 
 ### 设计参考
 
-- `docs/command-pattern-design.md` §3.3（CreatePipePointCommand）和 §3.4（DeletePipePointCommand）
-- `PipePointState` 快照结构需包含：id、name、type、xyz、pipeSpecId、typeParams、routeId、segmentId、indexInSegment、branchSegmentId、accessories
+- `docs/command-pattern-design.md` §8（迁移策略 — 最终清理阶段）
 
 ## 需要读取的文件
 
-1. `docs/tasks/status.md`（确认 T8 状态与依赖）
-2. `docs/command-pattern-design.md` §3.3–§3.4（CreatePipePoint/DeletePipePoint 设计规格）
-3. `src/command/Command.h`（基类接口）
-4. `src/command/CommandContext.h`（上下文结构）
-5. `src/command/CommandStack.h`（命令栈信号）
-6. `src/command/CommandRegistry.h`（工厂注册）
-7. `src/command/SetPropertyCommand.h`（参考属性命令实现模式）
-8. `src/command/MacroCommand.h`（宏命令基类）
-9. `src/model/PipePoint.h`（管点模型，setIdForDeserialization）
-10. `src/model/Segment.h`（段操作：addPoint/removePoint/insertPoint）
-11. `src/model/Route.h`（路由操作）
-12. `src/engine/TopologyManager.h`（appendPoint/removePoint 拓扑操作）
-13. `src/app/DependencyGraph.h`（addDependency/removeObject）
-14. `src/app/Document.h`（addObject/removeObject/findObject）
-15. `src/app/Application.h`（createCommandContext）
+1. `docs/tasks/status.md`（确认 T10 状态与依赖）
+2. `docs/command-pattern-design.md` §8（清理策略）
+3. `src/app/Application.h`（TransactionManager 成员 — 待移除）
+4. `src/app/Application.cpp`（构造函数中的 TransactionManager 初始化）
+5. `src/main.cpp`（transactionManager 连线 — 待移除）
+6. `src/app/TransactionManager.h`（类定义 — 评估是否可完全移除）
+7. `src/app/TransactionManager.cpp`（实现 — 评估引用关系）
+8. `tests/test_app_core.cpp`（可能有 TransactionManager 测试需要移除/更新）

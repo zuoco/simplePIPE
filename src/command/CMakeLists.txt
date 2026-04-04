@@ -5,6 +5,7 @@ add_library(command STATIC
     BatchSetPropertyCommand.cpp
     CreatePipePointCommand.cpp
     DeletePipePointCommand.cpp
+    InsertComponentCommand.cpp
     CommandRegistry.cpp
 )
 

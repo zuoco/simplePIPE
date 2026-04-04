@@ -477,3 +477,17 @@ target_link_libraries(test_structural_commands
 target_include_directories(test_structural_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_structural_commands PRIVATE cxx_std_17)
 add_test(NAME StructuralCommands COMMAND test_structural_commands)
+
+# InsertComponentCommand 测试 — T9
+add_executable(test_insert_component test_insert_component.cpp)
+target_link_libraries(test_insert_component
+    PRIVATE
+        command
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_insert_component PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_insert_component PRIVATE cxx_std_17)
+add_test(NAME InsertComponent COMMAND test_insert_component)

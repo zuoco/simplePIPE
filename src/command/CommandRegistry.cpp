@@ -6,6 +6,7 @@
 #include "command/BatchSetPropertyCommand.h"
 #include "command/CreatePipePointCommand.h"
 #include "command/DeletePipePointCommand.h"
+#include "command/InsertComponentCommand.h"
 #include "command/MacroCommand.h"
 
 #include <stdexcept>
@@ -230,6 +231,10 @@ void CommandRegistry::registerBuiltins() {
     // 指向 this 会导致 lambda 捕获问题，此处通过 factory 参数访问 *this
     // 使用 std::function 存储后下面需递归反序列化，因此延迟到 deserialize 时调用
     registerFactory("Macro", [this](const nlohmann::json& j) -> std::unique_ptr<Command> {
+        // 检查是否为 InsertComponent 子类型
+        if (j.contains("componentType")) {
+            return InsertComponentCommand::fromJson(j);
+        }
         std::string desc = j.value("description", "");
         auto macro = std::make_unique<MacroCommand>(desc);
         // 若有 children 字段则递归反序列化子命令
@@ -239,6 +244,11 @@ void CommandRegistry::registerBuiltins() {
             }
         }
         return macro;
+    });
+
+    // ---- InsertComponent（type 写为 "InsertComponent"，路由到专用反序列化）----
+    registerFactory("InsertComponent", [](const nlohmann::json& j) -> std::unique_ptr<Command> {
+        return InsertComponentCommand::fromJson(j);
     });
 }
 
