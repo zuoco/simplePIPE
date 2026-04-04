@@ -8,52 +8,57 @@
 ## 当前状态
 
 Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
-Phase 3 命令模式 T0、T1、T2、T3、T4、T5、T6 已完成。
+Phase 3 命令模式 T0–T7 已完成。
 
-**T6 完成内容**：
-- `src/app/Application.h/.cpp`：新增 `CommandStack`、`CommandRegistry`、`TopologyManager` 成员与访问器
-- `Application::createCommandContext()`：统一构建 `CommandContext`
-- `src/main.cpp`：调用 `commandRegistry.registerBuiltins()`，并完成 `CommandStack` 四类信号连线（完成/撤销/重做/场景删除）
-- `src/ui/AppController.h/.cpp`：构造函数改为接收 `CommandStack&`；undo/redo/canUndo/canRedo 全迁移到命令栈
-- `src/ui/PipePointTableModel.*`、`src/ui/PipeSpecModel.*`：属性编辑改为 `SetPropertyCommand::createWithOldValue()` + `commandStack.execute()`
-- `tests/test_app_core.cpp`、`tests/test_workbench_bridge.cpp`、`tests/test_qml_models.cpp`、`tests/test_qml_ui_panels.cpp`：按新接口与行为同步调整
-- 全量验证：`pixi run test` 通过，**39/39** 测试通过
+**T7 完成内容**：
+- 逐项复核 T6 完成的 UI 层迁移，确认 `AppController`、`PipePointTableModel`、`PipeSpecModel` 所有写操作全部通过 `CommandStack + SetPropertyCommand` 路径
+- 确认 `src/ui/` 中无任何 `TransactionManager` 引用残留
+- 新增 12 项 undo/redo 专项测试（8 项 TableModel + 4 项 AppController）
+- 全量验证：`pixi run test` — **39/39** 测试通过
 
 **关键上下文**：
-- UI 层（`AppController`、`PipePointTableModel`、`PipeSpecModel`）已不再依赖 `TransactionManager`
-- 命令执行后的重算路径已统一为：`CommandStack` 信号 -> `DependencyGraph` 脏标记 -> `RecomputeEngine`
+- UI 层写操作完全通过 CommandStack，Phase 2 (原子迁移) 验证完成
+- 命令执行后的重算路径：`CommandStack` 信号 → `DependencyGraph` 脏标记 → `RecomputeEngine`
 - 删除对象的场景同步由 `CommandStack::sceneRemoveRequested` 统一触发
+- `TopologyManager` 已在 Application 单例中初始化，可通过 `createCommandContext()` 获取
 
 ## 下一个任务
 
 | 属性 | 值 |
 |------|---|
-| **任务 ID** | T7 |
-| **任务名** | UI 原子迁移 (AppController/TableModel) |
+| **任务 ID** | T8 |
+| **任务名** | 结构命令 (CreatePipePoint/DeletePipePoint) |
 | **推荐模型** | Opus 4.6 |
-| **前置依赖** | T4, T6（均已完成） |
+| **前置依赖** | T3, T5（均已完成） |
 
 ### 具体工作
 
-1. 对照 `docs/command-pattern-design.md` 的 Phase 2 要求，逐项复核 UI 层迁移是否完整（避免半迁移状态）。
-2. 重点确认 `AppController`、`PipePointTableModel`、`PipeSpecModel` 的所有写操作都通过 `CommandStack + CommandContext` 路径执行。
-3. 确认 UI 侧不再调用 `TransactionManager`（包括直接调用和间接封装调用）。
-4. 补充或收敛测试断言，确保 undo/redo、栈状态信号、表格编辑行为稳定。
-5. 运行全量测试并完成 T7 状态更新与日志追加。
+1. 实现 `CreatePipePointCommand`：创建管点 + 关联 PipeSpec + 加入 Segment + 注册 DependencyGraph 依赖
+2. 实现 `DeletePipePointCommand`：捕获完整 PipePointState → 删除 → undo 时用 `setIdForDeserialization()` 恢复原 UUID
+3. 两个命令均需支持 JSON 序列化/反序列化，注册到 `CommandRegistry`
+4. Tee 类型管点需处理分支段的创建和恢复
+5. Delete 需捕获附属构件状态用于 undo 恢复
+6. 编写完整单元测试覆盖 execute/undo/redo、Tee 分支、UUID 稳定性、DependencyGraph 注册、JSON round-trip
+
+### 设计参考
+
+- `docs/command-pattern-design.md` §3.3（CreatePipePointCommand）和 §3.4（DeletePipePointCommand）
+- `PipePointState` 快照结构需包含：id、name、type、xyz、pipeSpecId、typeParams、routeId、segmentId、indexInSegment、branchSegmentId、accessories
 
 ## 需要读取的文件
 
-1. `docs/tasks/status.md`（确认 T7 状态与依赖）
-2. `docs/command-pattern-design.md` §8（Phase 2 迁移要求）
-3. `src/ui/AppController.h`
-4. `src/ui/AppController.cpp`
-5. `src/ui/PipePointTableModel.h`
-6. `src/ui/PipePointTableModel.cpp`
-7. `src/ui/PipeSpecModel.h`
-8. `src/ui/PipeSpecModel.cpp`
-9. `tests/test_app_core.cpp`
-10. `tests/test_workbench_bridge.cpp`
-11. `tests/test_qml_models.cpp`
-12. `tests/test_qml_ui_panels.cpp`
-13. `src/main.cpp`
-14. `src/app/Application.h`
+1. `docs/tasks/status.md`（确认 T8 状态与依赖）
+2. `docs/command-pattern-design.md` §3.3–§3.4（CreatePipePoint/DeletePipePoint 设计规格）
+3. `src/command/Command.h`（基类接口）
+4. `src/command/CommandContext.h`（上下文结构）
+5. `src/command/CommandStack.h`（命令栈信号）
+6. `src/command/CommandRegistry.h`（工厂注册）
+7. `src/command/SetPropertyCommand.h`（参考属性命令实现模式）
+8. `src/command/MacroCommand.h`（宏命令基类）
+9. `src/model/PipePoint.h`（管点模型，setIdForDeserialization）
+10. `src/model/Segment.h`（段操作：addPoint/removePoint/insertPoint）
+11. `src/model/Route.h`（路由操作）
+12. `src/engine/TopologyManager.h`（appendPoint/removePoint 拓扑操作）
+13. `src/app/DependencyGraph.h`（addDependency/removeObject）
+14. `src/app/Document.h`（addObject/removeObject/findObject）
+15. `src/app/Application.h`（createCommandContext）
