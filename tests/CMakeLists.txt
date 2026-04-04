@@ -436,3 +436,16 @@ target_link_libraries(test_command_stack
 )
 target_compile_features(test_command_stack PRIVATE cxx_std_17)
 add_test(NAME CommandStack COMMAND test_command_stack)
+
+# PropertyCommands 测试 — T4
+add_executable(test_property_commands test_property_commands.cpp)
+target_link_libraries(test_property_commands
+    PRIVATE
+        command
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_property_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_property_commands PRIVATE cxx_std_17)
+add_test(NAME PropertyCommands COMMAND test_property_commands)

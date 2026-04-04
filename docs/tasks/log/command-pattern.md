@@ -86,3 +86,25 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T4 — PropertyCommands (SetProperty/BatchSetProperty) (2026-04-04)
+
+**产出文件**: `src/command/SetPropertyCommand.h` · `src/command/SetPropertyCommand.cpp` · `src/command/BatchSetPropertyCommand.h` · `src/command/BatchSetPropertyCommand.cpp` · `tests/test_property_commands.cpp`
+
+**接口**: → `src/command/SetPropertyCommand.h`、`src/command/BatchSetPropertyCommand.h`
+
+**设计决策**:
+- `SetPropertyCommand` 用两个静态工厂方法替代构造函数：`createAutoCapture`（oldValue 由 execute 时从对象读取）、`createWithOldValue`（调用方显式提供，反序列化/已知旧值场景）
+- 内部用 `std::optional<Variant>` 判断是否已捕获 oldValue；`toJson()` 在 oldValue 为空时抛 `std::logic_error`
+- `tryMerge` 时间窗 500ms，同 objectId + key 则合并：将最新的 newValue_ 更新到 top 命令，返回 true
+- **CommandStack tryMerge 修复**：合并成功后必须执行新命令（cmd2->execute）以将新值应用到文档；旧实现只更新参数不应用文档变更，导致合并后文档值仍为旧值
+- `BatchSetPropertyCommand::execute` 实现原子回滚：顺序 apply 变更，任何步骤失败则逆序恢复已 apply 的修改，保证文档一致性
+- `BatchSetPropertyCommand::undo` 逆序恢复各对象旧值；对象不存在时静默跳过
+- JSON 序列化：Variant 使用 `{"type":"double","value":1000.0}` 格式（与 ProjectSerializer 一致，在匿名 namespace 中复制函数避免跨层包含）
+- `command` 库 `.cpp` 文件通过 `${CMAKE_SOURCE_DIR}/src` 包含 `app/Document.h`（利用 model 传递的 OCCT includes），但不将 `app` 加入 `target_link_libraries(command)`，符号由测试/可执行文件链接时的 `app` 库提供
+- 测试：24 个测试全部通过（SetProperty execute/undo/redo/autoCapture/withOldValue/notFound/string、tryMerge merge/noMerge/preserveOldValue、toJson×3、Stack merge、Batch execute/undo/rollback/desc/type/json/empty）
+
+**已知限制**:
+- 无

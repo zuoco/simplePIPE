@@ -8,7 +8,73 @@
 ## 当前状态
 
 Phase 1（T01-T25）和 Phase 2（T30-T45）已全部完成（45/45）。
-Phase 3 T0、T1、T2、T3 已完成。
+Phase 3 T0、T1、T2、T3、T4 已完成。
+
+**T4 完成内容**：
+- `src/command/SetPropertyCommand.h` / `SetPropertyCommand.cpp` — 单属性修改命令（autoCapture + withOldValue 工厂、tryMerge 500ms、JSON 序列化）
+- `src/command/BatchSetPropertyCommand.h` / `BatchSetPropertyCommand.cpp` — 批量属性修改命令（原子回滚、逆序 undo）
+- `src/command/CMakeLists.txt` — 追加两个 cpp 文件到 command 静态库
+- `tests/test_property_commands.cpp` — 24 个测试全部通过
+- `tests/CMakeLists.txt` — 追加 `test_property_commands` 目标（链接 command + app）
+
+**关键修复**：
+- `CommandStack::execute` tryMerge 合并成功后需执行新命令（cmd2->execute）以将新值写入文档；原实现只更新参数而不更新文档，导致文档值为旧值
+
+**关键上下文**：
+- `command` 库的 cpp 文件包含 `app/Document.h`（通过 model 传递的 OCCT includes），但不在 cmake 链接 `app`，防止循环依赖；符号由测试目标链接时的 `app` 提供
+- `SetPropertyCommand::tryMerge`：只更新 top 命令的 `newValue_`，文档更新由 CommandStack 执行新命令完成
+- `BatchSetPropertyCommand` 失败时逆序回滚，保证文档一致性
+- T5 将实现 `CommandRegistry`（统一工厂注册表，替代 CommandDispatcher + CommandSerializer）
+
+## 下一个任务
+
+| 属性 | 值 |
+|------|---|
+| **任务 ID** | T5 |
+| **任务名** | CommandRegistry 统一工厂 + 序列化 |
+| **推荐模型** | Sonnet 4.6 |
+| **前置依赖** | T0-T4（均已完成） |
+
+### 具体工作
+
+1. **`src/command/CommandRegistry.h` / `CommandRegistry.cpp`**（加入 `command` 层）：
+   - `registerFactory(typeKey, json→unique_ptr<Command> lambda)` — 注册命令工厂
+   - `createFromParams(commandName, params json)` — 外部协议创建（TCP 客户端/脚本）
+   - `createFromFullJson(j)` — 从完整命令 JSON 创建（反序列化）
+   - `serialize(cmd)` / `deserialize(j)` — 静态序列化 / 实例反序列化
+   - `serializeSequence` / `deserializeSequence` — 命令序列（宏文件）
+   - `registeredCommands()` / `hasCommand(name)` — 查询接口
+
+2. **注册内容**（在 `CommandRegistry` 构造或独立 `registerBuiltins()` 方法中）：
+   - "SetProperty" → `SetPropertyCommand::createWithOldValue` 或 `createAutoCapture`
+   - "BatchSetProperty" → `BatchSetPropertyCommand`
+   - "Macro" → `MacroCommand`（含 componentType subtype routing）
+
+3. **`tests/test_command_registry.cpp`**：
+   - registerFactory + createFromParams 基础流程
+   - createFromFullJson 含 SetProperty 反序列化 round-trip
+   - serialize + deserialize round-trip（SetProperty）
+   - serializeSequence / deserializeSequence
+   - hasCommand / registeredCommands
+   - 未知命令名抛异常
+
+4. **`tests/CMakeLists.txt`**：添加 `test_command_registry` 目标，链接 `command` + `app`
+
+### 验收标准
+
+- `pixi run test` 全部通过（在 T4 的 24+29+29=82 基础上新增 CommandRegistry 测试）
+- SetPropertyCommand round-trip（serialize → deserialize → execute → 结果与原始一致）
+- 未注册命令名 createFromParams 抛 `std::out_of_range`
+
+## 需要读取的文件
+
+1. `docs/command-pattern-design.md` §2.9 — CommandRegistry 规格
+2. `src/command/SetPropertyCommand.h` — T4 产出（含工厂方法签名）
+3. `src/command/BatchSetPropertyCommand.h` — T4 产出
+4. `src/command/CommandStack.h` — 命令栈（测试中用于集成验证）
+5. `src/command/Command.h` — 基类接口
+6. `src/app/Document.h` — findObject（测试用）
+
 
 **T3 完成内容**：
 - `src/command/CommandStack.h` — 声明 CommandStack 类（六种信号 + 全部公有 API）

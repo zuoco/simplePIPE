@@ -29,15 +29,15 @@ CommandResult CommandStack::execute(std::unique_ptr<Command> cmd, CommandContext
     if (!undoStack_.empty()) {
         Command& top = *undoStack_.back();
         if (top.tryMerge(*cmd)) {
-            // 合并成功：重新执行 top（tryMerge 已更新参数），不再 push 新命令
-            // 注意：SetPropertyCommand::tryMerge 只合并参数，实际 execute 需调用方重新触发
-            // 此处按规格：合并后不再 push，直接返回（top 本身已持有最新值）
-            CommandResult merged = top.lastResult();
+            // 合并成功：执行新命令（应用效果到文档），但不推入栈
+            // top 的参数已被 tryMerge 更新（如 newValue_），文档需要通过 cmd 的 execute 更新
+            cmd->execute(ctx);
+            CommandResult result = cmd->lastResult();
             redoStack_.clear();
-            emitSceneRemove(merged);
-            commandCompleted.emit(merged.affectedIds);
+            emitSceneRemove(result);
+            commandCompleted.emit(result.affectedIds);
             stackChanged.emit();
-            return merged;
+            return result;
         }
     }
 
