@@ -4,6 +4,8 @@
 #include "command/CommandRegistry.h"
 #include "command/SetPropertyCommand.h"
 #include "command/BatchSetPropertyCommand.h"
+#include "command/CreatePipePointCommand.h"
+#include "command/DeletePipePointCommand.h"
 #include "command/MacroCommand.h"
 
 #include <stdexcept>
@@ -212,6 +214,16 @@ void CommandRegistry::registerBuiltins() {
             changes.push_back(std::move(c));
         }
         return std::make_unique<BatchSetPropertyCommand>(std::move(desc), std::move(changes));
+    });
+
+    // ---- CreatePipePoint ----
+    registerFactory("CreatePipePoint", [](const nlohmann::json& j) -> std::unique_ptr<Command> {
+        return CreatePipePointCommand::fromJson(j);
+    });
+
+    // ---- DeletePipePoint ----
+    registerFactory("DeletePipePoint", [](const nlohmann::json& j) -> std::unique_ptr<Command> {
+        return DeletePipePointCommand::fromJson(j);
     });
 
     // ---- Macro ----

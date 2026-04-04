@@ -463,3 +463,17 @@ target_link_libraries(test_command_registry
 target_include_directories(test_command_registry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_command_registry PRIVATE cxx_std_17)
 add_test(NAME CommandRegistry COMMAND test_command_registry)
+
+# 结构命令测试 — T8
+add_executable(test_structural_commands test_structural_commands.cpp)
+target_link_libraries(test_structural_commands
+    PRIVATE
+        command
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_structural_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_structural_commands PRIVATE cxx_std_17)
+add_test(NAME StructuralCommands COMMAND test_structural_commands)

@@ -79,8 +79,8 @@
 | T5 | CommandRegistry 统一工厂 + 序列化 | `done` | T4 | Sonnet 4.6 | 2026-04-04 |
 | T6 | Application 集成 + main.cpp 信号连线 | `done` | T3, T5 | Sonnet 4.6 | 2026-04-04 |
 | T7 | UI 原子迁移 (AppController/TableModel) | `done` | T4, T6 | **Opus 4.6** | 2026-04-04 |
-| T8 | 结构命令 (CreatePipePoint/DeletePipePoint) | `ready` | T3, T5 | **Opus 4.6** | |
-| T9 | InsertComponentCommand + 完整迁移 | `pending` | T7, T8 | **Opus 4.6** | |
+| T8 | 结构命令 (CreatePipePoint/DeletePipePoint) | `done` | T3, T5 | **Opus 4.6** | 2026-04-04 |
+| T9 | InsertComponentCommand + 完整迁移 | `ready` | T7, T8 | **Opus 4.6** | |
 | T10 | 清理 TransactionManager | `pending` | T9 | Sonnet 4.6 | |
 
 ---

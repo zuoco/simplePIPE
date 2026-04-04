@@ -167,3 +167,23 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T8 — 结构命令 (CreatePipePoint/DeletePipePoint) (2026-04-04)
+
+**产出文件**: `CreatePipePointCommand.h` · `CreatePipePointCommand.cpp` · `DeletePipePointCommand.h` · `DeletePipePointCommand.cpp` · `CommandRegistry.cpp`（追加注册） · `test_structural_commands.cpp`
+
+**接口**: → `src/command/CreatePipePointCommand.h`, `src/command/DeletePipePointCommand.h`
+
+**设计决策**:
+- `CreatePipePointCommand::execute()`：创建 PipePoint → 设置 name/type/position/pipeSpec → Document::addObject → TopologyManager::appendPoint（或 insertPoint）→ DependencyGraph::addDependency；Tee 类型自动创建分支段
+- `CreatePipePointCommand::undo()`：逆序操作 — DependencyGraph::removeObject → TopologyManager::removePoint → Document::removeObject；Tee 清理分支段
+- `DeletePipePointCommand::execute()`：通过 `PipePointState` 快照捕获完整管点状态（id/name/type/xyz/pipeSpecId/typeParams/routeId/segmentId/indexInSegment/branchSegmentId/accessories）→ 删除
+- `DeletePipePointCommand::undo()`：用 `setIdForDeserialization()` 恢复原 UUID → 重建管点 → insertPoint 恢复原位置 → 重建分支段和附属构件 → 注册依赖
+- 两个命令均已注册到 `CommandRegistry::registerBuiltins()`，支持 JSON round-trip 序列化
+- `PipePointState` 结构体包含嵌套 `AccessoryState` 用于附属构件状态捕获
+- 测试覆盖：execute/undo/redo、Tee 分支创建/清理、UUID 稳定性、DependencyGraph 注册/清理、JSON round-trip、insertIndex 指定位置插入
+
+**已知限制**:
+- 无
