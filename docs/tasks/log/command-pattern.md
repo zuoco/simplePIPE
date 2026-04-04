@@ -148,3 +148,22 @@
 
 **已知限制**:
 - 无
+
+---
+
+### T7 — UI 原子迁移 (AppController/TableModel) (2026-04-04)
+
+**产出文件**: `tests/test_qml_models.cpp` · `tests/test_workbench_bridge.cpp`
+
+**接口**: → 无新增接口（验证+测试补充任务）
+
+**设计决策**:
+- 逐项复核 T6 完成的 UI 迁移，确认 `AppController`、`PipePointTableModel`、`PipeSpecModel` 所有写操作全部通过 `CommandStack + SetPropertyCommand` 路径
+- 确认 `src/ui/` 中无任何 `TransactionManager` 引用残留
+- `test_qml_models.cpp` 新增 8 项 undo/redo 测试：PipePointTableModel 的 UndoRestoresOriginalValue、RedoReappliesValue、MultipleEditsUndoChain、EditNameUndoRedo、SetSameValueReturnsFalse；PipeSpecModel 的 UndoRestoresOriginalValue、RedoReappliesValue、MultiFieldEditUndoChain、SetSameValueReturnsFalse
+- `test_workbench_bridge.cpp` 新增 4 项 AppController 集成测试：CanUndoRedoReflectsCommandStack、StackChangedEmitsTransactionStateChanged、UndoRedoMethodsWork
+- 所有 undo/redo 测试使用 `CommandContext{&document, nullptr, nullptr}` 手动构建上下文（不依赖 Application 单例）
+- SetSameValue 测试验证编辑器不会为相同值创建多余命令
+
+**已知限制**:
+- 无

@@ -6,6 +6,7 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
+#include "command/CommandContext.h"
 #include "command/CommandStack.h"
 #include "model/PipePoint.h"
 #include "model/PipeSpec.h"
@@ -171,4 +172,178 @@ TEST(PipeSpecModelTest, EditFieldThroughTransaction)
     EXPECT_TRUE(model.setData(odCell, 219.1, Qt::EditRole));
     EXPECT_DOUBLE_EQ(f.spec->od(), 219.1);
     EXPECT_TRUE(f.commandStack.canUndo());
+}
+
+// ============================================================
+// T7: undo/redo 测试 — PipePointTableModel
+// ============================================================
+
+TEST(PipePointTableModelTest, UndoRestoresOriginalValue)
+{
+    Fixture f;
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
+
+    const QModelIndex xCell = model.index(0, ui::PipePointTableModel::XColumn);
+    const double originalX = f.runPoint->position().X();
+
+    ASSERT_TRUE(model.setData(xCell, 500.0, Qt::EditRole));
+    EXPECT_DOUBLE_EQ(f.runPoint->position().X(), 500.0);
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_DOUBLE_EQ(f.runPoint->position().X(), originalX);
+    EXPECT_FALSE(f.commandStack.canUndo());
+    EXPECT_TRUE(f.commandStack.canRedo());
+}
+
+TEST(PipePointTableModelTest, RedoReappliesValue)
+{
+    Fixture f;
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
+
+    const QModelIndex yCell = model.index(0, ui::PipePointTableModel::YColumn);
+    const double originalY = f.runPoint->position().Y();
+
+    ASSERT_TRUE(model.setData(yCell, 250.0, Qt::EditRole));
+    EXPECT_DOUBLE_EQ(f.runPoint->position().Y(), 250.0);
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_DOUBLE_EQ(f.runPoint->position().Y(), originalY);
+
+    f.commandStack.redo(ctx);
+    EXPECT_DOUBLE_EQ(f.runPoint->position().Y(), 250.0);
+}
+
+TEST(PipePointTableModelTest, MultipleEditsUndoChain)
+{
+    Fixture f;
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
+
+    const QModelIndex xCell = model.index(0, ui::PipePointTableModel::XColumn);
+    const QModelIndex zCell = model.index(0, ui::PipePointTableModel::ZColumn);
+    const double originalX = f.runPoint->position().X();
+    const double originalZ = f.runPoint->position().Z();
+
+    ASSERT_TRUE(model.setData(xCell, 100.0, Qt::EditRole));
+    ASSERT_TRUE(model.setData(zCell, 200.0, Qt::EditRole));
+
+    EXPECT_DOUBLE_EQ(f.runPoint->position().X(), 100.0);
+    EXPECT_DOUBLE_EQ(f.runPoint->position().Z(), 200.0);
+    EXPECT_EQ(f.commandStack.undoCount(), 2u);
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx); // undo Z
+    EXPECT_DOUBLE_EQ(f.runPoint->position().Z(), originalZ);
+    EXPECT_DOUBLE_EQ(f.runPoint->position().X(), 100.0);
+
+    f.commandStack.undo(ctx); // undo X
+    EXPECT_DOUBLE_EQ(f.runPoint->position().X(), originalX);
+    EXPECT_FALSE(f.commandStack.canUndo());
+}
+
+TEST(PipePointTableModelTest, EditNameUndoRedo)
+{
+    Fixture f;
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
+
+    const QModelIndex nameCell = model.index(0, ui::PipePointTableModel::NameColumn);
+    const std::string originalName = f.runPoint->name();
+
+    ASSERT_TRUE(model.setData(nameCell, "NewName", Qt::EditRole));
+    EXPECT_EQ(f.runPoint->name(), "NewName");
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_EQ(f.runPoint->name(), originalName);
+
+    f.commandStack.redo(ctx);
+    EXPECT_EQ(f.runPoint->name(), "NewName");
+}
+
+TEST(PipePointTableModelTest, SetSameValueReturnsFalse)
+{
+    Fixture f;
+    ui::PipePointTableModel model(f.document, f.commandStack, f.selectionManager);
+
+    const QModelIndex xCell = model.index(0, ui::PipePointTableModel::XColumn);
+    const double currentX = f.runPoint->position().X();
+
+    EXPECT_FALSE(model.setData(xCell, currentX, Qt::EditRole));
+    EXPECT_FALSE(f.commandStack.canUndo());
+}
+
+// ============================================================
+// T7: undo/redo 测试 — PipeSpecModel
+// ============================================================
+
+TEST(PipeSpecModelTest, UndoRestoresOriginalValue)
+{
+    Fixture f;
+    ui::PipeSpecModel model(f.document, f.commandStack);
+
+    const QModelIndex odCell = model.index(0, ui::PipeSpecModel::OdColumn);
+    const double originalOD = f.spec->od();
+
+    ASSERT_TRUE(model.setData(odCell, 300.0, Qt::EditRole));
+    EXPECT_DOUBLE_EQ(f.spec->od(), 300.0);
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_DOUBLE_EQ(f.spec->od(), originalOD);
+}
+
+TEST(PipeSpecModelTest, RedoReappliesValue)
+{
+    Fixture f;
+    ui::PipeSpecModel model(f.document, f.commandStack);
+
+    const QModelIndex materialCell = model.index(0, ui::PipeSpecModel::MaterialColumn);
+    const std::string originalMat = f.spec->material();
+
+    ASSERT_TRUE(model.setData(materialCell, "SS316", Qt::EditRole));
+    EXPECT_EQ(f.spec->material(), "SS316");
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_EQ(f.spec->material(), originalMat);
+
+    f.commandStack.redo(ctx);
+    EXPECT_EQ(f.spec->material(), "SS316");
+}
+
+TEST(PipeSpecModelTest, MultiFieldEditUndoChain)
+{
+    Fixture f;
+    ui::PipeSpecModel model(f.document, f.commandStack);
+
+    const QModelIndex nameCell = model.index(0, ui::PipeSpecModel::NameColumn);
+    const QModelIndex wallCell = model.index(0, ui::PipeSpecModel::WallThicknessColumn);
+    const std::string originalName = f.spec->name();
+    const double originalWall = f.spec->wallThickness();
+
+    ASSERT_TRUE(model.setData(nameCell, "NewSpec", Qt::EditRole));
+    ASSERT_TRUE(model.setData(wallCell, 10.0, Qt::EditRole));
+
+    EXPECT_EQ(f.spec->name(), "NewSpec");
+    EXPECT_DOUBLE_EQ(f.spec->wallThickness(), 10.0);
+
+    command::CommandContext ctx{&f.document, nullptr, nullptr};
+    f.commandStack.undo(ctx);
+    EXPECT_DOUBLE_EQ(f.spec->wallThickness(), originalWall);
+
+    f.commandStack.undo(ctx);
+    EXPECT_EQ(f.spec->name(), originalName);
+}
+
+TEST(PipeSpecModelTest, SetSameValueReturnsFalse)
+{
+    Fixture f;
+    ui::PipeSpecModel model(f.document, f.commandStack);
+
+    const QModelIndex odCell = model.index(0, ui::PipeSpecModel::OdColumn);
+    const double currentOD = f.spec->od();
+
+    EXPECT_FALSE(model.setData(odCell, currentOD, Qt::EditRole));
+    EXPECT_FALSE(f.commandStack.canUndo());
 }
