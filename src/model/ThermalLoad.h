@@ -33,6 +33,18 @@ public:
         }
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "installTemp")   { setInstallTemp(foundation::variantToDouble(value));   return true; }
+        if (key == "operatingTemp") { setOperatingTemp(foundation::variantToDouble(value)); return true; }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "installTemp")   return installTemp_;
+        if (key == "operatingTemp") return operatingTemp_;
+        return DocumentObject::getProperty(key);
+    }
+
 private:
     double installTemp_  = 20.0;   ///< 安装温度，默认 20°C
     double operatingTemp_ = 20.0;  ///< 操作温度，默认 20°C

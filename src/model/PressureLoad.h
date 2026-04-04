@@ -33,6 +33,18 @@ public:
         }
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "pressure")   { setPressure(foundation::variantToDouble(value));  return true; }
+        if (key == "isExternal") { setIsExternal(foundation::variantToBool(value)); return true; }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "pressure")   return pressure_;
+        if (key == "isExternal") return isExternal_;
+        return DocumentObject::getProperty(key);
+    }
+
 private:
     double pressure_   = 0.0;    ///< 压力 (MPa)
     bool   isExternal_ = false;  ///< 是否为外压

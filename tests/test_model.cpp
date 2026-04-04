@@ -12,6 +12,12 @@
 #include "model/ProjectConfig.h"
 #include "model/Segment.h"
 #include "model/Route.h"
+#include "model/ThermalLoad.h"
+#include "model/PressureLoad.h"
+#include "model/WindLoad.h"
+#include "model/SeismicLoad.h"
+#include "model/DisplacementLoad.h"
+#include "model/UserDefinedLoad.h"
 
 #include <memory>
 #include <string>
@@ -341,3 +347,180 @@ TEST(ContainerObject, Changed_Signal_OnAdd) {
     container.addChild(std::make_shared<model::PipeSpec>("child"));
     EXPECT_EQ(count, 1);
 }
+
+// ============================================================
+// T1: setProperty / getProperty 虚方法测试
+// ============================================================
+
+// DocumentObject 基类：处理 "name"
+TEST(PropertyDispatch, DocumentObject_SetName) {
+    model::PipeSpec obj("original");
+    EXPECT_TRUE(obj.setProperty("name", std::string("updated")));
+    EXPECT_EQ(obj.name(), "updated");
+}
+
+TEST(PropertyDispatch, DocumentObject_GetName) {
+    model::PipeSpec obj("hello");
+    foundation::Variant v = obj.getProperty("name");
+    EXPECT_EQ(std::get<std::string>(v), "hello");
+}
+
+TEST(PropertyDispatch, DocumentObject_UnknownKey_SetReturnsFalse) {
+    model::PipeSpec obj("spec");
+    // PipeSpec (PropertyObject) 接受任意 key 存入 fields_，返回 true
+    // 注意：对于需要测试 DocumentObject 基类返回 false 的情况，
+    // 使用不继承 PropertyObject 的对象（如载荷类）
+    model::ThermalLoad load;
+    EXPECT_FALSE(load.setProperty("unknownXyz123", 1.0));
+}
+
+TEST(PropertyDispatch, DocumentObject_UnknownKey_GetThrows) {
+    model::ThermalLoad load;
+    EXPECT_THROW(load.getProperty("nonExistentKey"), std::out_of_range);
+}
+
+// SpatialObject：处理 "x"/"y"/"z"
+TEST(PropertyDispatch, SpatialObject_XYZ_RoundTrip) {
+    model::PipePoint pt("P01", model::PipePointType::Run, gp_Pnt(0, 0, 0));
+    EXPECT_TRUE(pt.setProperty("x", 100.0));
+    EXPECT_TRUE(pt.setProperty("y", 200.0));
+    EXPECT_TRUE(pt.setProperty("z", 300.0));
+    EXPECT_NEAR(std::get<double>(pt.getProperty("x")), 100.0, 1e-12);
+    EXPECT_NEAR(std::get<double>(pt.getProperty("y")), 200.0, 1e-12);
+    EXPECT_NEAR(std::get<double>(pt.getProperty("z")), 300.0, 1e-12);
+    EXPECT_NEAR(pt.position().X(), 100.0, 1e-12);
+    EXPECT_NEAR(pt.position().Y(), 200.0, 1e-12);
+    EXPECT_NEAR(pt.position().Z(), 300.0, 1e-12);
+}
+
+// PropertyObject：任意 key 存入 fields_
+TEST(PropertyDispatch, PropertyObject_ArbitraryField) {
+    model::PipeSpec spec("6in-Sch40");
+    EXPECT_TRUE(spec.setProperty("OD", 168.3));
+    EXPECT_TRUE(spec.setProperty("wallThickness", 7.11));
+    EXPECT_TRUE(spec.setProperty("material", std::string("Carbon Steel")));
+    EXPECT_NEAR(std::get<double>(spec.getProperty("OD")), 168.3, 1e-12);
+    EXPECT_NEAR(std::get<double>(spec.getProperty("wallThickness")), 7.11, 1e-12);
+    EXPECT_EQ(std::get<std::string>(spec.getProperty("material")), "Carbon Steel");
+}
+
+TEST(PropertyDispatch, PropertyObject_NameFallthrough) {
+    model::ProjectConfig cfg("proj");
+    EXPECT_TRUE(cfg.setProperty("name", std::string("NewName")));
+    EXPECT_EQ(cfg.name(), "NewName");
+    EXPECT_EQ(std::get<std::string>(cfg.getProperty("name")), "NewName");
+}
+
+TEST(PropertyDispatch, PropertyObject_GetMissingFieldThrows) {
+    model::PipeSpec spec("empty");
+    EXPECT_THROW(spec.getProperty("nonExistentField"), std::out_of_range);
+}
+
+// PipePoint：type / x/y/z / typeParams
+TEST(PropertyDispatch, PipePoint_Type_RoundTrip) {
+    model::PipePoint pt("A06", model::PipePointType::Run);
+    EXPECT_TRUE(pt.setProperty("type", static_cast<int>(model::PipePointType::Bend)));
+    EXPECT_EQ(pt.type(), model::PipePointType::Bend);
+    foundation::Variant v = pt.getProperty("type");
+    EXPECT_EQ(std::get<int>(v), static_cast<int>(model::PipePointType::Bend));
+}
+
+TEST(PropertyDispatch, PipePoint_TypeParams_Fallback) {
+    model::PipePoint pt("A06", model::PipePointType::Bend);
+    EXPECT_TRUE(pt.setProperty("bendMultiplier", 1.5));
+    EXPECT_NEAR(std::get<double>(pt.getProperty("bendMultiplier")), 1.5, 1e-12);
+    EXPECT_NEAR(foundation::variantToDouble(pt.param("bendMultiplier")), 1.5, 1e-12);
+}
+
+TEST(PropertyDispatch, PipePoint_NamePropagates) {
+    model::PipePoint pt("init");
+    EXPECT_TRUE(pt.setProperty("name", std::string("A99")));
+    EXPECT_EQ(pt.name(), "A99");
+}
+
+// ThermalLoad
+TEST(PropertyDispatch, ThermalLoad_RoundTrip) {
+    model::ThermalLoad load;
+    EXPECT_TRUE(load.setProperty("installTemp", 10.0));
+    EXPECT_TRUE(load.setProperty("operatingTemp", 120.0));
+    EXPECT_NEAR(std::get<double>(load.getProperty("installTemp")), 10.0, 1e-12);
+    EXPECT_NEAR(std::get<double>(load.getProperty("operatingTemp")), 120.0, 1e-12);
+    EXPECT_NEAR(load.installTemp(), 10.0, 1e-12);
+    EXPECT_NEAR(load.operatingTemp(), 120.0, 1e-12);
+}
+
+// PressureLoad（含 bool 类型）
+TEST(PropertyDispatch, PressureLoad_RoundTrip) {
+    model::PressureLoad load;
+    EXPECT_TRUE(load.setProperty("pressure", 10.5));
+    EXPECT_TRUE(load.setProperty("isExternal", true));
+    EXPECT_NEAR(std::get<double>(load.getProperty("pressure")), 10.5, 1e-12);
+    EXPECT_TRUE(std::get<bool>(load.getProperty("isExternal")));
+    EXPECT_NEAR(load.pressure(), 10.5, 1e-12);
+    EXPECT_TRUE(load.isExternal());
+}
+
+// WindLoad（含 Vec3 类型）
+TEST(PropertyDispatch, WindLoad_RoundTrip) {
+    model::WindLoad load;
+    EXPECT_TRUE(load.setProperty("speed", 30.0));
+    foundation::math::Vec3 dir{0.0, 1.0, 0.0};
+    EXPECT_TRUE(load.setProperty("direction", dir));
+    EXPECT_NEAR(std::get<double>(load.getProperty("speed")), 30.0, 1e-12);
+    const auto& gotDir = std::get<foundation::math::Vec3>(load.getProperty("direction"));
+    EXPECT_NEAR(gotDir.y, 1.0, 1e-12);
+    EXPECT_NEAR(load.speed(), 30.0, 1e-12);
+    EXPECT_NEAR(load.direction().y, 1.0, 1e-12);
+}
+
+// SeismicLoad（含 Vec3 类型）
+TEST(PropertyDispatch, SeismicLoad_RoundTrip) {
+    model::SeismicLoad load;
+    EXPECT_TRUE(load.setProperty("acceleration", 0.3));
+    foundation::math::Vec3 dir{1.0, 0.0, 0.0};
+    EXPECT_TRUE(load.setProperty("direction", dir));
+    EXPECT_NEAR(std::get<double>(load.getProperty("acceleration")), 0.3, 1e-12);
+    const auto& gotDir = std::get<foundation::math::Vec3>(load.getProperty("direction"));
+    EXPECT_NEAR(gotDir.x, 1.0, 1e-12);
+    EXPECT_NEAR(load.acceleration(), 0.3, 1e-12);
+}
+
+// DisplacementLoad（Vec3 类型）
+TEST(PropertyDispatch, DisplacementLoad_RoundTrip) {
+    model::DisplacementLoad load;
+    foundation::math::Vec3 t{10.0, 20.0, 30.0};
+    foundation::math::Vec3 r{1.0, 2.0, 3.0};
+    EXPECT_TRUE(load.setProperty("translation", t));
+    EXPECT_TRUE(load.setProperty("rotation", r));
+    const auto& gotT = std::get<foundation::math::Vec3>(load.getProperty("translation"));
+    const auto& gotR = std::get<foundation::math::Vec3>(load.getProperty("rotation"));
+    EXPECT_NEAR(gotT.x, 10.0, 1e-12);
+    EXPECT_NEAR(gotR.z, 3.0, 1e-12);
+    EXPECT_NEAR(load.translation().y, 20.0, 1e-12);
+}
+
+// UserDefinedLoad（Vec3 类型）
+TEST(PropertyDispatch, UserDefinedLoad_RoundTrip) {
+    model::UserDefinedLoad load;
+    foundation::math::Vec3 f{100.0, 0.0, 0.0};
+    foundation::math::Vec3 m{0.0, 500.0, 0.0};
+    EXPECT_TRUE(load.setProperty("force", f));
+    EXPECT_TRUE(load.setProperty("moment", m));
+    const auto& gotF = std::get<foundation::math::Vec3>(load.getProperty("force"));
+    const auto& gotM = std::get<foundation::math::Vec3>(load.getProperty("moment"));
+    EXPECT_NEAR(gotF.x, 100.0, 1e-12);
+    EXPECT_NEAR(gotM.y, 500.0, 1e-12);
+}
+
+// 多态分派：通过 DocumentObject* 调用
+TEST(PropertyDispatch, Polymorphic_Via_BasePointer) {
+    std::unique_ptr<model::DocumentObject> obj =
+        std::make_unique<model::PipePoint>("P01", model::PipePointType::Run, gp_Pnt(0, 0, 0));
+    EXPECT_TRUE(obj->setProperty("x", 999.0));
+    EXPECT_NEAR(std::get<double>(obj->getProperty("x")), 999.0, 1e-12);
+
+    auto* pp = dynamic_cast<model::PipePoint*>(obj.get());
+    ASSERT_NE(pp, nullptr);
+    EXPECT_NEAR(pp->position().X(), 999.0, 1e-12);
+}
+

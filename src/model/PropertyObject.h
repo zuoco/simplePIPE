@@ -40,6 +40,19 @@ public:
         return fields_;
     }
 
+    /// "name" 代理到 DocumentObject::setProperty；其余 key 存入 fields_
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "name") return DocumentObject::setProperty(key, value);
+        setField(key, value);
+        return true;
+    }
+
+    /// "name" 代理到 DocumentObject::getProperty；其余 key 从 fields_ 读取
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (hasField(key)) return field(key);
+        return DocumentObject::getProperty(key);
+    }
+
 protected:
     std::map<std::string, foundation::Variant> fields_;
 };

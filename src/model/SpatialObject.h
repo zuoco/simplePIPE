@@ -24,6 +24,26 @@ public:
         }
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "x" || key == "y" || key == "z") {
+            double v = foundation::variantToDouble(value);
+            gp_Pnt p = position_;
+            if      (key == "x") p.SetX(v);
+            else if (key == "y") p.SetY(v);
+            else                 p.SetZ(v);
+            setPosition(p);
+            return true;
+        }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "x") return position_.X();
+        if (key == "y") return position_.Y();
+        if (key == "z") return position_.Z();
+        return DocumentObject::getProperty(key);
+    }
+
 protected:
     gp_Pnt position_;
 };

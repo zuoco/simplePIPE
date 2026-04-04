@@ -72,8 +72,8 @@
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
 | T0 | Variant 类型扩展 (bool/Vec3) | `done` | — | Sonnet 4.6 | 2026-04-04 |
-| T1 | DocumentObject setProperty/getProperty 虚方法 | `ready` | T0 | Sonnet 4.6 | |
-| T2 | Command 基类 + MacroCommand + PropertyApplier | `pending` | T1 | Sonnet 4.6 | |
+| T1 | DocumentObject setProperty/getProperty 虚方法 | `done` | T0 | Sonnet 4.6 | 2026-04-04 |
+| T2 | Command 基类 + MacroCommand + PropertyApplier | `ready` | T1 | Sonnet 4.6 | |
 | T3 | CommandStack 命令栈管理器 | `pending` | T2 | **Opus 4.6** | |
 | T4 | PropertyCommands (SetProperty/BatchSetProperty) | `pending` | T2, T3 | Sonnet 4.6 | |
 | T5 | CommandRegistry 统一工厂 + 序列化 | `pending` | T4 | Sonnet 4.6 | |

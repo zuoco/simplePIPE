@@ -30,6 +30,18 @@ public:
         changed.emit();
     }
 
+    bool setProperty(const std::string& key, const foundation::Variant& value) override {
+        if (key == "force")  { setForce(foundation::variantToVec3(value));  return true; }
+        if (key == "moment") { setMoment(foundation::variantToVec3(value)); return true; }
+        return DocumentObject::setProperty(key, value);
+    }
+
+    foundation::Variant getProperty(const std::string& key) const override {
+        if (key == "force")  return force_;
+        if (key == "moment") return moment_;
+        return DocumentObject::getProperty(key);
+    }
+
 private:
     foundation::math::Vec3 force_  = {0.0, 0.0, 0.0}; ///< 集中力 (N)
     foundation::math::Vec3 moment_ = {0.0, 0.0, 0.0}; ///< 集中力矩 (N·mm)
