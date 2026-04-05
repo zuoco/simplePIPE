@@ -86,6 +86,7 @@
 - 本计划书
 - 目录规则说明
 - target 命名规则说明
+- 冻结文档：`docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`
 
 依赖：无。
 
@@ -93,6 +94,11 @@
 - 明确架构库对外名称。
 - 明确业务库与可执行名称规则。
 - 明确未来新增 app 的扩展方式。
+
+当前进展（2026-04-05）：
+- 已形成冻结草案，明确 `pipecad_lib`（统一架构静态库）
+- 已明确当前 app 目标命名 `pipecad_app`（业务库）与 `pipecad`（可执行）
+- 已明确新增 app 采用 `<name>_app` + `<name>` 命名对
 
 #### M0-T02 冻结 include 与 import 规则
 目标：定义 lib 与 apps 的可允许依赖路径和禁止路径。

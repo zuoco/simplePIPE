@@ -91,9 +91,9 @@
 
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
-| T50 | 冻结目录与目标命名规则 | `ready` | — | GPT-5.4 | — |
-| T51 | 冻结 include/import 规则 | `pending` | T50 | GPT-5.4 | — |
-| T52 | 冻结线程安全边界 | `pending` | T50 | GPT-5.4 | — |
+| T50 | 冻结目录与目标命名规则 | `done` | — | GPT-5.4 | 2026-04-05 |
+| T51 | 冻结 include/import 规则 | `ready` | T50 | GPT-5.4 | — |
+| T52 | 冻结线程安全边界 | `ready` | T50 | GPT-5.4 | — |
 | T53 | 设计 lib/apps 顶层 CMake 拓扑 | `pending` | T50, T51, T52 | GPT-5.4 | — |
 | T54 | 解除 RecomputeEngine 源文件级拼接 | `pending` | T53 | GPT-5.4 | — |
 | T55 | 设计过渡兼容层 | `pending` | T53 | GPT-5.4 | — |
@@ -131,3 +131,4 @@
 | `docs/archive/task-logs/t01-t25.md` | Phase 1: T01–T25（构建系统、Foundation、几何、模型、场景、应用层、UI） |
 | `docs/archive/task-logs/t30-t45.md` | Phase 2: T30–T45（ViewManager、载荷、工作台、VTK、序列化扩展） |
 | `docs/archive/task-logs/command-pattern.md` | Phase 3: T0–T10（命令模式架构实现） |
+| `docs/archive/task-logs/phase4-refactor.md` | Phase 4: T50–T77（lib/apps 架构重构） |

@@ -1,3 +1,10 @@
+# Phase 4 / T50 规则冻结说明（仅设计约束，不改变当前构建行为）：
+# 1) 统一架构库目标名固定为 pipecad_lib
+# 2) 当前 app 业务库目标名固定为 pipecad_app
+# 3) 当前 app 可执行目标名固定为 pipecad
+# 4) 新增 app 采用 <name>_app + <name> 命名对
+# 5) 本文件当前仍维持旧拓扑，命名规则将在 T53 起逐步落地
+
 add_subdirectory(foundation)
 add_subdirectory(geometry)
 add_subdirectory(model)

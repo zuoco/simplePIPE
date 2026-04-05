@@ -18,6 +18,7 @@
 - 固定的目录规则说明
 - 固定的 target 命名规则
 - `pipecad_lib` / `pipecad_app` / `pipecad` 的命名约定
+- 冻结文档：`docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`
 
 **依赖**
 - 无
@@ -26,6 +27,11 @@
 - 明确架构层唯一根目录为 `src/lib`
 - 明确业务层唯一根目录为 `src/apps`
 - 明确未来新增 app 的目录模板和命名方式
+
+**当前进展（2026-04-05）**
+- 已创建规则冻结文档草案：`docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`
+- 已冻结 `pipecad_lib` / `pipecad_app` / `pipecad` 与 `<name>_app` / `<name>` 扩展命名模式
+- 待在 T53（构建重编组）中将规则映射到新的顶层 CMake 拓扑
 
 ## T51 冻结 include/import 规则
 
