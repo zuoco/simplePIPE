@@ -542,3 +542,16 @@ target_link_libraries(test_load_save_async
 target_include_directories(test_load_save_async PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_load_save_async PRIVATE cxx_std_17)
 add_test(NAME LoadSaveAsync COMMAND test_load_save_async)
+
+# 并发回归测试 — T74
+add_executable(test_concurrent_recompute test_concurrent_recompute.cpp)
+target_link_libraries(test_concurrent_recompute
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_concurrent_recompute PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_concurrent_recompute PRIVATE cxx_std_17)
+add_test(NAME ConcurrentRecompute COMMAND test_concurrent_recompute)

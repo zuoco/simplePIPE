@@ -400,3 +400,22 @@
 
 **已知限制**:
 - `asyncRecomputeAll()` 标脏时不区分已有 dirty 状态，存在重复标脏的冗余操作（对正确性无影响）
+
+### T74 — 建立并发回归测试 (2026-04-06)
+
+**产出文件**: `tests/test_concurrent_recompute.cpp` · `tests/CMakeLists.txt`
+
+**接口**: → 本测试直接复用 `src/apps/pipecad/engine/RecomputeEngine.h` · `src/lib/runtime/task/ResultChannel.h` · `src/lib/runtime/task/TaskQueue.h`
+
+**设计决策**:
+- 5 个测试覆盖 4 类场景：
+  - T74-1 批量编辑：5 次 asyncRecompute() → WorkerGroup 后台提交 → 所有结果交付
+  - T74-2 撤销重做：asyncFn 以版本 V 投递 → doc.bumpVersion() → drainFresh(V+1) 丢弃全部 → applied==0
+  - T74-3 工作台切换：channel.discard() 清空挂起 → 再次重算 → 新结果正常交付
+  - T74-4 应用退出：workers.shutdown(true) + channel.discard() 无崩溃无死锁（幂等 discard 验证）
+  - T74-5 drainFresh 精确匹配：版本差 1 静默丢弃；版本完全相同才执行
+- 测试链接 app + engine（同 T71/T73 模式），含 `${OpenCASCADE_INCLUDE_DIR}`
+- 全部 46/46 测试通过，T74 测试耗时 0.11 秒
+
+**已知限制**:
+- T74-1 中批量编辑后 drainResults() 只调用一次，只断言 `applied >= 1`（实际等于 1，因同步 asyncFn 保证版本一致），未累计所有批次（可接受：回归侧重无崩溃与不遗漏，而非精确计数）

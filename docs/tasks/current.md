@@ -7,43 +7,36 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T73** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T74** 已全部完成。
 
-**T73 完成摘要（2026-04-06）**：
-- 在 `RecomputeEngine` 新增 `asyncRecomputeAll()` 方法
-- 无异步模式时退化为同步 `recomputeAll()`；有异步模式时标记所有 PipePoint 为脏 → 触发 `asyncRecompute()`
-- 同步更新兼容 shim `src/engine/RecomputeEngine.h`（避免 include 路径选取旧版本声明）
-- 新增 `tests/test_load_save_async.cpp`（4 个 T73 测试）+ CMakeLists.txt 更新
-- 测试基线提升到 **45/45**（新增 LoadSaveAsync 测试套件）
+**T74 完成摘要（2026-04-06）**：
+- 新增 `tests/test_concurrent_recompute.cpp`（5 个并发回归测试）
+- 覆盖：批量编辑 / 撤销重做版本丢弃 / 工作台切换 discard / 应用退出安全回收 / drainFresh 精确版本匹配
+- 测试基线提升到 **46/46**（新增 ConcurrentRecompute 套件，耗时 0.11s）
 
 **当前基线事实**：
-- `asyncRecomputeAll()` 位于 `src/apps/pipecad/engine/RecomputeEngine.h/.cpp`
-- 兼容 shim `src/engine/RecomputeEngine.h` 已同步声明 `asyncRecomputeAll()`
-- T74（建立并发回归测试）所有前置（T71/T72/T73）已 done，状态 `ready`
+- 测试基线 46/46 全部通过
+- T75（清理旧目录兼容层）所有前置（T62/T64/T65/T66/T74）已 done，状态 `ready`
 
 ## 下一个任务
 
-**T74 — 建立并发回归测试**
+**T75 — 清理旧目录兼容层**
 
 工作目标：
-为异步重算、取消、过期结果丢弃和退出回收建立测试覆盖。至少覆盖以下四类场景：
-1. **批量编辑**：连续执行多个命令 → 多次 asyncRecompute() → 所有结果正确交付
-2. **撤销重做**：undo/redo 后文档版本提升 → 旧版本结果被丢弃（ResultChannel.drainFresh 版本校验）
-3. **工作台切换**：切换时丢弃挂起结果（resultChannel.discard()）→ 再次重算正确
-4. **应用退出**：workers.shutdown() + resultChannel.discard() → 后台线程安全回收，不崩溃
+删除 `src/foundation/`、`src/geometry/`、`src/model/`、`src/engine/`、`src/visualization/`、`src/vtk-visualization/`、`src/app/`、`src/command/`、`src/ui/` 等旧目录中仅含 ALIAS CMakeLists，将所有旧目标别名迁移到顶层 `src/CMakeLists.txt` 或各 lib/apps 子目录，使项目目录结构与新架构保持一致。清理后需保证：
+1. 全部构建目标仍然存在（ALIAS 别名不删除，只是搬移到合适位置）
+2. 所有测试 46/46 继续通过
+3. 旧目录下不再有 `CMakeLists.txt`
 
-参考任务卡：`docs/tasks/phase4-lib-app-refactor/m5-async-recompute.md`（T74 章节）
+参考任务卡：`docs/tasks/phase4-lib-app-refactor/` 中 T75 章节。
 
 推荐模型：**Claude Sonnet 4.6**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/m5-async-recompute.md`（T74 章节，验收标准）
-2. `src/lib/runtime/task/TaskQueue.h`（WorkerGroup + CancellationToken 接口）
-3. `src/lib/runtime/task/ResultChannel.h`（drainFresh/discard 接口）
-4. `src/lib/runtime/task/SceneUpdateAdapter.h`（drain 接口）
-5. `src/apps/pipecad/engine/RecomputeEngine.h`（asyncRecompute/asyncRecomputeAll/drainResults 接口）
-6. `tests/test_batch_mesh.cpp`（T72 测试参考：WorkerGroup 并发测试模式）
-7. `tests/test_async_recompute.cpp`（T71 测试参考：版本过期丢弃模式）
-8. `tests/CMakeLists.txt`（添加新测试目标的格式参考）
+1. `docs/tasks/phase4-lib-app-refactor/` 目录下 T75 任务卡（如有）
+2. `src/CMakeLists.txt`（顶层 CMake，了解当前 add_subdirectory 结构）
+3. `src/foundation/CMakeLists.txt`、`src/geometry/CMakeLists.txt` 等旧目录（了解 ALIAS 内容）
+4. `src/lib/base/CMakeLists.txt`、`src/apps/pipecad/CMakeLists.txt`（了解新结构）
+5. `docs/tasks/status.md`（确认 T75 前置依赖）
 
