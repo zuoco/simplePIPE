@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <thread>
 #include <vector>
@@ -63,10 +64,12 @@ private:
     friend class TaskHandle;
     friend class WorkerGroup;
 
-    std::shared_ptr<TaskState> take();
+    /// 取出下一个任务，阻塞直到有任务可取、队列关闭或 stop_token 被请求。
+    /// 返回空 shared_ptr 表示工作线程应退出。
+    std::shared_ptr<TaskState> take(std::stop_token st = {});
 
     mutable std::mutex mutex_;
-    std::condition_variable cv_;
+    std::condition_variable_any cv_;
     std::deque<std::shared_ptr<TaskState>> pending_;
     bool closed_ = false;
 };
@@ -119,7 +122,7 @@ public:
     std::size_t threadCount() const { return threadCount_; }
 
 private:
-    void workerLoop();
+    void workerLoop(std::stop_token st);
     void registerActiveTask(const std::shared_ptr<TaskQueue::TaskState>& state);
     void unregisterActiveTask(const foundation::UUID& id);
     void cancelActiveTasks();
@@ -128,7 +131,7 @@ private:
     TaskQueue queue_;
     mutable std::mutex stateMutex_;
     std::condition_variable idleCv_;
-    std::vector<std::thread> workers_;
+    std::vector<std::jthread> workers_;
     std::vector<std::shared_ptr<TaskQueue::TaskState>> activeTasks_;
     std::size_t activeCount_ = 0;
     bool running_ = true;

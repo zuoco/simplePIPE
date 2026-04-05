@@ -92,9 +92,11 @@ std::size_t TaskQueue::pendingCount() const {
     return pending_.size();
 }
 
-std::shared_ptr<TaskQueue::TaskState> TaskQueue::take() {
+std::shared_ptr<TaskQueue::TaskState> TaskQueue::take(std::stop_token st) {
     std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this]() {
+    // C++20 condition_variable_any::wait 的 stop_token 重载：
+    // 当谓词为真，或 stop_requested() 变为 true 时均会返回。
+    cv_.wait(lock, st, [this]() {
         return closed_ || !pending_.empty();
     });
 
@@ -167,8 +169,9 @@ WorkerGroup::WorkerGroup(std::size_t threadCount)
     : threadCount_(threadCount == 0 ? 1 : threadCount) {
     workers_.reserve(threadCount_);
     for (std::size_t index = 0; index < threadCount_; ++index) {
-        workers_.emplace_back([this]() {
-            workerLoop();
+        // std::jthread 构造时自动传入 stop_token 参数
+        workers_.emplace_back([this](std::stop_token st) {
+            workerLoop(st);
         });
     }
 }
@@ -193,14 +196,14 @@ void WorkerGroup::waitForIdle() {
 }
 
 void WorkerGroup::shutdown(bool cancelPending) {
-    std::vector<std::thread> workers;
+    std::vector<std::jthread> workers;
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         if (!running_) {
             return;
         }
         running_ = false;
-        workers.swap(workers_);
+        workers = std::move(workers_);
     }
 
     if (cancelPending) {
@@ -209,11 +212,9 @@ void WorkerGroup::shutdown(bool cancelPending) {
     }
     queue_.close();
 
-    for (auto& worker : workers) {
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
+    // std::jthread 析构时自动调用 request_stop() + join()
+    // workers 离开作用域时工作线程将收到 stop 信号并安全退出
+    workers.clear();
 
     idleCv_.notify_all();
 }
@@ -223,9 +224,9 @@ bool WorkerGroup::isRunning() const {
     return running_;
 }
 
-void WorkerGroup::workerLoop() {
+void WorkerGroup::workerLoop(std::stop_token st) {
     while (true) {
-        auto task = queue_.take();
+        auto task = queue_.take(st);
         if (!task) {
             return;
         }

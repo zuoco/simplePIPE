@@ -56,7 +56,7 @@ target_include_directories(lib_runtime
         ${OpenCASCADE_INCLUDE_DIR}
 )
 
-target_compile_features(lib_runtime PUBLIC cxx_std_17)
+target_compile_features(lib_runtime PUBLIC cxx_std_20)
 
 target_link_libraries(lib_runtime
     PUBLIC
