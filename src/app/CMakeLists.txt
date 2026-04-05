@@ -12,7 +12,6 @@ add_library(app STATIC
     SpecWorkbench.cpp
     AnalysisWorkbench.cpp
     SelectionManager.cpp
-    ${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp
     # --- 原 command 层（合并，消除循环依赖） ---
     ${CMAKE_SOURCE_DIR}/src/command/MacroCommand.cpp
     ${CMAKE_SOURCE_DIR}/src/command/CommandStack.cpp

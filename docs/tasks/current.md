@@ -7,43 +7,38 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50、T51、T52** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50、T51、T52、T53、T54** 已全部完成。
 
-**T52 完成摘要（2026-04-05）**：
-- 已创建线程安全边界冻结文档：`docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
-- 已冻结主线程专属对象清单：CommandStack、Document 写接口、DependencyGraph 写接口、RecomputeEngine、SceneManager 写操作、SelectionManager 写接口、WorkbenchManager、所有 Qt/QML/VTK 对象
-- 已冻结后台线程允许行为：只读快照消费、const 方法、独立 OCCT 几何推导（基于快照）、Qt::QueuedConnection 信号发射
-- 已冻结快照边界：版本令牌 + PipePoint/PipeSpec 值拷贝 + 依赖拓扑只读视图
-- 已冻结结果回投协议与失效丢弃规则
+**T54 完成摘要（2026-04-05）**：
+- 从 `src/app/CMakeLists.txt` 移除了 `${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp` 跨层源文件拼接
+- 将 `RecomputeEngine.cpp` 加入 `src/engine/CMakeLists.txt` 的正式源文件列表
+- `engine` 不需要在 CMake 中声明对 `app` 的链接依赖（避免循环）：静态库允许未解析外部符号，在最终链接时由 `app` 库解析
+- 41/41 测试全部通过
 
 **当前基线事实**：
+- `engine` 静态库现已包含完整的 `RecomputeEngine.cpp`，对外正常暴露 `engine::RecomputeEngine` 接口
+- `app` 通过正常 `target_link_libraries(app PUBLIC engine)` 链接使用 `RecomputeEngine`（无跨层源文件拼接）
+- `pipecad_lib` INTERFACE target 已建立，位于 `src/CMakeLists.txt`（T53 完成）
+- `src/CMakeLists.txt` 中 `pipecad_app`（EXE）仍沿用旧名，T55 改名为 `pipecad`
 - 代码仍处于旧目录结构：`src/foundation`、`src/geometry`、`src/model`、`src/engine`、`src/app`、`src/command`、`src/ui`
-- `app` 静态库仍吞并 `command` 与 `RecomputeEngine.cpp`（将在 T54 解除）
-- `src/CMakeLists.txt` 已有 T50 命名规则注释，但 target 拓扑仍是旧结构
-- T53 现处于 `ready`（T50、T51、T52 均已完成）
 
 ## 下一个任务
 
-**T53 — 设计 lib/apps 顶层 CMake 拓扑**
+**T55 — 设计过渡兼容层**
 
 工作目标：
-1. 设计新的顶层 CMake 装配方案（不大迁目录，先形成 lib/apps 逻辑结构）
-2. 规划 `pipecad_lib` 统一架构库如何聚合现有各子库
-3. 规划 `pipecad_app`（业务库）与 `pipecad`（可执行）的构建目标结构
-4. 保留旧 target 别名（ALIAS）实现向下兼容，确保编译仍通过
-5. 输出 CMake 拓扑设计文档，作为 T54-T62 实施的前置约束
+1. 将可执行目标 `pipecad_app`（EXE）改名为 `pipecad`（EXE）
+2. 在 `src/CMakeLists.txt` 中引入新的 `pipecad_app`（STATIC）作为业务库占位（初期 = ui 层）
+3. 确保测试链接不受影响（测试不直接链接 `pipecad_app` EXE）
+4. 更新 `src/CMakeLists.txt`、`src/ui/CMakeLists.txt`（如需）
+5. 编译通过，测试 41/41 通过
 
 推荐模型：**GPT-5.3 Codex**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`
-2. `docs/tasks/phase4-lib-app-refactor/t51-include-import-freeze.md`
-3. `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
-4. `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md`
-5. `docs/lib-app-refactor-plan.md`
-6. `src/CMakeLists.txt`
-7. `src/app/CMakeLists.txt`
-8. `src/engine/CMakeLists.txt`
-9. `src/command/CMakeLists.txt`
-10. `docs/tasks/status.md`
+1. `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md`（§3.3 T55 后目标关系图）
+2. `src/CMakeLists.txt`（当前可执行目标定义）
+3. `src/ui/CMakeLists.txt`（ui 静态库定义）
+4. `docs/tasks/status.md`（confirm T55 is ready）
+

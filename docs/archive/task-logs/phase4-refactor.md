@@ -74,3 +74,20 @@
 **已知限制**:
 - `pipecad_lib` 当前为 INTERFACE 转发层，M2（T56-T62）目录物理迁移后才升级为真正的 STATIC 聚合库
 - `model` 与 `engine` 按最终架构应归 apps 域，M1 期间仍暂留 lib 层平级目录（T62 物理迁移时解决）
+
+### T54 — 解除 RecomputeEngine 源文件级拼接 (2026-04-05)
+
+**产出文件**: `src/app/CMakeLists.txt` · `src/engine/CMakeLists.txt`
+
+**接口**: → `src/engine/RecomputeEngine.h`（不变）、`src/engine/RecomputeEngine.cpp`（归还 engine 库）
+
+**设计决策**:
+- 从 `src/app/CMakeLists.txt` 删除 `${CMAKE_SOURCE_DIR}/src/engine/RecomputeEngine.cpp` 跨层引用
+- 将 `RecomputeEngine.cpp` 加入 `src/engine/CMakeLists.txt` 的 STATIC 库源文件列表
+- `engine` 不在 CMake 中声明对 `app` 的链接依赖（避免循环）：`engine.a` 允许对 `Document`/`DependencyGraph` 有未解析符号，这些符号在最终链接（通过 `app`）时得到解析
+- 由于 `engine` 已有 `${CMAKE_SOURCE_DIR}/src` 作为 include 目录，`app/Document.h` 和 `app/DependencyGraph.h` 均可在编译期找到，无需修改 include 路径
+- 仅使用 `RecomputeEngine` 的测试（`test_app_core`、`test_integration`、`test_phase2_integration`）均已链接 `app`，链接可正常解析
+- 仅链接 `engine` 但不链接 `app` 的测试（`test_engine` 等）不引用 `RecomputeEngine`，linker 不会拉入 `RecomputeEngine.o`，因此无未解析符号问题
+
+**已知限制**:
+- `RecomputeEngine.h` 仍 include `app/Document.h` 和 `app/DependencyGraph.h`，从包含关系看是越层引用；T71（重构 RecomputeEngine 异步管线）时才真正解耦

@@ -13,6 +13,7 @@ add_library(engine STATIC
     TopologyManager.cpp
     ConstraintSolver.cpp
     PipelineValidator.cpp
+    RecomputeEngine.cpp
 )
 
 target_include_directories(engine
