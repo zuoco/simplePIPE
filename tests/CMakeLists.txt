@@ -192,6 +192,7 @@ add_executable(test_app_core test_app_core.cpp)
 target_link_libraries(test_app_core
     PRIVATE
         app
+        command
         GTest::GTest
         GTest::Main
 )
@@ -412,3 +413,145 @@ target_link_libraries(test_phase2_integration
 target_include_directories(test_phase2_integration PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_phase2_integration PRIVATE cxx_std_17)
 add_test(NAME Phase2Integration COMMAND test_phase2_integration)
+
+# Command 基类 + MacroCommand + PropertyApplier 测试 — T2
+add_executable(test_command_base test_command_base.cpp)
+target_link_libraries(test_command_base
+    PRIVATE
+        command
+        model
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_command_base PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_command_base PRIVATE cxx_std_17)
+add_test(NAME CommandBase COMMAND test_command_base)
+
+# CommandStack 命令栈管理器测试 — T3
+add_executable(test_command_stack test_command_stack.cpp)
+target_link_libraries(test_command_stack
+    PRIVATE
+        command
+        GTest::GTest
+        GTest::Main
+)
+target_compile_features(test_command_stack PRIVATE cxx_std_17)
+add_test(NAME CommandStack COMMAND test_command_stack)
+
+# PropertyCommands 测试 — T4
+add_executable(test_property_commands test_property_commands.cpp)
+target_link_libraries(test_property_commands
+    PRIVATE
+        command
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_property_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_property_commands PRIVATE cxx_std_17)
+add_test(NAME PropertyCommands COMMAND test_property_commands)
+
+# CommandRegistry 测试 — T5
+add_executable(test_command_registry test_command_registry.cpp)
+target_link_libraries(test_command_registry
+    PRIVATE
+        command
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_command_registry PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_command_registry PRIVATE cxx_std_17)
+add_test(NAME CommandRegistry COMMAND test_command_registry)
+
+# 结构命令测试 — T8
+add_executable(test_structural_commands test_structural_commands.cpp)
+target_link_libraries(test_structural_commands
+    PRIVATE
+        command
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_structural_commands PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_structural_commands PRIVATE cxx_std_17)
+add_test(NAME StructuralCommands COMMAND test_structural_commands)
+
+# InsertComponentCommand 测试 — T9
+add_executable(test_insert_component test_insert_component.cpp)
+target_link_libraries(test_insert_component
+    PRIVATE
+        command
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_insert_component PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_insert_component PRIVATE cxx_std_17)
+add_test(NAME InsertComponent COMMAND test_insert_component)
+
+# DocumentSnapshot 与任务队列测试 — T67/T68
+add_executable(test_runtime_tasking test_runtime_tasking.cpp)
+target_link_libraries(test_runtime_tasking
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_runtime_tasking PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_runtime_tasking PRIVATE cxx_std_17)
+add_test(NAME RuntimeTasking COMMAND test_runtime_tasking)
+
+# RecomputeEngine 异步管线测试 — T71
+add_executable(test_async_recompute test_async_recompute.cpp)
+target_link_libraries(test_async_recompute
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_async_recompute PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_async_recompute PRIVATE cxx_std_17)
+add_test(NAME AsyncRecompute COMMAND test_async_recompute)
+
+# 后台 ShapeMesher 与批量重算测试 — T72
+add_executable(test_batch_mesh test_batch_mesh.cpp)
+target_link_libraries(test_batch_mesh
+    PRIVATE
+        app
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_batch_mesh PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_batch_mesh PRIVATE cxx_std_17)
+add_test(NAME BatchMesh COMMAND test_batch_mesh)
+
+# 后台化加载恢复与保存前准备测试 — T73
+add_executable(test_load_save_async test_load_save_async.cpp)
+target_link_libraries(test_load_save_async
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_load_save_async PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_load_save_async PRIVATE cxx_std_17)
+add_test(NAME LoadSaveAsync COMMAND test_load_save_async)
+
+# 并发回归测试 — T74
+add_executable(test_concurrent_recompute test_concurrent_recompute.cpp)
+target_link_libraries(test_concurrent_recompute
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_concurrent_recompute PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_concurrent_recompute PRIVATE cxx_std_17)
+add_test(NAME ConcurrentRecompute COMMAND test_concurrent_recompute)

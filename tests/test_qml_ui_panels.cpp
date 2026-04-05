@@ -7,8 +7,10 @@
 #include "app/DependencyGraph.h"
 #include "app/Document.h"
 #include "app/SelectionManager.h"
-#include "app/TransactionManager.h"
 #include "app/WorkbenchManager.h"
+#include "command/CommandStack.h"
+#include "model/Route.h"
+#include "model/Segment.h"
 #include "ui/AppController.h"
 #include "ui/VsgQuickItem.h"
 #include "ui/WorkbenchController.h"
@@ -52,13 +54,13 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
     document.setName("UiPanelSmoke");
 
     app::DependencyGraph graph;
-    app::TransactionManager transactionManager(document, graph);
+    command::CommandStack commandStack;
     app::SelectionManager selectionManager;
 
     app::WorkbenchManager workbenchManager(document);
     workbenchManager.registerWorkbench(std::make_unique<app::DesignWorkbench>());
 
-    ui::AppController appController(document, transactionManager, selectionManager);
+    ui::AppController appController(document, commandStack, selectionManager);
     ui::WorkbenchController workbenchController(workbenchManager);
 
     QQmlApplicationEngine engine;
@@ -92,28 +94,26 @@ TEST(QmlUiPanelsTest, MainWindowLoadsAndCorePanelsExist)
     EXPECT_NE(root->findChild<QObject*>("statusBarPanel"), nullptr);
 }
 
-// T41: 验证 AppController::insertComponent 正确触发信号
-TEST(QmlUiPanelsTest, InsertComponentEmitsSignal)
+// T41→T9: 验证 AppController::insertComponent 对未知类型安全地忽略
+// 完整的 InsertComponentCommand 测试在 test_insert_component.cpp 中
+TEST(QmlUiPanelsTest, InsertComponentIgnoresUnknownTypes)
 {
     app::Document document;
-    app::DependencyGraph graph;
-    app::TransactionManager transactionManager(document, graph);
+    command::CommandStack commandStack;
     app::SelectionManager selectionManager;
 
-    ui::AppController controller(document, transactionManager, selectionManager);
+    ui::AppController controller(document, commandStack, selectionManager);
 
-    QString capturedType;
-    QObject::connect(&controller, &ui::AppController::insertComponentRequested,
-                     [&](const QString& t) { capturedType = t; });
-
+    // 没有 Route 也不崩溃
     controller.insertComponent("insert-pipe");
-    EXPECT_EQ(capturedType, "insert-pipe");
+    EXPECT_EQ(document.allPipePoints().size(), 0u);
 
+    // 未知类型 → 无操作，不崩溃
     controller.insertComponent("insert-rigid-support");
-    EXPECT_EQ(capturedType, "insert-rigid-support");
+    EXPECT_EQ(document.allPipePoints().size(), 0u);
 
     controller.insertComponent("insert-beam");
-    EXPECT_EQ(capturedType, "insert-beam");
+    EXPECT_EQ(document.allPipePoints().size(), 0u);
 }
 
 // T41: 验证 DesignWorkbench panelIds 包含 ComponentToolStrip

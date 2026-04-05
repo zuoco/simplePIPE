@@ -5,32 +5,45 @@
 
 ---
 
-## 当前阶段
+## 当前状态
 
-Phase 1 和 Phase 2 已全部完成（45/45 个任务），等待 Phase 3 任务规划。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）与 Phase 4（T50-T77）已全部完成。
 
-| 属性 | 值 |
-|------|---|
-| **下一个任务** | 待规划（Phase 3） |
-| **推荐模型** | 根据任务性质选择（参见 status.md 状态表） |
-| **前置依赖** | 全部 Phase 1 + Phase 2 任务均已 `done` |
-| **前置状态** | ✅ 所有 Phase 2 依赖已满足 |
+**T77 完成摘要（2026-04-06）**：
+- 文档基线收口：更新 `docs/architecture.md`、`README.md`、`AGENTS.md`、`CLAUDE.md`，统一到 `src/lib + src/apps` 结构与当前目标依赖关系
+- 开发规范同步：明确旧目录为历史镜像（非构建入口），修正可执行路径与流程说明
+- 状态流转完成：`docs/tasks/status.md` 已将 T77 标记为 `done`，`docs/archive/task-logs/phase4-refactor.md` 已追加 T77 记录
+- 验证通过：`pixi run build-debug` 成功，`pixi run test` 全通过（46/46）
 
-## 项目进度
+**当前基线事实**：
+- 测试基线 46/46 全通过
+- `src/lib` 与 `src/apps` 是唯一构建入口
+- app 模板骨架已固化：`model/engine/workbench/ui/resources/main.cpp`
+- Phase 4 收口完成，可进入新阶段规划
 
-- 已完成: 45/45 个任务（Phase 1 T01–T25 + Phase 2 T30–T45）
-- 当前阶段: Phase 2 — 全部完成 ✅
-- 测试状态: 35/35 passed（100%，最后确认于 2026-03-29）
+## 下一个任务
 
-## 给 AI 的指令
+**T78（待规划）— 新阶段任务定义与拆分**
 
-1. 确认状态: 读取 `docs/tasks/status.md` 状态表（前 74 行）
-2. 读取 Phase 3 任务详情: `docs/development-plan.md` — 查找 Phase 3 章节
-3. 如需了解已有接口（按需，精确选择）:
-   - Phase 1 关键接口: 直接读取 `src/model/PipePoint.h`, `src/app/Document.h` 等头文件
-   - Phase 2 关键接口: 直接读取 `src/visualization/ViewManager.h`, `src/app/AnalysisWorkbench.h` 等
-   - Phase 2 设计决策（如需）: `docs/tasks/log/t30-t45.md`
-4. 如需架构参考: `docs/architecture.md` 相关章节
-5. 如需库指南: `lib/occt/AGENTS.md` 或 `lib/vsg/AGENTS.md` 或 `lib/vtk/AGENTS.md`
-6. 完成后运行 `pixi run build-debug && pixi run test`
-7. 验证通过后按 AGENTS.md Step 9 更新 `status.md`、日志文件、本文件
+工作目标：
+基于当前稳定基线创建下一阶段任务包（例如性能优化、脚本一致性修复、模块化调用点迁移等），并写入 `docs/tasks/status.md` 与对应任务卡目录。
+
+建议聚焦：
+1. 审核当前“文档已更新但实现未收口”的遗留点，形成候选任务
+2. 评估 `scripts/build.sh` 与可执行路径探测的一致性，决定是否创建独立修复任务
+3. 为新阶段建立任务编号、依赖关系与验收标准
+4. 完成后刷新 `current.md`，保证下一会话可无歧义接续
+
+推荐模型：**GPT-5.3 Codex**
+
+## 需要读取的文件
+
+1. `docs/tasks/status.md`
+2. `docs/archive/task-logs/phase4-refactor.md`
+3. `docs/architecture.md`
+4. `README.md`
+5. `AGENTS.md`
+6. `CLAUDE.md`
+7. `docs/archive/task-specs/phase4-lib-app-refactor-plan.md`
+8. `docs/tasks/current.md`（本文件，更新后自检）
+

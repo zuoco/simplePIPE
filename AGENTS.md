@@ -4,80 +4,331 @@
 
 ---
 
+## 项目概述
+
+**PipeCAD** (`qml-vsg-occt`) 是一个基于 OCCT (OpenCASCADE 几何内核) + VSG (Vulkan 渲染) + VTK (分析可视化) + Qt6/QML (UI 框架) 构建的海上油气/风电平台管道系统参数化建模与应力分析软件。
+
+**核心设计理念**: 以 **管点(PipePoint)** 为中心的数据模型 —— 管点是带坐标和类型的文档对象，管件几何由管点序列 + 管线特性(PipeSpec) 推导生成。
+
+**项目状态** (截至 2026-04-06):
+- Phase 1 (T01-T25): ✅ 已完成 — 基础设施、文档模型、几何引擎、可视化、QML集成
+- Phase 2 (T30-T45): ✅ 已完成 — 多工作台、载荷分析、VTK可视化、序列化扩展
+- Phase 3 (T0-T10): ✅ 已完成 — 命令模式架构 (CommandStack + CommandRegistry)
+- Phase 4 (T50-T77): ✅ 已完成 — lib/apps 架构重构、异步重算管线、文档规范收口
+
+**当前实现同步**:
+- `TransactionManager` 已从代码库移除，编辑流程统一走 `CommandStack` + `CommandRegistry` + `CommandContext`
+- `src/lib/` 与 `src/apps/` 已成为唯一 CMake 构建入口，`src/apps/pipecad/` 承载业务实现
+- 旧目录 (`src/foundation/` 等) 仍保留迁移期历史镜像源码，但不作为构建入口
+- 当前基线：编译通过，测试通过 46/46
+
+---
+
+## 技术栈
+
+| 技术 | 版本 | 来源 | 用途 |
+|------|------|------|------|
+| OCCT | 8.0.0 | `lib/occt/` | 几何建模内核 (BRep/STEP/Mesh) |
+| VSG | 1.1.13 | `lib/vsg/` | Vulkan 3D 渲染引擎 |
+| VTK | 9.6.0 | pixi (conda-forge) | CAE 分析可视化 (应力/梁单元) |
+| Qt6 | ≥6.5 | pixi (conda-forge) | UI 框架 (Quick/QML) |
+| nlohmann/json | * | pixi (conda-forge) | JSON 工程文件序列化 |
+| GTest | * | pixi (conda-forge) | 单元测试框架 |
+| CMake | ≥3.24 | pixi (conda-forge) | 构建系统 |
+| Ninja | * | pixi (conda-forge) | 并行构建后端 |
+| Clang | * | pixi (conda-forge) | 编译器 (C++17) |
+| pixi | * | prefix.dev | 包管理/环境隔离 |
+
+**C++ 标准**: C++17 (std::optional, std::variant, structured bindings)
+
+---
+
+## 构建与测试命令
+
+### 首次环境初始化
+
+```bash
+bash scripts/setup.sh              # 安装 pixi、依赖、CMake 配置
+bash scripts/setup.sh --verify     # 验证环境状态
+```
+
+### 构建命令
+
+```bash
+# 使用 pixi 任务
+pixi run configure-debug           # CMake 配置 (Debug)
+pixi run configure-release         # CMake 配置 (Release)
+pixi run build-debug               # 编译 Debug
+pixi run build-release             # 编译 Release
+pixi run test                      # 编译 Debug + 运行全部测试
+pixi run clean                     # 清除 build/ 目录
+
+# 或使用构建脚本 wrapper
+bash scripts/build.sh              # 默认 Debug 构建
+bash scripts/build.sh release      # Release 构建
+bash scripts/build.sh test         # 构建 + 运行全部测试
+bash scripts/build.sh test -R Engine   # 仅运行 Engine 相关测试
+bash scripts/build.sh run          # 构建并运行主程序
+bash scripts/build.sh full         # clean + build + test 全量构建
+bash scripts/build.sh status       # 查看构建状态
+bash scripts/build.sh help         # 显示完整帮助
+```
+
+### 运行主程序
+
+```bash
+./build/debug/src/apps/pipecad/pipecad          # Debug 版本
+./build/release/src/apps/pipecad/pipecad        # Release 版本
+```
+
+### 并发控制
+
+```bash
+# 环境变量控制并发（默认：编译=6，测试=1）
+PIPECAD_BUILD_JOBS=4 bash scripts/build.sh
+PIPECAD_TEST_JOBS=2 pixi run test
+```
+
+---
+
+## 架构分层
+
+项目采用 **8 层工程分层（7 个核心库层 + 1 个应用入口层）**，在 T77 基线下的关键目标关系为:
+
+```
+lib_base → lib_platform_occt → geometry(alias)
+pipecad_app_model → pipecad_app_engine → engine(alias)
+lib_platform_vtk + vtk_visualization → lib_platform_vsg → visualization(alias)
+lib_runtime → lib_framework → app(alias) → pipecad_lib(interface) → pipecad_app → pipecad
+```
+
+| 层 | 目录 | 职责 |
+|----|------|------|
+| Layer 1: Foundation | `src/lib/base/foundation/`（构建入口） + `src/foundation/`（历史镜像） | 基础类型: UUID、Variant、Math、Signal、Log |
+| Layer 2: Geometry | `src/lib/platform/occt/geometry/`（构建入口） + `src/geometry/`（历史镜像） | OCCT 封装: ShapeBuilder、BooleanOps、StepIO、ShapeMesher |
+| Layer 3: Model | `src/apps/pipecad/model/`（构建入口） + `src/model/`（历史镜像） | 文档模型: PipePoint、PipeSpec、Segment、Route、Load 层次结构 |
+| Layer 4: Engine | `src/apps/pipecad/engine/`（构建入口） + `src/engine/`（历史镜像） | 管道领域引擎: ComponentCatalog、BendCalculator、各 Builder、RecomputeEngine |
+| Layer 5: Visualization | `src/lib/platform/vsg/visualization/`（构建入口） + `src/visualization/`（历史镜像） | VSG 渲染: OcctToVsg、SceneManager、PickHandler、ViewManager |
+| Layer 5b: VTK Visualization | `src/lib/platform/vtk/vtk-visualization/`（构建入口） + `src/vtk-visualization/`（历史镜像） | VTK 分析视图: OcctToVtk、VtkSceneManager、VtkViewport |
+| Layer 6: Application | `src/lib/framework/app/`, `src/lib/runtime/app/`, `src/lib/runtime/command/`, `src/lib/runtime/task/`（构建入口） + `src/app/`/`src/command/`（历史镜像） | 应用层: Document、Workbench 系统、ProjectSerializer、SelectionManager、CommandStack、CommandRegistry、TaskQueue |
+| Layer 7: UI | `src/apps/pipecad/ui/`（构建入口） + `src/ui/`（历史镜像） | QML 桥接: VsgQuickItem、VtkViewport、Table/Tree Models、AppController |
+| Layer 8: App Entry | `src/apps/pipecad/main.cpp`（构建入口） + `src/main.cpp`（历史镜像） | 初始化 Application、注册命令工厂、连线 CommandStack 与 RecomputeEngine、加载 QML |
+
+### 新架构目录结构 (Phase 4)
+
+```
+src/
+├── lib/                          # 统一架构库
+│   ├── base/                     # 基础层 (foundation)
+│   │   └── foundation/
+│   ├── platform/                 # 平台抽象层
+│   │   ├── occt/geometry/        # OCCT 几何封装
+│   │   ├── vsg/visualization/    # VSG 可视化
+│   │   └── vtk/vtk-visualization/# VTK 可视化
+│   ├── runtime/                  # 运行时基础设施
+│   │   ├── app/                  # Document, DependencyGraph, TaskQueue
+│   │   ├── command/              # CommandStack, CommandRegistry
+│   │   └── task/                 # 异步任务队列
+│   └── framework/                # 框架层
+│       └── app/                  # Workbench, Application 单例
+├── apps/                         # 应用实例
+│   └── pipecad/                  # PipeCAD 主应用
+│       ├── model/                # 业务模型
+│       ├── engine/               # 业务引擎 (RecomputeEngine 等)
+│       ├── ui/                   # 业务 UI 桥接
+│       └── main.cpp
+├── foundation/                   # 旧目录（历史镜像，非构建入口）
+├── geometry/                     # 旧目录（历史镜像，非构建入口）
+├── model/                        # 旧目录（历史镜像，非构建入口）
+├── engine/                       # 旧目录（历史镜像，非构建入口）
+├── visualization/                # 旧目录（历史镜像，非构建入口）
+├── vtk-visualization/            # 旧目录（历史镜像，非构建入口）
+├── app/                          # 旧目录（历史镜像，非构建入口）
+├── command/                      # 旧目录（历史镜像，非构建入口）
+├── ui/                           # 旧目录（历史镜像，非构建入口）
+└── main.cpp                      # 旧入口（历史镜像，非构建入口）
+```
+
+### 核心概念
+
+- **PipePoint**: 带坐标、类型、PipeSpec 引用的文档对象，管件几何由其序列推导
+- **Bend 4 管点模型**: 交点(Axx)、近端N、中点M、远端F —— 均为可选中的 SpatialObject
+- **ComponentCatalog**: 参数化构件模板注册表单例，模板定义 `deriveParams()` + `buildShape()`
+- **Workbench 系统**: SpecWorkbench(规格管理) / DesignWorkbench(路由设计) / AnalysisWorkbench(应力分析)
+- **双渲染引擎**: VSG 用于设计工作台，VTK 用于分析工作台
+- **命令系统**: `CommandStack` 统一执行/撤销/重做，`CommandRegistry` 负责工厂与序列化，命令完成后驱动重算
+- **DocumentSnapshot**: 文档只读快照，用于后台任务并发访问
+
+---
+
+## 代码风格指南
+
+### 命名规范
+
+- **类名**: PascalCase (`PipePoint`, `ComponentCatalog`)
+- **函数/方法**: camelCase (`setType()`, `deriveParams()`)
+- **成员变量**: 前缀 `m_` (`m_type`, `m_pipeSpec`)
+- **私有成员**: 后缀 `_` (`typeParams_`, `accessories_`)
+- **常量**: kPascalCase 或全大写下划线
+- **枚举**: PascalCase + 成员 PascalCase (`PipePointType::Bend`)
+
+### C++ 规范
+
+- 标准: **C++17** (std::optional, std::variant, structured bindings)
+- OCCT 对象: 使用 `Handle<T>` 管理，禁止裸指针指向 Transient 对象
+- VSG 对象: 使用 `vsg::ref_ptr<T>` 管理
+- VTK 对象: 使用 `vtkSmartPointer<T>` 管理
+- 信号/槽: 使用 `foundation::Signal<T>` (轻量级，不依赖 Qt)
+- 异常: OCCT 异常用 `Standard_Failure` 捕获，非 std::exception
+- 线程安全: **OCCT 非线程安全**，多线程访问需同步；使用 `WorkerGroup` 进行后台任务调度
+- 数值精度: 几何算法使用 OCCT 常量 `Precision::Confusion()`
+
+### 文件头模板
+
+```cpp
+// Copyright 2024-2026 PipeCAD Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+// 头文件内容
+```
+
+### 模块接口单元 (C++20 Modules, Phase 4 新增)
+
+```cpp
+// src/lib/<layer>/xxxMod/pipecad.xxx.yyy.cppm
+export module pipecad.xxx.yyy;
+export import :snapshot;  // 子模块
+```
+
+---
+
+## 测试策略
+
+### 测试组织
+
+- 测试文件: `tests/test_<name>.cpp`
+- 框架: GTest (非 Qt 测试) / Qt6::Test + GTest (Qt 相关测试)
+- 配置: `tests/CMakeLists.txt` 定义测试目标并链接对应层
+- 命名: 测试目标名与源文件名一致 (如 `test_foundation`)
+
+### 运行测试
+
+```bash
+# AI 执行构建/测试时，必须先重定向到临时日志，再读取日志判断结果
+mkdir -p tmp_build_logs
+pixi run test > tmp_build_logs/test.log 2>&1
+tail -50 tmp_build_logs/test.log
+rm -rf tmp_build_logs
+
+# 运行指定测试 (通过名称过滤，同样要求重定向到临时日志)
+mkdir -p tmp_build_logs
+ctest --test-dir build/debug -R <TestName> --output-on-failure > tmp_build_logs/test.log 2>&1
+tail -50 tmp_build_logs/test.log
+rm -rf tmp_build_logs
+
+# 直接运行测试可执行文件 (便于 gdb 调试)
+./build/debug/tests/test_<name>
+```
+
+### 测试覆盖要求
+
+- 每个 Task 必须包含对应单元测试
+- 集成测试覆盖跨层联动场景
+- 当前基线以 `docs/tasks/status.md` 为准；测试基线 46/46
+
+---
+
 ## 工作流程
 
-当用户说 **"完成任务 TXX"** 或 **"继续下一个任务"** 时，按以下步骤执行：
+当用户说 **"完成任务 TXX"**、**"继续下一个任务"** 或新会话开始时，按以下步骤执行：
 
-### Step 1: 从接力文件出发（必读，不得跳过）
+### Step 1: 读取状态文件（必读入口）
+
 ```
 读取 docs/tasks/current.md
 ```
-- 此文件由上一个 AI 写好，包含：下一个任务 ID、前置依赖状态、需要读取的精确文件列表
-- **严禁自行决定读取文件清单**，必须以此文件为唯一入口
-- 如果文件指定的任务与用户要求不一致，以用户要求为准，但仍参考文件中的读取指引
 
-### Step 2: 确认任务状态
+- 这是**唯一入口**，包含：当前上下文、下一个任务 ID、推荐模型、需要读取的文件列表
+- **严禁自行决定读取文件清单**，必须以此文件为唯一起点
+
+### Step 2: 确认任务前置依赖
+
 ```
-读取 docs/tasks/status.md （仅状态表部分，前 74 行）
+读取 docs/tasks/status.md 状态表
 ```
+
 - 找到目标任务，确认其前置依赖均为 `done`
-- **不要读取 status.md 的完成记录索引之后的内容**（完成记录已迁移到 log/ 子目录）
-- 如果前置未完成，报告阻塞原因，不要开始
+- 如果前置未完成，报告阻塞原因
 
 ### Step 3: 读取任务详情
+
 ```
-读取 docs/development-plan.md 中该任务的章节
+读取 docs/archive/task-specs/phase4-lib-app-refactor/ 下对应任务卡（Phase 4 任务，已归档）
+或 docs/archive/task-specs/command-pattern-design.md 中对应章节（命令模式任务）
+或 docs/archive/task-specs/development-plan.md 中对应章节（其他任务）
 ```
-- 获取：交付物列表、接口定义、验收标准
+
+- 获取: 交付物列表、接口定义、验收标准
 
 ### Step 4: 按需读取前置上下文
+
 ```
 按 current.md「给 AI 的指令」中列出的文件逐一读取
 ```
-- 只读 current.md 明确列出的日志文件、头文件，不要自行扩展
-- 日志文件在 `docs/tasks/log/` 目录，按阶段拆分（见文件索引）
-- **直接读取前置任务的 `.h` 头文件**比读日志更准确，优先读头文件
 
-### Step 5: 读取架构参考（如需）
-```
-读取 docs/architecture.md 中相关章节
-```
-- 只读与当前任务相关的章节，不要读整个文档
+- 只读 current.md 明确列出的头文件、源文件
+- **直接读取前置任务的 `.h` 头文件**比读日志更准确
 
-### Step 6: 如涉及领域知识或专门库，读取库指南与 Skills
-```
-读取 lib/occt/AGENTS.md 或 lib/vsg/AGENTS.md 或 lib/vtk/AGENTS.md
-读取 .github/skills/industrial-software-dev/SKILL.md 获取工业软件开发的架构与源码实现指导
-```
+### Step 5: 实现代码
 
-### Step 7: 实现代码
 - 按交付物列表创建/编辑文件
-- C++17 标准
-- 遵循已有代码风格
+- C++17 标准，遵循已有代码风格
 - 必须包含单元测试
 
-### Step 8: 编译验证
+### Step 6: 编译验证
+
+**必须使用临时目录收集输出**，步骤如下：
+
 ```bash
-pixi run build-debug
-pixi run test
+# 1. 创建临时日志目录
+mkdir -p tmp_build_logs
+
+# 2. 执行构建/测试，输出重定向到临时文件
+pixi run build-debug > tmp_build_logs/build.log 2>&1
+pixi run test > tmp_build_logs/test.log 2>&1
+
+# 3. 等待命令返回后，再读取日志文件检查结果（tail 关键行即可）
+tail -50 tmp_build_logs/build.log
+tail -50 tmp_build_logs/test.log
+
+# 4. 确认通过后立即删除
+rm -rf tmp_build_logs
 ```
-- 确保编译通过、测试通过
 
-### Step 9: 更新任务状态
+- 确保编译通过、**全部**测试通过
+- 判断成功/失败时，以命令返回后的日志文件内容为准，不要依赖终端流式输出
+- 日志文件阅读完毕后**必须立即删除**，不得保留
 
-**Step 9a**: 更新 `docs/tasks/status.md` 状态表：
+### Step 7: 更新状态（任务完成后立即执行）
 
+**Step 7a**: 更新 `docs/tasks/status.md` 状态表:
 1. 将当前任务标记为 `done`，填写完成日期
 2. 检查依赖当前任务的后续任务，若所有依赖都 `done`，将其状态从 `pending` 改为 `ready`
 
-**Step 9b**: 追加完成记录到对应的日志文件（文件不存在时新建）：
+**Step 7b**: 追加完成记录到对应日志文件:
 
-- Phase 3 任务: `docs/tasks/log/t50-t59.md`（第 50–59 号任务）、`t60-t69.md`……以此类推
+| Phase | 日志文件 |
+|-------|---------|
+| Phase 1 (T01-T25) | `docs/archive/task-logs/t01-t25.md` |
+| Phase 2 (T30-T45) | `docs/archive/task-logs/t30-t45.md` |
+| Phase 3 (T0-T10) | `docs/archive/task-logs/command-pattern.md` |
+| Phase 4 (T50-T77) | `docs/archive/task-logs/phase4-refactor.md` |
 
-使用以下精简格式（**禁止粘贴 C++ 代码块，禁止添加「后续任务注意」字段**）：
+使用以下精简格式（**禁止粘贴 C++ 代码块**）:
 
 ```markdown
-### TXX — 任务名 (YYYY-MM-DD)
+### TX — 任务名 (YYYY-MM-DD)
 
 **产出文件**: `A.h` · `A.cpp` · `test_a.cpp`
 
@@ -91,66 +342,76 @@ pixi run test
 - 限制1（如无则写"无"）
 ```
 
-**Step 9c**: Git 提交
+**Step 7c**: Git 提交
 
 ```bash
 git add -A
-git commit -m "feat: TXX — 使用中文详细描述实现的功能"
+git commit -m "feat: TX — 功能描述
+
+- 功能点1
+- 功能点2
+- 功能点3"
 ```
 
-- 功能开发统一使用 `feat: TXX — ...` 格式
-- Bug 修复使用 `fix: TXX — ...` 格式
-- 文档更新使用 `docs: ...` 格式
+- 提交信息使用**中文**，`feat:` 前缀
+- 正文逐条罗列功能点，逻辑清晰
 
-**Step 9d**: 覆盖重写 `docs/tasks/current.md`，写入下一个任务的信息：
+**Step 7d**: **清空并重写** `docs/tasks/current.md`，写入：
+1. **当前状态**（对下一个任务有价值的上下文信息）
+2. **下一个任务** ID + 名称 + 具体工作描述
+3. **推荐模型**（Opus 4.6 / Sonnet 4.6 / Gemini 3.1 Pro / GPT 5.3 Codex / GPT-5.4 Codex）
+4. **需要读取的文件列表**（精确到文件路径）
 
-```markdown
-# 当前任务状态
+### Step 8: 输出切换指令
 
-> **此文件每次任务完成后由 AI 覆盖重写。**
-> **下一个 AI 会话只需读取此文件即可开始工作。**
+向用户报告：
+- 完成了什么 + 创建/修改了哪些文件
+- 测试是否通过 + Git 提交信息
+- **输出下一步指令**，格式：`将模型切换到 XXX，开始任务 TY`
 
 ---
 
-## 下一个任务
+### 循环机制
 
-| 属性 | 值 |
-|------|---|
-| **任务 ID** | TXX |
-| **任务名** | XXX |
-| **推荐模型** | Opus / Gemini / Codex / Sonnet（从 status.md 查） |
-| **前置依赖** | TYY, TZZ |
-| **前置状态** | ✅ 所有依赖已满足 |
-
-## 项目进度
-
-- 已完成: N/总数 个任务
-- 当前阶段: Phase X — XXX
-
-## 给 AI 的指令
-
-1. 确认状态: 读取 `docs/tasks/status.md` 状态表（前 74 行）
-2. 读取任务详情: `docs/development-plan.md` §TXX
-3. 按需读取前置上下文（精确列出，**不要读不相关的内容**）:
-   - `docs/tasks/log/tXX-tXX.md` §TXX §TYY  ← 仅当需要了解历史设计决策
-   - `src/layer/HeaderA.h`   ← 直接读头文件更准确
-4. 如需架构参考: `docs/architecture.md` §相关章节编号
-5. 如需库指南: `lib/occt/AGENTS.md` 或 `lib/vsg/AGENTS.md` 或 `lib/vtk/AGENTS.md`
-6. 完成后运行 `pixi run build-debug && pixi run test`
-7. 验证通过后按 AGENTS.md Step 9 更新 `status.md`、日志文件、本文件
+```
+┌─────────────────────────────────────────┐
+│  新会话开始                              │
+│  ↓                                      │
+│  读取 docs/tasks/current.md             │
+│  ↓                                      │
+│  确认任务 + 读取上下文                    │
+│  ↓                                      │
+│  实现代码 + 编译测试                      │
+│  ↓                                      │
+│  更新 status.md + 日志 + Git 提交         │
+│  ↓                                      │
+│  清空并重写 current.md（写入下一个任务）    │
+│  ↓                                      │
+│  输出：「将模型切换到 XXX，开始任务 TY」    │
+│  ↓                                      │
+│  用户切换模型 → 新会话 → 回到顶部 ↑       │
+└─────────────────────────────────────────┘
 ```
 
-如果没有下一个 `ready` 任务（所有任务都完成了），在接力文件中写明当前进度和等待解锁的原因。
+AI 读取状态文件 → 执行指定任务 → 更新状态 → 输出下一步指令 → 循环往复，直到所有任务完成。
 
-### Step 10: 报告完成
+---
 
-向用户报告：
-- 完成了什么
-- 创建/修改了哪些文件
-- 测试是否通过
-- Git 提交信息
-- 下一个 `ready` 的任务是什么
-- **提示用户切换到什么模型**（从接力文件中的推荐模型读取）
+## 关键文件索引
+
+| 文件 | 用途 |
+|------|------|
+| `docs/tasks/current.md` | **状态文件 — 当前上下文 + 下一个任务 + 推荐模型（AI 入口）** |
+| `docs/tasks/status.md` | **任务状态表 + 完成记录索引** |
+| `docs/architecture.md` | 架构设计（数据模型、分层、UI设计、工作台系统） |
+| `docs/archive/task-specs/command-pattern-design.md` | 命令模式架构设计 v3.0（Phase 3，已归档） |
+| `docs/archive/task-specs/development-plan.md` | Phase 1/2 任务详情（交付物、验收标准、依赖关系，已归档） |
+| `docs/archive/task-specs/phase4-lib-app-refactor/` | Phase 4 任务卡目录（lib/apps 架构重构，已归档） |
+| `docs/archive/task-logs/t01-t25.md` | Phase 1 完成记录（T01–T25，已归档） |
+| `docs/archive/task-logs/t30-t45.md` | Phase 2 完成记录（T30–T45，已归档） |
+| `docs/archive/task-logs/command-pattern.md` | Phase 3 完成记录（命令模式 T0–T10，已归档） |
+| `docs/archive/task-logs/phase4-refactor.md` | Phase 4 完成记录（T50–T77，更新中） |
+| `lib/vsg/AGENTS.md` | VSG API 使用指南 |
 
 ---
 
@@ -159,44 +420,39 @@ git commit -m "feat: TXX — 使用中文详细描述实现的功能"
 1. **每次任务必须从 `current.md` 出发**，不得自行决定读取文件清单
 2. **每次只做一个任务**，除非用户明确要求并行
 3. **不要修改不属于当前任务的已有代码**，除非是修 bug
-4. **状态文件 (`status.md`) 是唯一的真相来源**，必须保持更新（仅维护状态表，完成记录写 log/ 文件）
-5. **完成记录必须足够详细**，让完全无上下文的 AI 也能接续工作（但禁止粘贴 C++ 代码块）
-6. **遇到阻塞（编译错误、设计冲突）时**，在状态文件中记录 `blocked` + 原因，不要强行继续
+4. **状态文件 (`status.md`) 是唯一的真相来源**，必须保持更新
+5. **完成记录必须足够详细**，让完全无上下文的 AI 也能接续工作（禁止粘贴 C++ 代码块）
+6. **遇到阻塞（编译错误、设计冲突）时**，在状态文件中记录 `blocked` + 原因
 7. **编译必须通过后才能标 `done`**，否则标 `blocked`
-8. **任务完成后必须立即更新状态**：每完成一个任务，必须更新 `status.md` 状态表、追加日志文件记录、更新接力文件 `current.md`，**严禁遗漏**
-9. **遇到无法修复的故障必须立即停止**：当出现无法自行修复的编译错误、运行时崩溃、环境问题或其他阻塞性故障时，必须：
-   - 立即停止当前任务的进一步开发
-   - 在 `status.md` 中将任务状态更新为 `blocked`，并在对应日志文件追加故障详情（错误信息、复现步骤、已尝试的修复方案）
-   - 向用户报告问题，说明故障原因和建议的解决方向
-   - **不得在故障未解决的情况下继续推进或强行标记 `done`**
+8. **任务完成后必须立即更新状态**：更新 `status.md` 状态表、追加日志文件记录、更新接力文件 `current.md`
+9. **遇到无法修复的故障必须立即停止**：出现无法自行修复的编译错误、运行时崩溃、环境问题时，立即停止，标记 `blocked`，向用户报告
+10. **编译/构建/运行/测试命令的输出必须重定向到临时目录**：执行任何构建、测试、运行命令前，先在项目根目录下创建临时目录（如 `tmp_build_logs/`），将命令输出重定向到该目录下的文件，阅读完毕后立即删除文件和目录，避免大量输出内容堆积消耗 token
+11. **禁止操作项目目录以外的任何文件或目录**：所有读写操作必须限定在当前项目目录（`/home/zcli/code/simplePIPE/`）内，严禁向任何外部路径（包括 `~/`、`/tmp/`、其他项目目录等）读取或写入内容
+12. **Phase 4 架构重构期间注意**: 新代码优先放入 `src/lib/` 或 `src/apps/` 对应目录，旧目录仅保留兼容别名
 
 ---
 
-## 项目技术栈
+## 文档语言
 
-| 技术 | 版本 | 位置 |
-|------|------|------|
-| OCCT | 8.0.0 | lib/occt/ |
-| VSG | 1.1.13 | lib/vsg/ |
-| VTK | 9.6.0 | lib/vtk/ (未来) |
-| Qt6 Quick | ≥6.5 | pixi (conda-forge) |
-| nlohmann/json | * | pixi (conda-forge) |
-| GTest | * | pixi (conda-forge) |
-| C++ | 17 | — |
-| 构建 | pixi + CMake + Ninja | — |
+本项目主要使用 **中文** 进行注释和文档编写。AI Agent 在生成代码注释、文档字符串、提交信息时应优先使用中文。
 
 ---
 
-## 文件索引
+## 安全配置与部署
 
-| 文件 | 用途 |
-|------|------|
-| `docs/architecture.md` | 架构设计（数据模型、分层、UI设计） |
-| `docs/development-plan.md` | 任务详情（交付物、验收标准） |
-| `docs/tasks/status.md` | **任务状态表（前 74 行）+ 完成记录索引** |
-| `docs/tasks/current.md` | **接力文件 — 下一个任务 + 推荐模型（用户看这个切模型）** |
-| `docs/tasks/log/t01-t25.md` | Phase 1 完成记录（T01–T25） |
-| `docs/tasks/log/t30-t45.md` | Phase 2 完成记录（T30–T45） |
-| `lib/occt/AGENTS.md` | OCCT API 使用指南 |
-| `lib/vsg/AGENTS.md` | VSG API 使用指南 |
-| `lib/vtk/AGENTS.md` | VTK API 使用指南 |
+### 本地预编译库
+
+- `lib/occt/` - OpenCASCADE 8.0.0 预编译库（需手动放置）
+- `lib/vsg/` - VulkanSceneGraph 1.1.13 预编译库（需手动放置）
+- VTK 已从 `lib/vtk/` 迁移至 pixi conda-forge 管理
+
+### 环境要求
+
+- **操作系统**: Linux x86_64 (推荐)
+- **显卡**: 支持 Vulkan 的 GPU（用于 VSG 渲染）
+- **内存**: 建议 8GB+（大型模型需要更多内存）
+
+### 许可证
+
+- 项目采用 **Apache License 2.0** 开源协议
+- 版权所有: 2024-2026 PipeCAD Contributors

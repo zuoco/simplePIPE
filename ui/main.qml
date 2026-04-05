@@ -27,26 +27,7 @@ ApplicationWindow {
         parameterPanel.ensurePropertyPanelVisibleAndFlash()
     }
 
-    Connections {
-        target: appController
-        function onInsertComponentRequested(componentType) {
-            var labels = {
-                "insert-pipe":           "直管段",
-                "insert-elbow":          "弯头",
-                "insert-tee":            "三通",
-                "insert-reducer":        "大小头",
-                "insert-valve":          "阀门",
-                "insert-flange":         "法兰",
-                "insert-rigid-support":  "刚性支撑",
-                "insert-spring-hanger":  "弹簧支吊架",
-                "insert-guide":          "导向约束",
-                "insert-restraint":      "位移限位器",
-                "insert-beam":           "结构梁"
-            }
-            var label = labels[componentType] || componentType
-            statusToast.show("插入 " + label + " — 请在视口中点击管点")
-        }
-    }
+    // insertComponent 已迁移到命令模式，不再通过信号通知 QML
 
     Shortcut {
         sequence: StandardKey.Undo
