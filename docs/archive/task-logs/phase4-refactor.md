@@ -434,3 +434,20 @@
 
 **已知限制**:
 - `src/vtk-visualization/` 仍保留 `VtkViewport` 与兼容头文件路径，后续任务再决定是否继续物理收敛
+
+### T76 — 固化 pipecad app 模板 (2026-04-06)
+
+**产出文件**: `src/apps/CMakeLists.txt` · `src/apps/pipecad/CMakeLists.txt` · `src/apps/pipecad/workbench/CMakeLists.txt` · `src/apps/pipecad/workbench/placeholder.cpp` · `src/apps/pipecad/resources/CMakeLists.txt` · `src/apps/pipecad/resources/README.md` · `docs/tasks/phase4-lib-app-refactor/t76-pipecad-app-template.md`
+
+**接口**: → `src/apps/CMakeLists.txt`, `src/apps/pipecad/CMakeLists.txt`, `docs/tasks/phase4-lib-app-refactor/t76-pipecad-app-template.md`
+
+**设计决策**:
+- 在 `src/apps/CMakeLists.txt` 引入 `PIPECAD_APP_LIST` 与 `pipecad_register_app()`，统一多 app 注册入口并校验模板骨架（model/engine/workbench/ui/resources/main.cpp）
+- 在 `src/apps/pipecad/CMakeLists.txt` 固化模板变量：`PIPECAD_APP_ID` 与 `PIPECAD_QML_MAIN_FILE`，并由 app id 派生 app 主目标与子域目标命名
+- 为 `workbench` 子域建立最小静态库 `pipecad_app_workbench`，补齐 `model/engine/workbench/ui/resources/main` 的可编译骨架闭包
+- 新增 `resources` 子域与 `pipecad_app_resources` 接口目标，明确 app 资源位职责
+- 新增 T76 模板说明文档，明确新增 app 的最小复制路径与必改点，无需重新设计 lib 边界
+- 构建与测试验证通过：Debug 构建成功，46/46 全部测试通过
+
+**已知限制**:
+- 当前默认入口 QML 仍指向仓库根目录 `ui/main.qml`，后续新增 app 需按模板显式覆盖 `PIPECAD_QML_MAIN_FILE`
