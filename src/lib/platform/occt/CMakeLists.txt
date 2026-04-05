@@ -11,6 +11,24 @@ add_library(lib_platform_occt STATIC
 )
 add_library(lib::platform::occt ALIAS lib_platform_occt)
 
+add_library(lib_platform_occt_modules STATIC)
+add_library(lib::platform::occt::modules ALIAS lib_platform_occt_modules)
+
+target_sources(lib_platform_occt_modules
+    PUBLIC
+    FILE_SET CXX_MODULES FILES
+        pipecad.platform.occt.cppm
+)
+
+target_include_directories(lib_platform_occt_modules
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${OpenCASCADE_INCLUDE_DIR}
+)
+
+target_compile_features(lib_platform_occt_modules PUBLIC cxx_std_20)
+
 target_include_directories(lib_platform_occt
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -23,6 +41,7 @@ target_compile_features(lib_platform_occt PUBLIC cxx_std_17)
 target_link_libraries(lib_platform_occt
     PUBLIC
         lib::base
+        lib_platform_occt_modules
     PRIVATE
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}

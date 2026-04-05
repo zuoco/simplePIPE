@@ -103,15 +103,15 @@
 | T59 | 迁移 geometry 到 src/lib/platform/occt | `done` | T56 | GPT-5.4 | 2026-04-05 |
 | T60 | 拆分 visualization 与 vtk-visualization | `done` | T56, T57 | GPT-5.4 | 2026-04-05 |
 | T61 | 迁移 app 与 command 到 lib | `done` | T56 | GPT-5.4 | 2026-04-05 |
-| T62 | 迁移 model/engine/ui/main 到 apps | `ready` | T57, T61 | GPT-5.4 | — |
+| T62 | 迁移 model/engine/ui/main 到 apps | `done` | T57, T61 | GPT-5.4 | 2026-04-05 |
 | T63 | 为 lib/base 建立第一批模块接口单元 | `done` | T58 | GPT-5.4 | 2026-04-05 |
-| T64 | 为 lib/platform 建立 facade 模块 | `ready` | T59, T60, T63 | GPT-5.4 | — |
-| T65 | 为 lib/runtime 建立核心模块 | `ready` | T61, T63 | GPT-5.4 | — |
-| T66 | 为 lib/framework 建立框架模块 | `pending` | T60, T61, T65 | GPT-5.4 | — |
-| T67 | 定义 DocumentSnapshot 契约 | `pending` | T61 | GPT-5.4 | — |
-| T68 | 建立任务队列与线程工作组 | `pending` | T52, T65 | GPT-5.4 | — |
-| T69 | 建立结果回投与任务版本控制 | `pending` | T68 | GPT-5.4 | — |
-| T70 | 为共享状态补齐同步策略 | `pending` | T67, T69 | GPT-5.4 | — |
+| T64 | 为 lib/platform 建立 facade 模块 | `done` | T59, T60, T63 | GPT-5.4 | 2026-04-05 |
+| T65 | 为 lib/runtime 建立核心模块 | `done` | T61, T63 | GPT-5.4 | 2026-04-05 |
+| T66 | 为 lib/framework 建立框架模块 | `done` | T60, T61, T65 | GPT-5.4 | 2026-04-05 |
+| T67 | 定义 DocumentSnapshot 契约 | `done` | T61 | GPT-5.4 | 2026-04-05 |
+| T68 | 建立任务队列与线程工作组 | `done` | T52, T65 | GPT-5.4 | 2026-04-05 |
+| T69 | 建立结果回投与任务版本控制 | `done` | T68 | GPT-5.4 | 2026-04-05 |
+| T70 | 为共享状态补齐同步策略 | `ready` | T67, T69 | GPT-5.4 | — |
 | T71 | 重构 RecomputeEngine 异步管线 | `pending` | T62, T67, T68, T69, T70 | GPT-5.4 | — |
 | T72 | 后台化 ShapeMesher 与批量重算 | `pending` | T71 | GPT-5.4 | — |
 | T73 | 后台化加载恢复与保存前准备 | `pending` | T68, T69, T71 | GPT-5.4 | — |

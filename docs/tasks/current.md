@@ -7,49 +7,45 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T63** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T69** 已全部完成。
 
-**T59/T60/T61/T63 完成摘要（2026-04-05）**：
-- **T59**: 将 `src/geometry/` 所有文件复制至 `src/lib/platform/occt/geometry/`，建立 `lib_platform_occt` STATIC + `lib::platform::occt` ALIAS；`src/geometry/CMakeLists.txt` 改为 `ALIAS lib_platform_occt`
-- **T60**: 将 `src/visualization/` 复制至 `src/lib/platform/vsg/visualization/`，建立 `lib_platform_vsg`；将 `vtk-visualization` 算法层（OcctToVtk/BeamMeshBuilder/VtkSceneManager）复制至 `src/lib/platform/vtk/vtk-visualization/`，建立 `lib_platform_vtk`（无Qt）；`vtk_visualization` 保留 VtkViewport 并链接 `lib_platform_vtk`；`src/visualization/CMakeLists.txt` 改为 `ALIAS lib_platform_vsg`
-- **T61**: 将 `src/command/` 全部文件复制至 `src/lib/runtime/command/`；Document/DependencyGraph/SelectionManager 复制至 `src/lib/runtime/app/`，建立 `lib_runtime` STATIC；Application/Workbench 系列复制至 `src/lib/framework/app/`，建立 `lib_framework` STATIC；`src/app/CMakeLists.txt` 改为 `ALIAS lib_framework`
-- **T63**: 在 `src/lib/base/baseMod/` 创建三个 C++20 模块接口单元（`pipecad.base.math.cppm`、`pipecad.base.types.cppm`、`pipecad.base.cppm`），建立 `lib_base_modules` STATIC 目标（FILE_SET CXX_MODULES, C++20）
-- 258/258 编译通过，41/41 测试全部通过
+**T69 完成摘要（2026-04-05）**：
+- 在 `src/lib/runtime/task/` 新增 `ResultChannel`，实现后台→主线程的线程安全结果回投通道
+- `ResultItem` 携带 `submittedVersion`（任务提交时的文档版本号）与 `applyFn`（主线程回投函数）
+- `drainFresh(currentVersion)` 实现版本校验与过期结果静默丢弃；`drainAll()` 用于强制刷新；`discard()` 用于丢弃全部
+- `pipecad.runtime.task` 模块边界新增 `ResultItem`、`ResultChannel` 前向声明导出
+- 在 `tests/test_runtime_tasking.cpp` 新增 7 个单测：版本匹配回投、过期丢弃、全量执行、discard、多生产者线程安全、WorkerGroup+ResultChannel 联动、过期结果场景
 
 **当前基线事实**：
-- `lib_platform_occt` STATIC 已存在，`geometry` 为其 ALIAS
-- `lib_platform_vsg` STATIC 已存在，`visualization` 为其 ALIAS
-- `lib_platform_vtk` STATIC 已存在（纯算法，无Qt）；`vtk_visualization` 仅保留 VtkViewport
-- `lib_runtime` STATIC 已存在（Document/DependencyGraph/SelectionManager + command 全部文件）
-- `lib_framework` STATIC 已存在（Application/Workbench/ProjectSerializer/StepExporter），`app` 为其 ALIAS
-- `lib_base_modules` STATIC 已存在（C++20 模块接口单元）
-- ready 任务：T62（model/engine/ui/main → apps）、T64（lib/platform facade 模块）、T65（lib/runtime 核心模块）
-- 可执行路径：`build/debug/src/pipecad`
+- `src/apps/pipecad/` 承载完整业务闭包（model/engine/ui/main）
+- `DocumentSnapshot`（T67）+ `WorkerGroup`（T68）+ `ResultChannel`（T69）构成异步重算的完整输入/调度/输出通道
+- `lib_base_modules`、`lib_platform_occt_modules`、`lib_platform_vsg_modules`、`lib_platform_vtk_modules`、`lib_runtime_modules`、`lib_framework_modules` 已全部存在
+- 当前测试基线为 `42/42`
+- ready 任务：T70（为共享状态补齐同步策略）
+- 可执行路径：`build/debug/src/apps/pipecad/pipecad`
 
 ## 下一个任务
 
-**T62 — 迁移 model/engine/ui/main 到 apps/pipecad**
+**T70 — 为共享状态补齐同步策略**
 
 工作目标：
-1. 将 `src/model/`、`src/engine/`、`src/ui/` 所有 `.h` 和 `.cpp` 文件复制到 `src/apps/pipecad/model/`、`src/apps/pipecad/engine/`、`src/apps/pipecad/ui/`
-2. 将 `src/main.cpp` 复制到 `src/apps/pipecad/main.cpp`
-3. 在 `src/apps/pipecad/model/CMakeLists.txt`、`engine/CMakeLists.txt`、`ui/CMakeLists.txt` 建立对应 STATIC 目标（lib::apps::pipecad::model 等），或根据实际 m2 规格确定目标名
-4. 更新 `src/model/CMakeLists.txt`、`src/engine/CMakeLists.txt`、`src/ui/CMakeLists.txt` 改为向后兼容别名
-5. 确保编译通过，41/41 测试全部通过
+1. 为文档只读访问、dirty 集合消费和场景提交建立明确的同步边界文档
+2. 识别并标注现有并发访问点（DependencyGraph dirty 列表、DocumentSnapshot 构建入口、SceneManager 场景提交）的锁边界
+3. 不引入跨线程数据竞争（重点是在代码注释或策略文件中冻结协议，让 T71 实现时有明确规范）
+4. 确保继续编译通过，测试基线保持 `42/42`
 
-同时可并行推进 T64（lib/platform facade 模块）和 T65（lib/runtime 核心模块）。
+与后续任务关系：
+- T71 依赖 T70 的同步策略冻结后才能正式重构 RecomputeEngine 异步管线
 
-推荐模型：**GPT-5.4 Codex**
+推荐模型：**Claude Sonnet 4.6**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/m2-directory-migration.md`（T62 规格）
-2. `docs/tasks/phase4-lib-app-refactor/m3-lib-modules.md`（T64/T65 规格）
-3. `src/model/CMakeLists.txt`（当前 model 构建文件）
-4. `src/engine/CMakeLists.txt`（当前 engine 构建文件）
-5. `src/ui/CMakeLists.txt`（当前 ui 构建文件）
-6. `src/apps/pipecad/model/CMakeLists.txt`（当前占位文件）
-7. `src/apps/pipecad/engine/CMakeLists.txt`（当前占位文件）
-8. `src/apps/pipecad/ui/CMakeLists.txt`（当前占位文件）
-9. `docs/tasks/status.md`（确认 T62 状态为 ready）
-
+1. `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
+2. `docs/tasks/phase4-lib-app-refactor/m4-concurrency-foundation.md`
+3. `src/lib/runtime/app/DocumentSnapshot.h`
+4. `src/lib/runtime/task/ResultChannel.h`
+5. `src/lib/runtime/task/TaskQueue.h`
+6. `src/apps/pipecad/engine/RecomputeEngine.h`
+7. `src/lib/runtime/app/DependencyGraph.h`
+8. `docs/tasks/status.md`

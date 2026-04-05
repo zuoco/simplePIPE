@@ -10,6 +10,7 @@
 #include "model/Route.h"
 #include "foundation/Types.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -18,6 +19,8 @@
 #include <map>
 
 namespace app {
+
+using DocumentVersion = std::uint64_t;
 
 /// 文档容器：持有所有文档对象，提供增删查改接口
 class Document {
@@ -97,11 +100,22 @@ public:
 
     /// 文档名称
     const std::string& name() const { return name_; }
-    void setName(const std::string& name) { name_ = name; }
+    void setName(const std::string& name);
+
+    /// 当前文档版本令牌；每次文档结构或对象属性变更后自增。
+    DocumentVersion currentVersion() const { return version_; }
+
+    /// 显式推进版本令牌，供需要手工冻结边界的调用方使用。
+    void bumpVersion();
 
 private:
+    void attachObjectObserver(const std::shared_ptr<model::DocumentObject>& obj);
+    void detachObjectObserver(const foundation::UUID& id);
+
     std::string name_;
     std::unordered_map<std::string, std::shared_ptr<model::DocumentObject>> objects_;
+    std::unordered_map<std::string, foundation::ChangeSignal::SlotId> objectChangeSlots_;
+    DocumentVersion version_ = 0;
 };
 
 } // namespace app

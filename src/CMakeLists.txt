@@ -8,18 +8,12 @@
 # T58: lib 必须先于 foundation 处理，因为 foundation 现为 lib_base 的别名
 add_subdirectory(lib)
 
-# T57: 应用目录骨架（物理内容待 T62 迁入）
-add_subdirectory(apps)
-
 add_subdirectory(foundation)
 add_subdirectory(geometry)
-add_subdirectory(model)
-add_subdirectory(engine)
 add_subdirectory(visualization)
 add_subdirectory(vtk-visualization)
 add_subdirectory(app)
 add_subdirectory(command)  # INTERFACE 别名，必须在 app 之后
-add_subdirectory(ui)
 
 # T53: pipecad_lib 聚合架构目标（INTERFACE，M1 过渡版）
 # 汇聚全部架构子库，供未来 apps/pipecad 业务库统一链接。
@@ -28,31 +22,14 @@ add_subdirectory(ui)
 # T54 后 app 不再吞并 RecomputeEngine.cpp，但 pipecad_lib 拓扑无需修改。
 # T55 后引入 pipecad_app（业务库）与 pipecad（可执行）两个正式目标。
 # T75 后清理旧兼容别名（foundation, geometry, model, engine 等旧 target 名）。
+# pipecad_lib 必须在 apps 之前定义，因为 apps/pipecad/ui 依赖它
 add_library(pipecad_lib INTERFACE)
 target_link_libraries(pipecad_lib INTERFACE app)
 
-# T55: pipecad_app 业务库占位（初期 = ui 层，T62 后扩展为 model+engine+workbench+ui）
-# 当前以 INTERFACE 形式聚合 ui 及 Qt6 依赖，T57 物理迁移后升级为 STATIC
-add_library(pipecad_app INTERFACE)
-target_link_libraries(pipecad_app INTERFACE
-	ui
-	Qt6::Quick
-	Qt6::Qml
-)
+# T57: apps 目录必须在 pipecad_lib 之后处理
+add_subdirectory(apps)
 
-# T55: 可执行从 pipecad_app 改名为 pipecad（pipecad_app 名释放给业务库）
-add_executable(pipecad
-	main.cpp
-)
-
-target_compile_features(pipecad PRIVATE cxx_std_17)
-
-target_compile_definitions(pipecad
-	PRIVATE
-		PIPECAD_QML_MAIN="${CMAKE_SOURCE_DIR}/ui/main.qml"
-)
-
-target_link_libraries(pipecad
-	PRIVATE
-		pipecad_app
-)
+# 旧目录别名（指向 apps/ 中的新目标，必须在 apps 之后）
+add_subdirectory(model)
+add_subdirectory(engine)
+add_subdirectory(ui)

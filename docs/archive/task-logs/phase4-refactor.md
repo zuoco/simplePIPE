@@ -218,6 +218,112 @@
 - `pipecad.base.cppm` 使用 `export import` 聚合子模块，使用者可一次性 `import pipecad.base;` 获得全部基础类型
 - `lib_base` INTERFACE 通过 `target_link_libraries(lib_base INTERFACE lib_base_modules)` 将模块传递给所有链接者
 
+### T67 — 定义 DocumentSnapshot 契约 (2026-04-05)
+
+**产出文件**: `src/lib/runtime/app/DocumentSnapshot.h` · `src/lib/runtime/app/DocumentSnapshot.cpp` · `src/lib/runtime/app/Document.h` · `src/lib/runtime/app/Document.cpp` · `src/lib/runtime/app/DependencyGraph.h` · `src/lib/runtime/app/DependencyGraph.cpp` · `tests/test_runtime_tasking.cpp`
+
+**接口**: → `src/lib/runtime/app/DocumentSnapshot.h`, `src/lib/runtime/app/Document.h`, `src/lib/runtime/app/DependencyGraph.h`
+
+**设计决策**:
+- 将文档版本令牌收口到 `Document`，通过对象 `changed` 信号、文档名变更和增删对象统一推进 `currentVersion()`
+- 以值语义冻结 `PipeSpec`、`PipePoint`、`Segment`、`Route` 和依赖图双向边视图，避免后台线程持有可变文档引用
+- `DocumentSnapshot` 由主线程同步构建，版本号、拓扑顺序和脏集合均在提交任务前固化
+- 为过渡期兼容 include 路径，同步扩展旧 `src/app/Document.h` 与 `src/app/DependencyGraph.h` 声明，避免旧头遮蔽新 API
+
+**已知限制**:
+- 当前快照仍聚焦管道几何主链路，附件、载荷和场景节点尚未进入后台快照面
+
+### T68 — 建立任务队列与线程工作组 (2026-04-05)
+
+**产出文件**: `src/lib/runtime/task/TaskQueue.h` · `src/lib/runtime/task/TaskQueue.cpp` · `src/lib/runtime/CMakeLists.txt` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `tests/test_runtime_tasking.cpp`
+
+**接口**: → `src/lib/runtime/task/TaskQueue.h`, `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm`
+
+**设计决策**:
+- 在 runtime 层引入 `TaskQueue`、`TaskHandle`、`CancellationToken` 与 `WorkerGroup`，统一提供提交、等待、取消和退出回收能力
+- 任务执行采用协作式取消：运行中任务通过 `CancellationToken` 观察取消请求，待执行任务则由队列直接标记完成并丢弃
+- `WorkerGroup::shutdown(true)` 同时取消活动任务与排队任务，并等待线程安全回收，满足 T68 的退出语义
+- 在 `pipecad.runtime.task` 模块边界中仅导出快照与调度类型前向边界，保持模块接口轻量
+
+**已知限制**:
+- 当前任务调度尚未包含主线程结果回投与过期结果丢弃，这部分留给 T69 完成
+
 **已知限制**:
 - 导出符号位于 `pipecad::` 命名空间，与旧 `foundation::` 命名空间并存；T75 后可考虑统一命名空间
 - 当前项目编译仍用 C++17，模块仅由 `lib_base_modules` 单独以 C++20 编译，其他文件不使用 import 语句
+
+### T62 — 迁移 model/engine/ui/main 到 apps (2026-04-05)
+
+**产出文件**: `src/apps/pipecad/model/*` · `src/apps/pipecad/engine/*` · `src/apps/pipecad/ui/*` · `src/apps/pipecad/main.cpp` · `src/apps/pipecad/CMakeLists.txt` · `src/apps/pipecad/model/CMakeLists.txt` · `src/apps/pipecad/engine/CMakeLists.txt` · `src/apps/pipecad/ui/CMakeLists.txt` · `src/model/CMakeLists.txt` · `src/engine/CMakeLists.txt` · `src/ui/CMakeLists.txt` · `src/CMakeLists.txt`
+
+**接口**: → `src/apps/pipecad/CMakeLists.txt`, `src/apps/pipecad/main.cpp`, `src/apps/pipecad/model/CMakeLists.txt`, `src/apps/pipecad/engine/CMakeLists.txt`, `src/apps/pipecad/ui/CMakeLists.txt`
+
+**设计决策**:
+- 将 `src/model/`、`src/engine/`、`src/ui/` 全量复制到 `src/apps/pipecad/`，保持 `#include "model/..."`、`#include "engine/..."`、`#include "ui/..."` 路径不变
+- 将入口文件迁移到 `src/apps/pipecad/main.cpp`，可执行目标 `pipecad` 改由 apps 子树定义
+- 新建 `pipecad_app_model`、`pipecad_app_engine`、`pipecad_app_ui` 三个 STATIC 目标，并提供 `lib::apps::pipecad::*` ALIAS
+- 旧 `model`、`engine`、`ui` 目标全部改为兼容 ALIAS，现有测试和遗留链接无需改名
+- 顶层 `src/CMakeLists.txt` 删除旧 `pipecad`/`pipecad_app` 定义，统一交由 `src/apps/pipecad/` 承担当前 app 闭包
+
+**已知限制**:
+- `src/model/`、`src/engine/`、`src/ui/` 旧目录物理文件仍保留，当前仅作为兼容入口，T75 再清理
+
+### T64 — 为 lib/platform 建立 facade 模块 (2026-04-05)
+
+**产出文件**: `src/lib/platform/occt/pipecad.platform.occt.cppm` · `src/lib/platform/vsg/pipecad.platform.vsg.cppm` · `src/lib/platform/vtk/pipecad.platform.vtk.cppm` · `src/lib/platform/occt/CMakeLists.txt` · `src/lib/platform/vsg/CMakeLists.txt` · `src/lib/platform/vtk/CMakeLists.txt`
+
+**接口**: → `src/lib/platform/occt/pipecad.platform.occt.cppm`, `src/lib/platform/vsg/pipecad.platform.vsg.cppm`, `src/lib/platform/vtk/pipecad.platform.vtk.cppm`
+
+**设计决策**:
+- 为 OCCT、VSG、VTK 三个子域分别建立独立的 C++20 facade 模块目标：`lib_platform_occt_modules`、`lib_platform_vsg_modules`、`lib_platform_vtk_modules`
+- 模块接口只导出前向声明与稳定别名，不直接 `export` 第三方重头类型，规避 GCC 模块与 OCCT/VSG/VTK 头的兼容问题
+- 公开命名空间统一为 `pipecad::platform::{occt,vsg,vtk}`，同时保留原有头文件 include 兼容路径
+- 将模块目标挂入对应 platform 静态库依赖，使后续 app/framework 可通过 link 获得模块编译产物
+
+**已知限制**:
+- facade 模块当前冻结的是边界而不是完整 API 面；apps 代码仍主要通过公开头访问 platform，真正 import 落地留待后续阶段推进
+
+### T65 — 为 lib/runtime 建立核心模块 (2026-04-05)
+
+**产出文件**: `src/lib/runtime/runtimeMod/pipecad.runtime.document.cppm` · `src/lib/runtime/runtimeMod/pipecad.runtime.graph.cppm` · `src/lib/runtime/runtimeMod/pipecad.runtime.command.cppm` · `src/lib/runtime/runtimeMod/pipecad.runtime.serialize.cppm` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `src/lib/runtime/CMakeLists.txt`
+
+**接口**: → `src/lib/runtime/runtimeMod/pipecad.runtime.document.cppm`, `src/lib/runtime/runtimeMod/pipecad.runtime.graph.cppm`, `src/lib/runtime/runtimeMod/pipecad.runtime.command.cppm`, `src/lib/runtime/runtimeMod/pipecad.runtime.serialize.cppm`, `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm`
+
+**设计决策**:
+- 建立 `document`、`graph`、`command`、`serialize`、`task` 五个运行时模块接口单元，并汇总到 `lib_runtime_modules` STATIC 目标
+- `task` 模块在本任务只冻结运行时任务边界，使用 `TaskBoundary` 占位，避免提前引入 T68 的线程调度实现
+- 命令系统继续通过公开头工作，模块层只提供稳定类型边界，兼容现有 `CommandContext` 中对 `TopologyManager` 的引用
+- `lib_runtime` 主体仍保留现有静态库构建方式，模块目标与传统头文件接口并存
+
+**已知限制**:
+- runtime 模块尚未被业务代码直接 `import`；当前阶段目标是固定边界，不做调用点迁移
+
+### T66 — 为 lib/framework 建立框架模块 (2026-04-05)
+
+**产出文件**: `src/lib/framework/frameworkMod/pipecad.framework.application.cppm` · `src/lib/framework/frameworkMod/pipecad.framework.workbench.cppm` · `src/lib/framework/frameworkMod/pipecad.framework.scene.cppm` · `src/lib/framework/frameworkMod/pipecad.framework.cppm` · `src/lib/framework/CMakeLists.txt`
+
+**接口**: → `src/lib/framework/frameworkMod/pipecad.framework.application.cppm`, `src/lib/framework/frameworkMod/pipecad.framework.workbench.cppm`, `src/lib/framework/frameworkMod/pipecad.framework.scene.cppm`, `src/lib/framework/frameworkMod/pipecad.framework.cppm`
+
+**设计决策**:
+- 为 application/workbench/scene 建立前向声明式 facade 模块，延续 T64/T65 的边界冻结风格，不在接口单元中暴露 VSG/OCCT 重型实现
+- 新增 `lib_framework_modules` STATIC 目标，并由 `lib_framework` 公开链接，使传统头接口与模块接口并存
+- 增加聚合模块 `pipecad.framework`，统一 re-export `application`、`workbench`、`scene` 三个子模块
+- `scene` 模块以 `SceneManager` 为稳定场景宿主边界，同时提供 `Scene` 别名，便于后续并发任务只依赖 framework 级抽象
+
+**已知限制**:
+- framework 模块当前只冻结类型边界，业务代码仍主要通过公开头访问；真正 import 调用点迁移留待后续阶段
+
+### T69 — 建立结果回投与任务版本控制 (2026-04-05)
+
+**产出文件**: `src/lib/runtime/task/ResultChannel.h` · `src/lib/runtime/task/ResultChannel.cpp` · `src/lib/runtime/CMakeLists.txt` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `tests/test_runtime_tasking.cpp`
+
+**接口**: → `src/lib/runtime/task/ResultChannel.h`, `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm`
+
+**设计决策**:
+- 引入 `task::ResultItem`（携带 `submittedVersion` + `applyFn`）和 `task::ResultChannel`（线程安全回投队列）
+- 后台线程调用 `ResultChannel::post(submittedVersion, applyFn)` 提交结果；主线程调用 `drainFresh(currentVersion)` 按版本过滤，不匹配则静默丢弃
+- 额外提供 `drainAll()`（强制刷新）和 `discard()`（丢弃全部），满足不同使用场景
+- `pipecad.runtime.task` 模块边界新增 `ResultItem` 和 `ResultChannel` 的前向声明导出
+
+**已知限制**:
+- `ResultChannel` 目前为通用回调通道，具体回投到哪个场景对象由调用方（T71 中的 RecomputeEngine）决定，本任务不约束

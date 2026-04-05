@@ -1,33 +1,3 @@
-add_library(engine STATIC
-    BendCalculator.cpp
-    RunBuilder.cpp
-    BendBuilder.cpp
-    ReducerBuilder.cpp
-    TeeBuilder.cpp
-    ValveBuilder.cpp
-    FlexJointBuilder.cpp
-    BeamBuilder.cpp
-    AccessoryBuilder.cpp
-    GeometryDeriver.cpp
-    ComponentCatalog.cpp
-    TopologyManager.cpp
-    ConstraintSolver.cpp
-    PipelineValidator.cpp
-    RecomputeEngine.cpp
-)
-
-target_include_directories(engine
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
-        ${OpenCASCADE_INCLUDE_DIR}
-)
-
-target_compile_features(engine PUBLIC cxx_std_17)
-
-target_link_libraries(engine
-    PUBLIC
-        model
-        geometry
-    PRIVATE
-        ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
-)
+# T62: engine 物理内容已迁入 src/apps/pipecad/engine
+# 保留旧 target 名作为向后兼容别名，供测试与遗留链接继续使用。
+add_library(engine ALIAS pipecad_app_engine)

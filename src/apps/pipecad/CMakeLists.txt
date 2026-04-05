@@ -11,3 +11,35 @@ add_subdirectory(model)
 add_subdirectory(engine)
 add_subdirectory(workbench)
 add_subdirectory(ui)
+
+add_library(pipecad_app STATIC
+	placeholder.cpp
+)
+
+target_compile_features(pipecad_app PUBLIC cxx_std_17)
+
+target_link_libraries(pipecad_app
+	PUBLIC
+		pipecad_lib
+		pipecad_app_model
+		pipecad_app_engine
+		pipecad_app_ui
+		Qt6::Quick
+		Qt6::Qml
+)
+
+add_executable(pipecad
+	main.cpp
+)
+
+target_compile_features(pipecad PRIVATE cxx_std_17)
+
+target_compile_definitions(pipecad
+	PRIVATE
+		PIPECAD_QML_MAIN="${CMAKE_SOURCE_DIR}/ui/main.qml"
+)
+
+target_link_libraries(pipecad
+	PRIVATE
+		pipecad_app
+)

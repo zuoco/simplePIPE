@@ -10,7 +10,7 @@
 
 - **操作系统**: Linux (推荐)
 - **工具管理器**: [pixi](https://pixi.sh/latest/)（构建脚本会自动安装）
-- **本地预编译库**: `lib/occt`、`lib/vsg`、`lib/vtk` 需手动放置到项目根目录
+- **本地预编译库**: `lib/occt`、`lib/vsg` 需手动放置到项目根目录
 
 ### 一键初始化
 
@@ -29,6 +29,8 @@ bash scripts/setup.sh --verify
 ### 编译构建
 
 所有构建操作均通过 pixi 执行，确保环境隔离。在项目根目录下运行：
+
+默认采用稳定模式：编译并发 = 1，测试并发 = 1，并且 Ninja 下链接阶段强制串行，优先避免把开发机打满；构建链路为 CMake + Clang + Ninja。如需手动覆盖，可设置 `PIPECAD_BUILD_JOBS` 与 `PIPECAD_TEST_JOBS`。
 
 ```bash
 bash scripts/build.sh                # 默认 Debug 构建
@@ -54,6 +56,14 @@ pixi run build-release       # Configure + 编译 (Release)
 pixi run test                # 编译 Debug + 运行全部测试
 pixi run clean               # 清除 build/ 目录
 pixi shell                   # 进入 pixi 交互式环境
+```
+
+手动限制并发示例：
+
+```bash
+PIPECAD_BUILD_JOBS=2 bash scripts/build.sh
+PIPECAD_BUILD_JOBS=2 pixi run build-debug
+PIPECAD_TEST_JOBS=1 pixi run test
 ```
 
 ### 运行主程序

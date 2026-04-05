@@ -491,3 +491,15 @@ target_link_libraries(test_insert_component
 target_include_directories(test_insert_component PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_insert_component PRIVATE cxx_std_17)
 add_test(NAME InsertComponent COMMAND test_insert_component)
+
+# DocumentSnapshot 与任务队列测试 — T67/T68
+add_executable(test_runtime_tasking test_runtime_tasking.cpp)
+target_link_libraries(test_runtime_tasking
+    PRIVATE
+        app
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_runtime_tasking PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_runtime_tasking PRIVATE cxx_std_17)
+add_test(NAME RuntimeTasking COMMAND test_runtime_tasking)

@@ -51,6 +51,15 @@ public:
     /// 调用后不清除脏标记（由 RecomputeEngine 决定何时清除）
     std::vector<foundation::UUID> collectDirty() const;
 
+    /// 查询对象直接依赖的上游节点。
+    std::vector<foundation::UUID> directDependencies(const foundation::UUID& id) const;
+
+    /// 查询对象的直接下游依赖者。
+    std::vector<foundation::UUID> directDependents(const foundation::UUID& id) const;
+
+    /// 返回图中已知的全部节点。
+    std::vector<foundation::UUID> allNodes() const;
+
     /// 脏对象数量
     std::size_t dirtyCount() const { return dirty_.size(); }
 

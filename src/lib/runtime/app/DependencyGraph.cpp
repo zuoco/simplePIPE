@@ -8,6 +8,8 @@
 #include "model/LoadCase.h"
 #include "model/LoadCombination.h"
 
+#include <algorithm>
+
 namespace app {
 
 void DependencyGraph::cacheUUID(const foundation::UUID& id) {
@@ -178,6 +180,61 @@ std::vector<foundation::UUID> DependencyGraph::collectDirty() const {
             }
         }
     }
+    return result;
+}
+
+std::vector<foundation::UUID> DependencyGraph::directDependencies(const foundation::UUID& id) const {
+    std::vector<foundation::UUID> result;
+    auto it = dependencies_.find(id.toString());
+    if (it == dependencies_.end()) {
+        return result;
+    }
+
+    result.reserve(it->second.size());
+    for (const auto& key : it->second) {
+        auto uuidIt = uuidCache_.find(key);
+        if (uuidIt != uuidCache_.end()) {
+            result.push_back(uuidIt->second);
+        }
+    }
+
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.toString() < rhs.toString();
+    });
+    return result;
+}
+
+std::vector<foundation::UUID> DependencyGraph::directDependents(const foundation::UUID& id) const {
+    std::vector<foundation::UUID> result;
+    auto it = dependents_.find(id.toString());
+    if (it == dependents_.end()) {
+        return result;
+    }
+
+    result.reserve(it->second.size());
+    for (const auto& key : it->second) {
+        auto uuidIt = uuidCache_.find(key);
+        if (uuidIt != uuidCache_.end()) {
+            result.push_back(uuidIt->second);
+        }
+    }
+
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.toString() < rhs.toString();
+    });
+    return result;
+}
+
+std::vector<foundation::UUID> DependencyGraph::allNodes() const {
+    std::vector<foundation::UUID> result;
+    result.reserve(uuidCache_.size());
+    for (const auto& [key, uuid] : uuidCache_) {
+        result.push_back(uuid);
+    }
+
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.toString() < rhs.toString();
+    });
     return result;
 }
 

@@ -1,24 +1,3 @@
-add_library(ui STATIC
-    placeholder.cpp
-    VsgQuickItem.cpp
-    AppController.cpp
-    WorkbenchController.cpp
-    PipePointTableModel.cpp
-    SegmentTreeModel.cpp
-    PropertyModel.cpp
-    PipeSpecModel.cpp
-)
-
-target_include_directories(ui
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
-)
-
-target_compile_features(ui PUBLIC cxx_std_17)
-
-target_link_libraries(ui
-    PUBLIC
-        app
-        Qt6::Quick
-        Qt6::Qml
-)
+# T62: ui 物理内容已迁入 src/apps/pipecad/ui
+# 保留旧 target 名作为向后兼容别名，供测试与遗留链接继续使用。
+add_library(ui ALIAS pipecad_app_ui)

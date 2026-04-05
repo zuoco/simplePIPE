@@ -1,17 +1,3 @@
-add_library(model STATIC placeholder.cpp)
-
-target_include_directories(model
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
-        ${OpenCASCADE_INCLUDE_DIR}
-)
-
-target_compile_features(model PUBLIC cxx_std_17)
-
-target_link_libraries(model
-    PUBLIC
-        foundation
-    PRIVATE
-        ${OpenCASCADE_FoundationClasses_LIBRARIES}
-        ${OpenCASCADE_ModelingData_LIBRARIES}
-)
+# T62: model 物理内容已迁入 src/apps/pipecad/model
+# 保留旧 target 名作为向后兼容别名，供测试与遗留链接继续使用。
+add_library(model ALIAS pipecad_app_model)

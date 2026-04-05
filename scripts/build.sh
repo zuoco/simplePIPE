@@ -43,7 +43,46 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ── 默认配置 ──────────────────────────────────────────────
 BUILD_DIR_NAME="debug"
 BUILD_TYPE="Debug"
-PARALLEL_JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+TEST_JOBS="1"
+
+detect_cpu_count() {
+    nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4
+}
+
+detect_total_memory_gib() {
+    if [ -r /proc/meminfo ]; then
+        awk '/MemTotal:/ { printf "%d", ($2 + 1048575) / 1048576 }' /proc/meminfo
+        return
+    fi
+
+    echo 8
+}
+
+is_positive_integer() {
+    [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+resolve_build_jobs() {
+    if [ -n "${PIPECAD_BUILD_JOBS:-}" ] && is_positive_integer "${PIPECAD_BUILD_JOBS}"; then
+        echo "${PIPECAD_BUILD_JOBS}"
+        return
+    fi
+
+    # 默认 6 路并行构建。
+    echo 6
+}
+
+resolve_test_jobs() {
+    if [ -n "${PIPECAD_TEST_JOBS:-}" ] && is_positive_integer "${PIPECAD_TEST_JOBS}"; then
+        echo "${PIPECAD_TEST_JOBS}"
+        return
+    fi
+
+    echo 1
+}
+
+PARALLEL_JOBS="$(resolve_build_jobs)"
+TEST_JOBS="$(resolve_test_jobs)"
 
 # ── 输出函数 ──────────────────────────────────────────────
 info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
@@ -58,6 +97,21 @@ banner() {
     echo -e "${BOLD}  $1${NC}"
     echo -e "${BOLD}────────────────────────────────────────────────────────${NC}"
     echo ""
+}
+
+print_parallel_jobs() {
+    case "${1:-build}" in
+        build)
+            resolve_build_jobs
+            ;;
+        test)
+            resolve_test_jobs
+            ;;
+        *)
+            fail "未知并发类型: ${1}"
+            exit 1
+            ;;
+    esac
 }
 
 # ── 计时器 ────────────────────────────────────────────────
@@ -119,7 +173,8 @@ do_configure() {
     banner "CMake Configure (${BUILD_TYPE})"
 
     step "构建目录: ${build_dir}"
-    step "并行任务: ${PARALLEL_JOBS}"
+    step "推荐编译并行: ${PARALLEL_JOBS}"
+    step "推荐测试并行: ${TEST_JOBS}"
     echo ""
 
     timer_start
@@ -129,6 +184,8 @@ do_configure() {
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         -DCMAKE_PREFIX_PATH="${CONDA_PREFIX:-$(pixi run printenv CONDA_PREFIX 2>/dev/null || echo "")}" \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
         2>&1 || {
         fail "CMake configure 失败"
         echo ""
@@ -166,7 +223,7 @@ do_build() {
 
     timer_start
 
-    pixi run cmake --build "${build_dir}" -j "${PARALLEL_JOBS}" 2>&1 || {
+    pixi run cmake --build "${build_dir}" --parallel "${PARALLEL_JOBS}" 2>&1 || {
         fail "编译失败"
         echo ""
         info "排查建议:"
@@ -207,7 +264,7 @@ do_test() {
     local build_dir="${PROJECT_ROOT}/build/${BUILD_DIR_NAME}"
     local extra_args=("$@")
 
-    banner "运行测试 (${BUILD_TYPE} 构建)"
+    banner "运行测试 (${BUILD_TYPE} 构建, ${TEST_JOBS} 并行)"
 
     # 确保已编译
     if [ ! -f "${build_dir}/build.ninja" ]; then
@@ -216,7 +273,7 @@ do_test() {
 
     timer_start
 
-    local ctest_cmd="pixi run ctest --test-dir ${build_dir} --output-on-failure"
+    local ctest_cmd="pixi run ctest --test-dir ${build_dir} --output-on-failure --parallel ${TEST_JOBS}"
 
     # 支持传递额外的 ctest 参数（如 -R <pattern>）
     if [ ${#extra_args[@]} -gt 0 ]; then
@@ -389,6 +446,10 @@ do_status() {
         fi
     fi
 
+    echo ""
+    echo -e "  推荐编译并行:    ${PARALLEL_JOBS}"
+    echo -e "  推荐测试并行:    ${TEST_JOBS}"
+
     # 预编译库
     echo ""
     for lib in occt vsg vtk; do
@@ -433,6 +494,12 @@ show_help() {
     echo "  -V                  详细输出模式"
     echo "  --verbose           详细输出模式"
     echo ""
+    echo -e "${BOLD}并发控制环境变量:${NC}"
+    echo "  PIPECAD_BUILD_JOBS=<N>   覆盖默认编译并发"
+    echo "  PIPECAD_TEST_JOBS=<N>    覆盖默认测试并发"
+    echo "  默认策略: 编译并发 = 1，测试并发 = 1"
+    echo "  如需更高吞吐，请显式设置 PIPECAD_BUILD_JOBS 和 PIPECAD_TEST_JOBS"
+    echo ""
     echo -e "${BOLD}示例:${NC}"
     echo "  bash scripts/build.sh                       # 默认 Debug 构建"
     echo "  bash scripts/build.sh release               # Release 构建"
@@ -445,6 +512,7 @@ show_help() {
     echo "  bash scripts/build.sh full                  # 全量构建 (clean+build+test)"
     echo "  bash scripts/build.sh clean                 # 清除构建目录"
     echo "  bash scripts/build.sh status                # 查看构建状态"
+    echo "  PIPECAD_BUILD_JOBS=2 bash scripts/build.sh  # 强制使用 2 路编译"
     echo ""
     echo -e "${BOLD}等价的 pixi 命令:${NC}"
     echo "  pixi run configure-debug     # CMake configure (Debug)"
@@ -516,6 +584,9 @@ main() {
             ;;
         status|s|stat)
             do_status
+            ;;
+        jobs)
+            print_parallel_jobs "${1:-build}"
             ;;
         help|h|--help|-h)
             show_help
