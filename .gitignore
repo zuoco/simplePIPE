@@ -20,3 +20,5 @@ compile_commands.json
 Thumbs.db
 
 lib
+# T56: src/lib/ 是代码目录，不应被上面的 lib 规则忽略
+!src/lib/
