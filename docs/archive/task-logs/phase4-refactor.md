@@ -138,3 +138,20 @@
 
 **已知限制**:
 - 所有 apps/pipecad 子目录当前均无源文件，CMakeLists.txt 仅为命名空间占位
+
+### T58 — 迁移 foundation 到 src/lib/base (2026-04-05)
+
+**产出文件**: `src/lib/base/foundation/Math.h` · `src/lib/base/foundation/Log.h` · `src/lib/base/foundation/Signal.h` · `src/lib/base/foundation/Types.h` · `src/lib/base/CMakeLists.txt` · `src/foundation/CMakeLists.txt` · `src/CMakeLists.txt`
+
+**接口**: → `src/lib/base/CMakeLists.txt`（lib_base INTERFACE + lib::base ALIAS）；`src/foundation/CMakeLists.txt`（foundation ALIAS lib_base）
+
+**设计决策**:
+- 将四个头文件原样复制到 `src/lib/base/foundation/`（保持 `#include "foundation/..."` 路径不变）
+- `lib_base` 为 INTERFACE 目标，include dir 设为 `${CMAKE_CURRENT_SOURCE_DIR}`（即 `src/lib/base/`），使 `#include "foundation/..."` 解析到新位置
+- 添加 `lib::base` ALIAS（为未来显式使用 lib 命名空间的代码准备）
+- `foundation` 目标改为 `ALIAS lib_base`，旧链接代码（geometry、model、engine、tests 等）无需修改
+- 将 `add_subdirectory(lib)` 与 `add_subdirectory(apps)` 移到 `add_subdirectory(foundation)` 之前，确保 `lib_base` 在 `foundation` 别名创建前已定义
+- 旧 `src/foundation/` 目录的头文件原样保留（过渡期双份存在，`placeholder.cpp` 不再被编译但不删除）
+
+**已知限制**:
+- `src/foundation/*.h` 与 `src/lib/base/foundation/*.h` 目前双份存在，T75 清理旧目录兼容层时一并删除
