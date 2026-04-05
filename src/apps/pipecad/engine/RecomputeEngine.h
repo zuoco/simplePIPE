@@ -36,28 +36,74 @@ namespace engine {
 /// - SceneUpdateCallback 通常持有 SceneManager 的引用，
 ///   SceneManager 的 addNode/updateNode/removeNode 也仅主线程调用。
 ///
-/// T71 将把几何推导部分移入后台任务（基于 DocumentSnapshot），
-/// 届时 RecomputeEngine 负责快照构建、任务调度和结果回投协调。
+/// ## 异步模式（T71）
+///
+/// 通过 enableAsyncMode() 注入以下三个类型擦除函数后，
+/// asyncRecompute() 将遵循 T70 同步策略中的快照窗口协议执行：
+///
+///   [主线程] collectDirty → makeDocumentSnapshot → clearDirty → submitTask
+///   [后台线程] 基于 DocumentSnapshot 推导几何 → postResult
+///   [主线程事件循环] drainResults() → applyFn → sceneCb_
+///
+/// 类型擦除确保 RecomputeEngine.h 不引入对 lib_runtime 的直接 CMake 依赖。
 class RecomputeEngine {
 public:
     /// 场景更新回调类型：(对象UUID字符串, 新几何体)
     using SceneUpdateCallback = std::function<void(const std::string&, const TopoDS_Shape&)>;
+
+    /// 异步执行函数类型：封装完整的快照构建→后台提交→结果回投管线。
+    ///
+    /// 由 main.cpp 注入，在 asyncRecompute() 中调用。
+    /// 注入者负责在主线程内依次执行：
+    ///   1. makeDocumentSnapshot(doc, graph)   → 构建只读快照（捕获脏 ID）
+    ///   2. graph.clearDirty()                 → 清除脏标记
+    ///   3. workers.submit(task)               → 提交后台几何推导
+    ///   4. [后台] channel.post(version, fn)   → 结果回投
+    ///
+    /// 类型擦除确保 RecomputeEngine.h 不引入对 lib_runtime 的依赖。
+    using AsyncFn = std::function<void()>;
+
+    /// 结果消费函数类型：委托 SceneUpdateAdapter::drain()（主线程事件循环调用）
+    using DrainFn = std::function<std::size_t()>;
 
     RecomputeEngine(app::Document& doc, app::DependencyGraph& graph);
 
     /// 设置场景更新回调（可选，不设置时仅推导几何不更新场景）
     void setSceneUpdateCallback(SceneUpdateCallback cb);
 
-    /// 重算脏对象（由 CommandStack 执行命令后调用）
+    /// 启用异步模式（T71）
+    ///
+    /// @param asyncFn  封装完整异步管线的执行函数（快照→提交→回投）
+    /// @param drainFn  主线程消费后台结果的函数（版本校验后执行 applyFn）
+    void enableAsyncMode(AsyncFn asyncFn, DrainFn drainFn);
+
+    /// 同步重算脏对象（由 CommandStack 执行命令后调用；向后兼容路径）
     void recompute(const std::vector<foundation::UUID>& dirtyIds);
 
-    /// 重算文档中所有 PipePoint（全量刷新）
+    /// 异步重算（T71 新路径，requires enableAsyncMode() 已调用）
+    ///
+    /// 若有脏对象且异步模式已启用，调用注入的 asyncFn_() 执行异步管线。
+    /// 若异步模式未启用，退化为同步 recompute()。
+    void asyncRecompute();
+
+    /// 主线程消费挂起的后台结果（需在事件循环中定期调用）
+    ///
+    /// 若异步模式未启用则为 no-op。
+    ///
+    /// @return 本次实际执行的 applyFn 数量
+    std::size_t drainResults();
+
+    /// 重算文档中所有 PipePoint（全量刷新，同步降级模式）
     void recomputeAll();
 
 private:
     app::Document&        doc_;
     app::DependencyGraph& graph_;
     SceneUpdateCallback   sceneCb_;
+
+    // 异步模式注入函数（未启用时为 null）
+    AsyncFn  asyncFn_;
+    DrainFn  drainFn_;
 
     /// 在所有 Segment 中查找 PipePoint 的前后邻居
     struct Neighbors {

@@ -346,3 +346,20 @@
 **已知限制**:
 - SceneUpdateAdapter 目前未接入实际的 RecomputeEngine 异步调用路径，这部分留给 T71 完成
 - 当前系统仍为主线程串行执行，本任务的同步策略注释在 T71 真正引入后台线程时才发挥约束作用
+
+### T71 — 重构 RecomputeEngine 异步管线 (2026-04-05)
+
+**产出文件**: `src/apps/pipecad/engine/GeometryDeriver.h` · `src/apps/pipecad/engine/GeometryDeriver.cpp` · `src/apps/pipecad/engine/RecomputeEngine.h` · `src/apps/pipecad/engine/RecomputeEngine.cpp` · `src/engine/GeometryDeriver.h`（shim 更新）· `src/engine/RecomputeEngine.h`（shim 更新）· `src/apps/pipecad/main.cpp` · `tests/test_async_recompute.cpp` · `tests/CMakeLists.txt`
+
+**接口**: → `src/apps/pipecad/engine/RecomputeEngine.h`, `src/apps/pipecad/engine/GeometryDeriver.h`
+
+**设计决策**:
+- 采用类型擦除 `AsyncFn = std::function<void()>` + `DrainFn = std::function<std::size_t()>` 二元组注入，避免 `pipecad_app_engine` 对 `lib_runtime` 产生 CMake 循环依赖
+- `asyncRecompute()` 只检查脏集非空后调用 `asyncFn_()`，不直接调用 `makeDocumentSnapshot`；快照构建、clearDirty、后台提交、结果回投全部封装在注入的 `asyncFn_` 中（来自 main.cpp）
+- `GeometryDeriver::deriveFromSnapshot()` 新增静态方法，接受只读 `PipePointSnapshot/PipeSpecSnapshot`，后台线程安全；内部访问 `fields["OD"]`、`fields["wallThickness"]` 等字段替代 `spec->od()` 活动对象方法
+- main.cpp 中的 `asyncFn` 完整封装 T70 快照窗口协议：makeDocumentSnapshot → clearDirty → workers.submit → [后台] deriveFromSnapshot → resultChannel.post → [主线程 drain] sceneCb
+- 头文件包含顺序問題：`main.cpp` 位于 `src/apps/pipecad/`，相对路径包含 `"engine/GeometryDeriver.h"` 会解析到 `src/apps/pipecad/engine/GeometryDeriver.h`（而非 shim），导致重定义；解决方案是不重复 include，依赖 RecomputeEngine.h → shim GeometryDeriver.h 的传递包含
+
+**已知限制**:
+- GeometryDeriver shim (`src/engine/GeometryDeriver.h`) 与 canonical header 必须手动同步接口，直到 T75 清理兼容层
+- 目前 asyncFn 在 pipecad 可执行里定义于 main.cpp，若未来需要在别处复用需提取单独构件

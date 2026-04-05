@@ -1,5 +1,7 @@
 // Copyright 2024-2026 PipeCAD Contributors
 // SPDX-License-Identifier: Apache-2.0
+//
+// T62 兼容 shim：物理迁移后此文件作为转发头，内容与 src/apps/pipecad/engine/RecomputeEngine.h 保持同步。
 
 #pragma once
 
@@ -23,26 +25,53 @@ namespace engine {
 ///   setSceneUpdateCallback([&](const std::string& uuid, const TopoDS_Shape& shape) {
 ///       sceneMgr.updateNode(uuid, ...);
 ///   });
+///
+/// ## 线程所有权（T70 同步策略）
+///
+/// **[主线程独占]** 本类所有公共方法仅允许在主线程调用。
+///
+/// ## 异步模式（T71）
+///
+/// 通过 enableAsyncMode() 注入三个类型擦除函数后，
+/// asyncRecompute() 遵循 T70 快照窗口协议执行异步管线。
 class RecomputeEngine {
 public:
     /// 场景更新回调类型：(对象UUID字符串, 新几何体)
     using SceneUpdateCallback = std::function<void(const std::string&, const TopoDS_Shape&)>;
+
+    /// 异步执行函数类型（T71）
+    using AsyncFn = std::function<void()>;
+
+    /// 结果消费函数类型（T71）
+    using DrainFn = std::function<std::size_t()>;
 
     RecomputeEngine(app::Document& doc, app::DependencyGraph& graph);
 
     /// 设置场景更新回调（可选，不设置时仅推导几何不更新场景）
     void setSceneUpdateCallback(SceneUpdateCallback cb);
 
-    /// 重算脏对象（由 CommandStack 执行命令后调用）
+    /// 启用异步模式（T71）
+    void enableAsyncMode(AsyncFn asyncFn, DrainFn drainFn);
+
+    /// 同步重算脏对象（向后兼容路径）
     void recompute(const std::vector<foundation::UUID>& dirtyIds);
 
-    /// 重算文档中所有 PipePoint（全量刷新）
+    /// 异步重算（T71 新路径）
+    void asyncRecompute();
+
+    /// 主线程消费挂起的后台结果
+    std::size_t drainResults();
+
+    /// 重算文档中所有 PipePoint（全量刷新，同步降级模式）
     void recomputeAll();
 
 private:
     app::Document&        doc_;
     app::DependencyGraph& graph_;
     SceneUpdateCallback   sceneCb_;
+
+    AsyncFn  asyncFn_;
+    DrainFn  drainFn_;
 
     /// 在所有 Segment 中查找 PipePoint 的前后邻居
     struct Neighbors {

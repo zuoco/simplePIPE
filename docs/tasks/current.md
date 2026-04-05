@@ -7,56 +7,48 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T70** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T71** 已全部完成。
 
-**T70 完成摘要（2026-04-05）**：
-- 实现 `task::SceneUpdateAdapter`（`src/lib/runtime/task/`），封装主线程消费 ResultChannel 的协议
-- `SceneUpdateAdapter` 通过 `VersionProvider` 函数对象获取当前文档版本，调用 `drainFresh(version)` 完成版本校验
-- 在 `DependencyGraph.h` dirty 方法添加主线程独占注释，冻结 `collectDirty → clearDirty` 原子序列要求
-- 在 `DocumentSnapshot.h` 的 `makeDocumentSnapshot` 添加"快照窗口"协议注释（正确的调用顺序）
-- 在 `RecomputeEngine.h` 添加主线程独占原因注释（OCCT 非线程安全）和 T71 迁移说明
-- `pipecad.runtime.task` 模块边界新增 `SceneUpdateAdapter` 前向声明导出
-- `tests/test_runtime_tasking.cpp` 新增 6 个 SceneUpdateAdapter 单测（版本匹配、延迟查询、drainAll、discard、WorkerGroup 联动、pendingCount）
-- 同步策略冻结文档：`docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`
+**T71 完成摘要（2026-04-05）**：
+- `RecomputeEngine` 新增 `enableAsyncMode(AsyncFn, DrainFn)` 二元组注入接口
+- `AsyncFn = std::function<void()>` 封装完整异步管线（快照 → clearDirty → 后台提交 → ResultChannel 回投），由 `main.cpp` 注入，避免 `pipecad_app_engine` 对 `lib_runtime` 的循环依赖
+- `asyncRecompute()` 实现：有脏对象时调用 `asyncFn_()`，无异步模式时退化同步
+- `GeometryDeriver::deriveFromSnapshot()` 新增静态方法，接受只读 `PipePointSnapshot/PipeSpecSnapshot`，后台线程安全
+- `main.cpp` 内 `asyncFn` 完整封装 T70 快照窗口协议，WorkerGroup 后台推导 + ResultChannel 回投 + QTimer drain（每 16ms）
+- 10 个 `AsyncRecompute` 测试均通过
+- 当前测试基线为 **43/43**
 
 **当前基线事实**：
-- `src/apps/pipecad/` 承载完整业务闭包（model/engine/ui/main）
-- `DocumentSnapshot`（T67）+ `WorkerGroup`（T68）+ `ResultChannel`（T69）+ `SceneUpdateAdapter`（T70）构成异步重算的完整输入/调度/输出/消费通道
-- T70 冻结的"快照窗口"协议（collectDirty → makeDocumentSnapshot → clearDirty → submit）是 T71 重构 RecomputeEngine 的关键规范
-- `lib_base_modules`、`lib_platform_occt_modules`、`lib_platform_vsg_modules`、`lib_platform_vtk_modules`、`lib_runtime_modules`、`lib_framework_modules` 已全部存在
-- 当前测试基线为 `42/42`
-- ready 任务：T71（重构 RecomputeEngine 异步管线）
+- `src/apps/pipecad/engine/RecomputeEngine.h` 接口：`enableAsyncMode(AsyncFn, DrainFn)` + `asyncRecompute()` + `drainResults()` + `recompute()` + `recomputeAll()`
+- `src/apps/pipecad/engine/GeometryDeriver.h` 接口：`deriveGeometry()`（同步）+ `deriveFromSnapshot()`（异步快照版本）
+- `src/engine/` 下的两个 shim 头文件已同步为最新接口（含 `deriveFromSnapshot` 声明）
+- `src/engine/GeometryDeriver.h` 与 `src/apps/pipecad/engine/GeometryDeriver.h` 是两个独立文件，不互相 include（`main.cpp` 不能显式 include `"engine/GeometryDeriver.h"`，否则因相对路径解析产生重定义）
+- T72（后台化 ShapeMesher 与批量重算）状态已标为 `ready`
 - 可执行路径：`build/debug/src/apps/pipecad/pipecad`
 
 ## 下一个任务
 
-**T71 — 重构 RecomputeEngine 异步管线**
+**T72 — 后台化 ShapeMesher 与批量重算**
 
 工作目标：
-1. 将 `RecomputeEngine::recompute()` 改造为异步管线：
-   - 主线程：`collectDirty` → `makeDocumentSnapshot` → `clearDirty` → 提交后台任务
-   - 后台线程：基于 `DocumentSnapshot` 推导几何（调用 OCCT 计算函数）
-   - 后台线程：计算完成后通过 `ResultChannel::post(version, applyFn)` 回投
-   - 主线程（事件循环）：通过 `SceneUpdateAdapter::drain()` 消费结果并更新 SceneManager
-2. 维持现有 `recomputeAll()` 路径作为同步全量刷新的降级模式
-3. 确保编译通过，`42/42` 测试基线不退步（可添加新并发测试）
+1. 将 `ShapeMesher`（网格化）移入后台线程执行，不阻塞主线程
+2. 批量重算时，多个脏对象的几何推导并行执行（利用 WorkerGroup 多线程）
+3. 结果通过 `ResultChannel` 回投，主线程 drain 直接更新场景
+4. 保持 `recomputeAll()` 同步降级路径
 
-核心挑战：
-- `RecomputeEngine` 目前持有 `Document&` 和 `DependencyGraph&` 可变引用；异步化后需改为在提交任务前构建快照，后台只访问快照
-- `SceneUpdateCallback` 目前是同步回调；异步化后需改为通过 `ResultChannel` 传递，主线程调用时触发场景更新
-- 需要在 `WorkerGroup` 上持有 `SceneUpdateAdapter` 引用，并在主线程事件循环（或定时器）中驱动 `drain()`
+参考任务卡：`docs/tasks/phase4-lib-app-refactor/m5-async-recompute.md`
 
 推荐模型：**Claude Sonnet 4.6**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`（T70 冻结的同步策略，必读）
-2. `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`（T52 线程边界规则）
-3. `src/apps/pipecad/engine/RecomputeEngine.h`（当前接口）
-4. `src/apps/pipecad/engine/RecomputeEngine.cpp`（当前实现）
-5. `src/lib/runtime/app/DocumentSnapshot.h`（快照契约）
-6. `src/lib/runtime/task/ResultChannel.h`（结果回投通道）
-7. `src/lib/runtime/task/SceneUpdateAdapter.h`（主线程消费适配器）
-8. `src/lib/runtime/task/TaskQueue.h`（WorkerGroup 接口）
-9. `src/apps/pipecad/engine/GeometryDeriver.h`（当前几何推导接口）
+1. `docs/tasks/phase4-lib-app-refactor/m5-async-recompute.md`（任务卡）
+2. `src/apps/pipecad/engine/RecomputeEngine.h`（当前接口）
+3. `src/apps/pipecad/engine/RecomputeEngine.cpp`（当前实现）
+4. `src/apps/pipecad/engine/GeometryDeriver.h`（当前接口，含 deriveFromSnapshot）
+5. `src/apps/pipecad/engine/GeometryDeriver.cpp`（当前实现）
+6. `src/lib/runtime/app/DocumentSnapshot.h`（快照契约）
+7. `src/lib/runtime/task/TaskQueue.h`（WorkerGroup 接口）
+8. `src/lib/runtime/task/ResultChannel.h`（结果回投通道）
+9. `src/apps/pipecad/main.cpp`（asyncFn 完整管线参考实现）
 10. `docs/tasks/status.md`

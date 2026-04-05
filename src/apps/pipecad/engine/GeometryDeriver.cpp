@@ -14,6 +14,9 @@
 #include "model/PipeSpec.h"
 #include "foundation/Types.h"
 
+// DocumentSnapshot 通过 src 包含路径访问（lib_runtime 非强制 CMake 依赖）
+#include "lib/runtime/app/DocumentSnapshot.h"
+
 #include <gp_Trsf.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Vec.hxx>
@@ -154,6 +157,111 @@ TopoDS_Shape GeometryDeriver::deriveGeometry(
         if (current->hasParam("segmentCount")) {
             segments = foundation::variantToInt(current->param("segmentCount"));
         }
+        return FlexJointBuilder::build(prevPoint, nextPoint, od, wt, segments);
+    }
+    default:
+        return {};
+    }
+}
+
+// ——— 快照版本：基于只读 DocumentSnapshot 推导几何（后台线程安全）———
+
+/// 快照辅助：从 typeParams 读 double，不存在时返回 defaultVal
+static double snapParamDouble(
+    const std::map<std::string, foundation::Variant>& params,
+    const std::string& key,
+    double defaultVal = 0.0)
+{
+    auto it = params.find(key);
+    return (it != params.end()) ? foundation::variantToDouble(it->second) : defaultVal;
+}
+
+/// 快照辅助：从 typeParams 读 string，不存在时返回 defaultVal
+static std::string snapParamString(
+    const std::map<std::string, foundation::Variant>& params,
+    const std::string& key,
+    const std::string& defaultVal = {})
+{
+    auto it = params.find(key);
+    return (it != params.end()) ? foundation::variantToString(it->second) : defaultVal;
+}
+
+/// 快照辅助：从 typeParams 读 int
+static int snapParamInt(
+    const std::map<std::string, foundation::Variant>& params,
+    const std::string& key,
+    int defaultVal = 0)
+{
+    auto it = params.find(key);
+    return (it != params.end()) ? foundation::variantToInt(it->second) : defaultVal;
+}
+
+TopoDS_Shape GeometryDeriver::deriveFromSnapshot(
+    const gp_Pnt& prevPoint,
+    const app::PipePointSnapshot& current,
+    const app::PipeSpecSnapshot* spec,
+    const gp_Pnt& nextPoint)
+{
+    if (!spec) return {};
+
+    // 从 PipeSpec 快照读取核心参数
+    double od = snapParamDouble(spec->fields, "OD", 0.0);
+    double wt = snapParamDouble(spec->fields, "wallThickness", 0.0);
+    if (od <= 0.0) return {};
+
+    const auto& params = current.typeParams;
+
+    switch (current.type) {
+    case model::PipePointType::Run: {
+        return RunBuilder::build(prevPoint, nextPoint, od, wt);
+    }
+    case model::PipePointType::Bend: {
+        double multiplier = snapParamDouble(params, "bendMultiplier", 1.5);
+        auto bendResult = BendCalculator::calculateBend(
+            prevPoint, current.position, nextPoint, od, multiplier);
+        if (!bendResult) return {};
+        return BendBuilder::build(*bendResult, od, wt);
+    }
+    case model::PipePointType::Reducer: {
+        double endOD = snapParamDouble(params, "endOD", od);
+        return ReducerBuilder::build(prevPoint, nextPoint, od, endOD, wt);
+    }
+    case model::PipePointType::Tee: {
+        gp_Pnt branchEnd = current.position;
+        if (params.count("branchEndX") && params.count("branchEndY") && params.count("branchEndZ")) {
+            branchEnd = gp_Pnt(
+                snapParamDouble(params, "branchEndX"),
+                snapParamDouble(params, "branchEndY"),
+                snapParamDouble(params, "branchEndZ"));
+        }
+        double branchOD = snapParamDouble(params, "branchOD", od);
+        return TeeBuilder::build(
+            prevPoint, nextPoint, current.position, branchEnd, od, branchOD, wt);
+    }
+    case model::PipePointType::Valve: {
+        std::string valveType = snapParamString(params, "valveType", "gate");
+        std::string templateId;
+        if (valveType == "gate") templateId = "GateValve";
+        if (!templateId.empty()) {
+            auto* tpl = ComponentCatalog::instance().getTemplate(templateId);
+            if (tpl) {
+                auto tplParams = tpl->deriveParams(od, wt);
+                gp_Vec dir(prevPoint, nextPoint);
+                double totalLen = dir.Magnitude();
+                if (totalLen > 1e-9) {
+                    tplParams.bodyLength = totalLen - 2.0 * od;
+                    if (tplParams.bodyLength < od) tplParams.bodyLength = od;
+                }
+                auto shape = tpl->buildShape(tplParams);
+                if (!shape.IsNull()) {
+                    return positionShape(shape, prevPoint, nextPoint);
+                }
+            }
+        }
+        return ValveBuilder::build(prevPoint, nextPoint, od, wt, valveType);
+    }
+    case model::PipePointType::FlexJoint: {
+        int segments = snapParamInt(params, "segmentCount", 3);
         return FlexJointBuilder::build(prevPoint, nextPoint, od, wt, segments);
     }
     default:

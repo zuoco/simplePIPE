@@ -3,7 +3,11 @@
 
 #include "engine/RecomputeEngine.h"
 
+#include <algorithm>
+
 namespace engine {
+
+// ——— RecomputeEngine 成员实现 ———
 
 RecomputeEngine::RecomputeEngine(app::Document& doc, app::DependencyGraph& graph)
     : doc_(doc), graph_(graph) {}
@@ -12,12 +16,16 @@ void RecomputeEngine::setSceneUpdateCallback(SceneUpdateCallback cb) {
     sceneCb_ = std::move(cb);
 }
 
+void RecomputeEngine::enableAsyncMode(AsyncFn asyncFn, DrainFn drainFn) {
+    asyncFn_ = std::move(asyncFn);
+    drainFn_ = std::move(drainFn);
+}
+
 void RecomputeEngine::recompute(const std::vector<foundation::UUID>& dirtyIds) {
     for (const auto& id : dirtyIds) {
         model::DocumentObject* obj = doc_.findObject(id);
         if (!obj) continue;
 
-        // 通过 Document 找到对应的 shared_ptr
         auto segments = doc_.allSegments();
         for (auto* seg : segments) {
             for (auto& pp : seg->points()) {
@@ -28,6 +36,31 @@ void RecomputeEngine::recompute(const std::vector<foundation::UUID>& dirtyIds) {
             }
         }
     }
+}
+
+void RecomputeEngine::asyncRecompute() {
+    // 异步模式未启用时退化为同步路径
+    if (!asyncFn_) {
+        auto dirtyIds = graph_.collectDirty();
+        recompute(dirtyIds);
+        graph_.clearDirty();
+        return;
+    }
+
+    // 有脏对象时调用注入的异步管线函数
+    // asyncFn_() 由 main.cpp 提供，负责：
+    //   1. makeDocumentSnapshot(doc, graph) → 构建只读快照（捕获脏 ID）
+    //   2. graph.clearDirty()              → 清除脏标记
+    //   3. workers.submit(task)            → 提交后台几何推导
+    //   4. [后台] channel.post(v, fn)      → 结果回投
+    if (!graph_.collectDirty().empty()) {
+        asyncFn_();
+    }
+}
+
+std::size_t RecomputeEngine::drainResults() {
+    if (!drainFn_) return 0;
+    return drainFn_();
 }
 
 void RecomputeEngine::recomputeAll() {

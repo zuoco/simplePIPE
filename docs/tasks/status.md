@@ -112,8 +112,8 @@
 | T68 | 建立任务队列与线程工作组 | `done` | T52, T65 | GPT-5.4 | 2026-04-05 |
 | T69 | 建立结果回投与任务版本控制 | `done` | T68 | GPT-5.4 | 2026-04-05 |
 | T70 | 为共享状态补齐同步策略 | `done` | T67, T69 | GPT-5.4 | 2026-04-05 |
-| T71 | 重构 RecomputeEngine 异步管线 | `ready` | T62, T67, T68, T69, T70 | GPT-5.4 | — |
-| T72 | 后台化 ShapeMesher 与批量重算 | `pending` | T71 | GPT-5.4 | — |
+| T71 | 重构 RecomputeEngine 异步管线 | `done` | T62, T67, T68, T69, T70 | GPT-5.4 | 2026-04-05 |
+| T72 | 后台化 ShapeMesher 与批量重算 | `ready` | T71 | GPT-5.4 | — |
 | T73 | 后台化加载恢复与保存前准备 | `pending` | T68, T69, T71 | GPT-5.4 | — |
 | T74 | 建立并发回归测试 | `pending` | T71, T72, T73 | GPT-5.4 | — |
 | T75 | 清理旧目录兼容层 | `pending` | T62, T64, T65, T66, T74 | GPT-5.4 | — |

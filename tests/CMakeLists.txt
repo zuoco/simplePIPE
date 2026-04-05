@@ -503,3 +503,16 @@ target_link_libraries(test_runtime_tasking
 target_include_directories(test_runtime_tasking PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_runtime_tasking PRIVATE cxx_std_17)
 add_test(NAME RuntimeTasking COMMAND test_runtime_tasking)
+
+# RecomputeEngine 异步管线测试 — T71
+add_executable(test_async_recompute test_async_recompute.cpp)
+target_link_libraries(test_async_recompute
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_async_recompute PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_async_recompute PRIVATE cxx_std_17)
+add_test(NAME AsyncRecompute COMMAND test_async_recompute)
