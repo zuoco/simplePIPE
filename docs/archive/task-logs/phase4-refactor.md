@@ -363,3 +363,23 @@
 **已知限制**:
 - GeometryDeriver shim (`src/engine/GeometryDeriver.h`) 与 canonical header 必须手动同步接口，直到 T75 清理兼容层
 - 目前 asyncFn 在 pipecad 可执行里定义于 main.cpp，若未来需要在别处复用需提取单独构件
+
+---
+
+### T72 — 后台化 ShapeMesher 与批量重算 (2026-04-05)
+
+**产出文件**: `src/apps/pipecad/main.cpp`（asyncFn 重写）· `tests/test_batch_mesh.cpp` · `tests/CMakeLists.txt`
+
+**接口**: → `src/apps/pipecad/main.cpp`（asyncFn 注入点不变，实现替换）
+
+**设计决策**:
+- asyncFn 从「一个任务串行处理所有脏 ID」改为「每个脏 ID 独立提交一个 WorkerGroup 任务」，利用 WorkerGroup 多线程实现真正的批量并行重算
+- 使用 `std::make_shared<app::DocumentSnapshot>` 在多个独立任务间共享同一快照副本，避免 N 次快照深拷贝
+- 每个后台任务在工作线程内依次完成：`deriveFromSnapshot()` → `toVsgGeometry()` → `createComponentNode()`，将 `ShapeMesher::mesh()` 从主线程移入后台
+- ResultChannel 的 `applyFn`（in main thread）仅执行 `sceneManager.addNode/updateNode(uuid, vsgNode)`，零几何/网格运算，主线程只承担场景指针更新
+- 同步路径（`recomputeAll()`、`recompute()`）通过 `setSceneUpdateCallback` 保持不变，只有异步路径变更
+- T72 测试（`test_batch_mesh`）链接 `app` + `geometry`，覆盖：N 脏 → N ResultChannel posts、WorkerGroup(2) 并发验证、ShapeMesher 后台调用、drain 全量交付
+
+**已知限制**:
+- 后台 `createComponentNode()` 创建 VSG 对象在 Clang+VSG 下经测试安全；如换平台需重新确认 VSG 原子引用计数线程安全性
+- `workers` 与 `resultChannel` 声明顺序导致 workers 析构晚于 resultChannel（pre-existing T71 issue），正常退出场景下不影响

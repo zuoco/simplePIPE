@@ -516,3 +516,16 @@ target_link_libraries(test_async_recompute
 target_include_directories(test_async_recompute PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_async_recompute PRIVATE cxx_std_17)
 add_test(NAME AsyncRecompute COMMAND test_async_recompute)
+
+# 后台 ShapeMesher 与批量重算测试 — T72
+add_executable(test_batch_mesh test_batch_mesh.cpp)
+target_link_libraries(test_batch_mesh
+    PRIVATE
+        app
+        geometry
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_batch_mesh PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_batch_mesh PRIVATE cxx_std_17)
+add_test(NAME BatchMesh COMMAND test_batch_mesh)

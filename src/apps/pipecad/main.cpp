@@ -124,39 +124,43 @@ int main(int argc, char* argv[])
     // 场景更新回调：同步 recompute() 路径直接调用
     recomputeEngine.setSceneUpdateCallback(sceneUpdateFn);
 
-    // 注入异步管线二元组（T71）
-    // asyncFn 封装完整管线：构建快照 → 清除脏集 → 提交后台 → 投入 ResultChannel
+    // 注入异步管线二元组（T72）
+    // asyncFn：构建快照 → 清除脏集 → 每个脏对象独立提交后台任务（并行批量重算）
+    // 每个后台任务完成：BRep 推导 + ShapeMesher(网格化) + VSG 节点构建
+    // applyFn 在主线程仅执行 addNode/updateNode（零几何运算，不阻塞 UI）
     recomputeEngine.enableAsyncMode(
         [&document, &dependencyGraph, &workers, &resultChannel,
-         sceneCb = sceneUpdateFn]() mutable {
+         &sceneManager]() {
             // ① 构建只读快照（主线程，T70 同步协议第1步）
-            auto snap = app::makeDocumentSnapshot(document, dependencyGraph);
+            //    用 shared_ptr 共享快照，多个后台任务无需拷贝
+            auto snap = std::make_shared<app::DocumentSnapshot>(
+                app::makeDocumentSnapshot(document, dependencyGraph));
             // ② 清除脏标记（主线程，T70 同步协议第2步）
             dependencyGraph.clearDirty();
-            if (snap.dependencyGraph.dirtyIds.empty()) return;
-            const auto version = snap.version;
-            // ③ 提交后台几何推导任务（T70 同步协议第3步）
-            workers.submit(
-                [snap = std::move(snap), version, &resultChannel, sceneCb]
-                (const task::CancellationToken& token) mutable {
-                    std::vector<std::pair<std::string, TopoDS_Shape>> results;
-                    for (const auto& dirtyId : snap.dependencyGraph.dirtyIds) {
-                        if (token.isCancellationRequested()) break;
-                        const auto* ppSnap = snap.findPipePoint(dirtyId);
-                        if (!ppSnap) continue;
-                        // 在已冻结的 segments 中查找前后邻居坐标
+            if (snap->dependencyGraph.dirtyIds.empty()) return;
+            const auto version = snap->version;
+            // ③ 每个脏对象独立提交后台任务（T72：并行批量重算）
+            //    WorkerGroup 多线程同时推进，互不阻塞
+            for (const auto& dirtyId : snap->dependencyGraph.dirtyIds) {
+                workers.submit(
+                    [snap, dirtyId, version, &resultChannel, &sceneManager]
+                    (const task::CancellationToken& token) {
+                        if (token.isCancellationRequested()) return;
+                        const auto* ppSnap = snap->findPipePoint(dirtyId);
+                        if (!ppSnap) return;
+                        // 在冻结 segments 中查找前后邻居坐标
                         gp_Pnt prevPt = ppSnap->position;
                         gp_Pnt nextPt = ppSnap->position;
-                        for (const auto& seg : snap.segments) {
+                        for (const auto& seg : snap->segments) {
                             auto it = std::find(seg.pointIds.begin(),
                                                 seg.pointIds.end(), dirtyId);
                             if (it == seg.pointIds.end()) continue;
                             if (it != seg.pointIds.begin()) {
-                                if (const auto* prev = snap.findPipePoint(*std::prev(it)))
+                                if (const auto* prev = snap->findPipePoint(*std::prev(it)))
                                     prevPt = prev->position;
                             }
                             if (auto nit = std::next(it); nit != seg.pointIds.end()) {
-                                if (const auto* next = snap.findPipePoint(*nit))
+                                if (const auto* next = snap->findPipePoint(*nit))
                                     nextPt = next->position;
                             }
                             break;
@@ -164,28 +168,31 @@ int main(int argc, char* argv[])
                         // 查找 PipeSpec 快照
                         const app::PipeSpecSnapshot* specSnap = nullptr;
                         if (ppSnap->pipeSpecId.has_value())
-                            specSnap = snap.findPipeSpec(*ppSnap->pipeSpecId);
-                        // 推导几何（后台安全：仅访问只读快照对象）
+                            specSnap = snap->findPipeSpec(*ppSnap->pipeSpecId);
+                        // 后台 BRep 几何推导（只读快照，线程安全）
                         TopoDS_Shape shape = engine::GeometryDeriver::deriveFromSnapshot(
                             prevPt, *ppSnap, specSnap, nextPt);
-                        if (!shape.IsNull())
-                            results.emplace_back(ppSnap->id.toString(), shape);
-                    }
-                    // ④ 结果回投 ResultChannel（后台 → 主线程）
-                    if (!results.empty()) {
+                        if (shape.IsNull()) return;
+                        // 后台网格化（T72 核心：ShapeMesher 不再阻塞主线程）
+                        auto geometry = visualization::toVsgGeometry(shape);
+                        auto node     = visualization::createComponentNode(geometry);
+                        // ④ 将预构建的 VSG 节点回投到主线程（零几何运算）
+                        const std::string uuid = ppSnap->id.toString();
                         resultChannel.post(version,
-                            [res = std::move(results), sceneCb]() mutable {
-                                for (const auto& [uuid, shape] : res)
-                                    sceneCb(uuid, shape);
+                            [uuid, node, &sceneManager]() {
+                                if (sceneManager.hasNode(uuid))
+                                    sceneManager.updateNode(uuid, node);
+                                else
+                                    sceneManager.addNode(uuid, node);
                             });
-                    }
-                });
+                    });
+            }
         },
         // drainFn：主线程事件循环消费新鲜结果
         [&sceneAdapter]() { return sceneAdapter.drain(); }
     );
 
-    // ---- CommandStack 信号连线：脏传播 + 异步场景重算（T71）----
+    // ---- CommandStack 信号连线：脏传播 + 异步场景重算（T72）----
     auto recomputeHandler = [&](const std::vector<foundation::UUID>& affectedIds) {
         for (const auto& id : affectedIds) {
             dependencyGraph.markDirty(id);
