@@ -25,20 +25,28 @@ add_subdirectory(ui)
 add_library(pipecad_lib INTERFACE)
 target_link_libraries(pipecad_lib INTERFACE app)
 
-add_executable(pipecad_app
+# T55: pipecad_app 业务库占位（初期 = ui 层，T62 后扩展为 model+engine+workbench+ui）
+# 当前以 INTERFACE 形式聚合 ui 及 Qt6 依赖，T57 物理迁移后升级为 STATIC
+add_library(pipecad_app INTERFACE)
+target_link_libraries(pipecad_app INTERFACE
+	ui
+	Qt6::Quick
+	Qt6::Qml
+)
+
+# T55: 可执行从 pipecad_app 改名为 pipecad（pipecad_app 名释放给业务库）
+add_executable(pipecad
 	main.cpp
 )
 
-target_compile_features(pipecad_app PRIVATE cxx_std_17)
+target_compile_features(pipecad PRIVATE cxx_std_17)
 
-target_compile_definitions(pipecad_app
+target_compile_definitions(pipecad
 	PRIVATE
 		PIPECAD_QML_MAIN="${CMAKE_SOURCE_DIR}/ui/main.qml"
 )
 
-target_link_libraries(pipecad_app
+target_link_libraries(pipecad
 	PRIVATE
-		ui
-		Qt6::Quick
-		Qt6::Qml
+		pipecad_app
 )

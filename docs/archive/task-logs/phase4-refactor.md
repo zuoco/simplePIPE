@@ -91,3 +91,20 @@
 
 **已知限制**:
 - `RecomputeEngine.h` 仍 include `app/Document.h` 和 `app/DependencyGraph.h`，从包含关系看是越层引用；T71（重构 RecomputeEngine 异步管线）时才真正解耦
+
+### T55 — 设计过渡兼容层 (2026-04-05)
+
+**产出文件**: `src/CMakeLists.txt` · `scripts/build.sh`
+
+**接口**: → `src/CMakeLists.txt`（pipecad_app INTERFACE + pipecad EXE）
+
+**设计决策**:
+- 将可执行目标从 `pipecad_app`（EXE）改名为 `pipecad`（EXE）
+- 在 `src/CMakeLists.txt` 新增 `pipecad_app`（INTERFACE）作为业务库占位，初期通过链接 `ui + Qt6` 等价于 ui 层；T57 物理迁移后升级为 STATIC
+- `pipecad`（EXE）改为链接 `pipecad_app`（INTERFACE），不再直接链接 `ui` 和 Qt6
+- `scripts/build.sh` 中所有 `pipecad_app` 可执行路径引用更新为 `pipecad`
+- 测试不直接链接 `pipecad_app`（EXE），测试链接的旧 target（app/engine/ui 等）均保持不变，零破坏
+- 选用 INTERFACE（而非 STATIC）是因为 M1 期间不移动源文件，STATIC 需要源文件，INTERFACE 直接转发依赖更简洁
+
+**已知限制**:
+- `pipecad_app` 当前为 INTERFACE，T57 后物理迁移 ui 源文件时才升级为 STATIC

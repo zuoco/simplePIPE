@@ -184,13 +184,13 @@ do_build() {
     # 输出构建产物摘要
     echo ""
     info "构建产物:"
-    local main_exe="${build_dir}/src/pipecad_app"
+    local main_exe="${build_dir}/src/pipecad"
     if [ -f "${main_exe}" ]; then
         local exe_size
         exe_size="$(du -h "${main_exe}" | cut -f1)"
-        echo -e "  ${GREEN}●${NC} pipecad_app  ${exe_size}  ${DIM}${main_exe}${NC}"
+        echo -e "  ${GREEN}●${NC} pipecad  ${exe_size}  ${DIM}${main_exe}${NC}"
     else
-        echo -e "  ${YELLOW}○${NC} pipecad_app  (未生成)"
+        echo -e "  ${YELLOW}○${NC} pipecad  (未生成)"
     fi
 
     local lib_count=0
@@ -253,7 +253,7 @@ do_test() {
 # ══════════════════════════════════════════════════════════
 do_run() {
     local build_dir="${PROJECT_ROOT}/build/${BUILD_DIR_NAME}"
-    local main_exe="${build_dir}/src/pipecad_app"
+    local main_exe="${build_dir}/src/pipecad"
 
     banner "运行 PipeCAD (${BUILD_TYPE})"
 
@@ -364,14 +364,14 @@ do_status() {
 
             echo -e "  ${bt} 构建:       ${GREEN}已配置${NC} (${build_size})"
 
-            local main_exe="${build_dir}/src/pipecad_app"
+            local main_exe="${build_dir}/src/pipecad"
             if [ -f "${main_exe}" ]; then
                 local exe_size exe_mtime
                 exe_size="$(du -h "${main_exe}" | cut -f1)"
                 exe_mtime="$(stat -c '%y' "${main_exe}" 2>/dev/null | cut -d'.' -f1 || echo "unknown")"
-                echo -e "    pipecad_app:   ${GREEN}存在${NC} (${exe_size}, ${exe_mtime})"
+                echo -e "    pipecad:       ${GREEN}存在${NC} (${exe_size}, ${exe_mtime})"
             else
-                echo -e "    pipecad_app:   ${YELLOW}未生成${NC}"
+                echo -e "    pipecad:       ${YELLOW}未生成${NC}"
             fi
         else
             echo -e "  ${bt} 构建:       ${DIM}未配置${NC}"
@@ -418,7 +418,7 @@ show_help() {
     echo -e "  ${CYAN}release${NC}            Configure + 编译 Release 版本"
     echo -e "  ${CYAN}configure${NC} [类型]   仅执行 CMake configure (默认 Debug)"
     echo -e "  ${CYAN}test${NC} [类型|参数]   编译 + 运行全部测试 (默认 Debug)"
-    echo -e "  ${CYAN}run${NC} [类型]         编译 + 运行主程序 pipecad_app"
+    echo -e "  ${CYAN}run${NC} [类型]         编译 + 运行主程序 pipecad"
     echo -e "  ${CYAN}clean${NC}             清除所有构建产物 (build/)"
     echo -e "  ${CYAN}full${NC}              clean + debug 编译 + 测试 (全量构建)"
     echo -e "  ${CYAN}status${NC}            显示当前构建状态"
