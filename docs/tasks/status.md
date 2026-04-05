@@ -100,13 +100,13 @@
 | T56 | 建立 src/lib 目录骨架 | `done` | T53 | GPT-5.4 | 2026-04-05 |
 | T57 | 建立 src/apps/pipecad 目录骨架 | `done` | T53 | GPT-5.4 | 2026-04-05 |
 | T58 | 迁移 foundation 到 src/lib/base | `done` | T56 | GPT-5.4 | 2026-04-05 |
-| T59 | 迁移 geometry 到 src/lib/platform/occt | `ready` | T56 | GPT-5.4 | — |
-| T60 | 拆分 visualization 与 vtk-visualization | `ready` | T56, T57 | GPT-5.4 | — |
-| T61 | 迁移 app 与 command 到 lib | `ready` | T56 | GPT-5.4 | — |
-| T62 | 迁移 model/engine/ui/main 到 apps | `pending` | T57, T61 | GPT-5.4 | — |
-| T63 | 为 lib/base 建立第一批模块接口单元 | `ready` | T58 | GPT-5.4 | — |
-| T64 | 为 lib/platform 建立 facade 模块 | `pending` | T59, T60, T63 | GPT-5.4 | — |
-| T65 | 为 lib/runtime 建立核心模块 | `pending` | T61, T63 | GPT-5.4 | — |
+| T59 | 迁移 geometry 到 src/lib/platform/occt | `done` | T56 | GPT-5.4 | 2026-04-05 |
+| T60 | 拆分 visualization 与 vtk-visualization | `done` | T56, T57 | GPT-5.4 | 2026-04-05 |
+| T61 | 迁移 app 与 command 到 lib | `done` | T56 | GPT-5.4 | 2026-04-05 |
+| T62 | 迁移 model/engine/ui/main 到 apps | `ready` | T57, T61 | GPT-5.4 | — |
+| T63 | 为 lib/base 建立第一批模块接口单元 | `done` | T58 | GPT-5.4 | 2026-04-05 |
+| T64 | 为 lib/platform 建立 facade 模块 | `ready` | T59, T60, T63 | GPT-5.4 | — |
+| T65 | 为 lib/runtime 建立核心模块 | `ready` | T61, T63 | GPT-5.4 | — |
 | T66 | 为 lib/framework 建立框架模块 | `pending` | T60, T61, T65 | GPT-5.4 | — |
 | T67 | 定义 DocumentSnapshot 契约 | `pending` | T61 | GPT-5.4 | — |
 | T68 | 建立任务队列与线程工作组 | `pending` | T52, T65 | GPT-5.4 | — |

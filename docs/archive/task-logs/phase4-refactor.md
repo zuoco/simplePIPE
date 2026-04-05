@@ -155,3 +155,69 @@
 
 **已知限制**:
 - `src/foundation/*.h` 与 `src/lib/base/foundation/*.h` 目前双份存在，T75 清理旧目录兼容层时一并删除
+
+### T59 — 迁移 geometry 到 src/lib/platform/occt (2026-04-05)
+
+**产出文件**: `src/lib/platform/occt/geometry/`（全部 .h/.cpp）· `src/lib/platform/occt/CMakeLists.txt` · `src/geometry/CMakeLists.txt`
+
+**接口**: → `src/lib/platform/occt/CMakeLists.txt`（lib_platform_occt STATIC + lib::platform::occt ALIAS）；`src/geometry/CMakeLists.txt`（geometry ALIAS lib_platform_occt）
+
+**设计决策**:
+- 将 `src/geometry/` 所有 .h/.cpp 原样复制到 `src/lib/platform/occt/geometry/` 子目录，保持 `#include "geometry/..."` 路径兼容
+- `lib_platform_occt` 为 STATIC 目标，include dir 包含 `${CMAKE_CURRENT_SOURCE_DIR}`（即 `src/lib/platform/occt/`）和 `${CMAKE_SOURCE_DIR}/src`
+- 链接 `lib::base`（由 lib_base 传递 include 路径），OCCT 库链接为 PRIVATE
+- `geometry` 目标改为 `ALIAS lib_platform_occt`，旧链接代码（model/engine/visualization 等）无需修改
+- `src/lib/platform/CMakeLists.txt` 调整子目录顺序：occt → vtk → vsg（vtk 算法层不依赖 Qt，vsg 依赖 vtk_visualization）
+
+**已知限制**:
+- `src/geometry/*.{h,cpp}` 与 `src/lib/platform/occt/geometry/*.{h,cpp}` 双份存在，T75 清理时删除旧目录
+
+### T60 — 拆分 visualization 与 vtk-visualization (2026-04-05)
+
+**产出文件**: `src/lib/platform/vsg/visualization/`（全部 .h/.cpp）· `src/lib/platform/vsg/CMakeLists.txt` · `src/lib/platform/vtk/vtk-visualization/`（OcctToVtk/BeamMeshBuilder/VtkSceneManager）· `src/lib/platform/vtk/CMakeLists.txt` · `src/visualization/CMakeLists.txt` · `src/vtk-visualization/CMakeLists.txt`
+
+**接口**: → `lib_platform_vsg` STATIC（ALIAS visualization）；`lib_platform_vtk` STATIC（纯算法无Qt）；`vtk_visualization` STATIC（VtkViewport，链接 lib_platform_vtk + Qt）
+
+**设计决策**:
+- 将 `src/visualization/` 全部文件复制到 `src/lib/platform/vsg/visualization/`
+- `lib_platform_vsg` 继承原 visualization 的全部依赖（engine、lib::platform::occt、vsg::vsg、vtk_visualization）
+- `src/visualization/CMakeLists.txt` 改为 `ALIAS lib_platform_vsg`
+- vtk 分拆为两层：纯算法层（OcctToVtk/BeamMeshBuilder/VtkSceneManager）→ `lib_platform_vtk`（无Qt）；Qt集成层（VtkViewport）→ `vtk_visualization`（STATIC，链接 lib_platform_vtk + Qt）
+- `vtk_visualization` 源文件缩减为仅 `VtkViewport.cpp`，通过 `lib_platform_vtk` 间接获得 VTK 依赖
+
+**已知限制**:
+- 旧 `src/visualization/*.{h,cpp}` 和 `src/vtk-visualization/OcctToVtk.* BeamMeshBuilder.* VtkSceneManager.*` 双份存在，T75 清理
+
+### T61 — 迁移 app 与 command 到 lib (2026-04-05)
+
+**产出文件**: `src/lib/runtime/command/`（全部 command .h/.cpp）· `src/lib/runtime/app/`（Document/DependencyGraph/SelectionManager）· `src/lib/runtime/CMakeLists.txt` · `src/lib/framework/app/`（Application/WorkbenchManager/Workbenches/ProjectSerializer/StepExporter）· `src/lib/framework/CMakeLists.txt` · `src/app/CMakeLists.txt` · `src/command/CMakeLists.txt`（保持不变）
+
+**接口**: → `lib_runtime` STATIC（ALIAS lib::runtime）；`lib_framework` STATIC（ALIAS lib::framework）；`app` ALIAS lib_framework
+
+**设计决策**:
+- `lib_runtime`：包含 Document/DependencyGraph/SelectionManager（app 域）+ 全部 command/*.cpp，链接 engine + nlohmann_json
+- `lib_framework`：包含 Application/WorkbenchManager/全部 Workbench/ProjectSerializer/StepExporter，链接 lib_runtime + visualization + OCCT AFX (PRIVATE)
+- `app` 目标改为 `ALIAS lib_framework`（命令层仍通过 `command` INTERFACE→app→lib_framework 传递，链接关系无需重写）
+- command 源文件从 `app/CMakeLists.txt` 中的绝对路径引用改为在 `lib_runtime` 的相对路径引用（来自复制后的 command/ 子目录）
+- `src/app/CMakeLists.txt` 改为单行别名 `add_library(app ALIAS lib_framework)`
+
+**已知限制**:
+- 旧 `src/app/*.{h,cpp}` 和 `src/command/*.{h,cpp}` 双份存在，T75 清理
+- engine 仍与 Document/DependencyGraph 有头文件级耦合（RecomputeEngine），T71 解耦
+
+### T63 — 为 lib/base 建立第一批模块接口单元 (2026-04-05)
+
+**产出文件**: `src/lib/base/baseMod/pipecad.base.math.cppm` · `src/lib/base/baseMod/pipecad.base.types.cppm` · `src/lib/base/baseMod/pipecad.base.cppm` · `src/lib/base/CMakeLists.txt`（新增 lib_base_modules STATIC + lib::base::modules ALIAS）
+
+**接口**: → `import pipecad.base;`（聚合）、`import pipecad.base.math;`、`import pipecad.base.types;`
+
+**设计决策**:
+- 使用 C++20 模块，需 CMake `FILE_SET CXX_MODULES`（≥3.28）和 GCC 15/C++20 标准
+- 每个 .cppm 文件使用 `module;` 全局模块片段 + `#include` 遗留头文件，再在命名模块中 export
+- 使用 `pipecad::` 包装命名空间（而非直接 `foundation::`），避免与全局模块片段隐式暴露的符号发生重声明冲突
+- `pipecad.base.cppm` 使用 `export import` 聚合子模块，使用者可一次性 `import pipecad.base;` 获得全部基础类型
+- `lib_base` INTERFACE 通过 `target_link_libraries(lib_base INTERFACE lib_base_modules)` 将模块传递给所有链接者
+
+**已知限制**:
+- 导出符号位于 `pipecad::` 命名空间，与旧 `foundation::` 命名空间并存；T75 后可考虑统一命名空间
+- 当前项目编译仍用 C++17，模块仅由 `lib_base_modules` 单独以 C++20 编译，其他文件不使用 import 语句

@@ -1,7 +1,7 @@
+# T60: vtk-visualization 已拆分——算法层(无Qt)迁入 lib_platform_vtk
+# 此处仅保留 VtkViewport（Qt集成层）
+
 add_library(vtk_visualization STATIC
-    OcctToVtk.cpp
-    BeamMeshBuilder.cpp
-    VtkSceneManager.cpp
     VtkViewport.cpp
 )
 
@@ -15,13 +15,8 @@ target_compile_features(vtk_visualization PUBLIC cxx_std_17)
 
 target_link_libraries(vtk_visualization
     PUBLIC
-        geometry
-        VTK::CommonCore
-        VTK::CommonDataModel
-    VTK::RenderingCore
-    VTK::InteractionStyle
-    VTK::RenderingOpenGL2
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Quick
+        lib_platform_vtk
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Quick
 )

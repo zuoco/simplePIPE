@@ -1,28 +1,3 @@
-add_library(visualization STATIC
-    placeholder.cpp
-    OcctToVsg.cpp
-    PipePointNode.cpp
-    ComponentNode.cpp
-    LodStrategy.cpp
-    SceneManager.cpp
-    CameraController.cpp
-    SceneFurniture.cpp
-    PickHandler.cpp
-    SelectionHighlight.cpp
-    ViewManager.cpp
-)
-
-target_include_directories(visualization
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
-)
-
-target_compile_features(visualization PUBLIC cxx_std_17)
-
-target_link_libraries(visualization
-    PUBLIC
-        engine
-        geometry
-        vsg::vsg
-        vtk_visualization
-)
+# T60: visualization 已迁入 src/lib/platform/vsg，此处提供向后兼容别名
+# lib_platform_vsg 由 src/lib/platform/vsg/CMakeLists.txt 定义（在 lib 子树优先加载）
+add_library(visualization ALIAS lib_platform_vsg)
