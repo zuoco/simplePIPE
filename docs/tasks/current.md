@@ -7,41 +7,42 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50、T51、T52、T53、T54、T55、T56、T57** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T58** 已全部完成。
 
-**T56/T57 完成摘要（2026-04-05）**：
-- `src/lib/` 目录骨架建立：`base/`、`platform/{occt,vsg,vtk}/`、`runtime/`、`framework/` 七个子目录，各含占位 CMakeLists.txt
-- `src/apps/` 目录骨架建立：`pipecad/` 目录模板含 `model/`、`engine/`、`workbench/`、`ui/` 四子域，各含占位 CMakeLists.txt
-- `src/CMakeLists.txt` 新增 `add_subdirectory(lib)` + `add_subdirectory(apps)`（位于 add_subdirectory(ui) 之后）
-- 41/41 测试全部通过，221/221 编译步骤成功
+**T58 完成摘要（2026-04-05）**：
+- 将 `Math.h`、`Log.h`、`Signal.h`、`Types.h` 复制到 `src/lib/base/foundation/`（保持 `#include "foundation/..."` 路径不变）
+- `src/lib/base/CMakeLists.txt`：建立 `lib_base` INTERFACE 目标（include dir = `src/lib/base/`）+ `lib::base` ALIAS
+- `src/foundation/CMakeLists.txt`：`foundation` 改为 `ALIAS lib_base`，旧链接代码无需修改
+- `src/CMakeLists.txt`：将 `add_subdirectory(lib/apps)` 移至 `add_subdirectory(foundation)` 之前
+- 修复 `.gitignore`：新增 `!src/lib/` 排除规则，`src/lib/` 文件现已正确跟踪
+- 41/41 测试全部通过，编译步骤 254/254
 
 **当前基线事实**：
-- CMake 目标拓扑（T55 已落地）：`pipecad_lib(INTERFACE) → app`；`pipecad_app(INTERFACE) → ui + Qt6`；`pipecad(EXE) → pipecad_app`
-- `src/lib/` 与 `src/apps/pipecad/` 目录骨架均已存在，但无源文件（占位 CMakeLists.txt）
-- T58（ready）、T59（ready）、T60（ready）、T61（ready）四个迁移任务可独立推进
+- `lib_base` INTERFACE 目标已存在，`foundation` 为其 ALIAS
+- `src/lib/base/foundation/` 含四个头文件（双份与 `src/foundation/` 并存，T75 清理旧目录）
+- T59（ready）、T60（ready）、T61（ready）、T63（ready）可并行推进
+- T63 依赖 T58，现已变为 ready
 - 可执行路径：`build/debug/src/pipecad`
 
 ## 下一个任务
 
-**T58 — 迁移 foundation 到 src/lib/base**
+**T59 — 迁移 geometry 到 src/lib/platform/occt**
 
 工作目标：
-1. 将 `src/foundation/` 下所有头文件（含 UUID、Variant、Math、Signal、Log 等）迁移/复制到 `src/lib/base/`
-2. 在 `src/lib/base/CMakeLists.txt` 建立正式的 INTERFACE 或 STATIC 目标（`lib_base` 或 `lib::base`）
-3. 在 `src/foundation/CMakeLists.txt` 建立向后兼容别名 `foundation → lib::base`，确保旧链接代码不破坏
-4. 更新 `src/CMakeLists.txt` 中 `pipecad_lib` 的链接关系（按需）
-5. 确保编译通过，41/41 测试全部通过
+1. 将 `src/geometry/` 下所有 `.h` 和 `.cpp` 文件迁移/复制到 `src/lib/platform/occt/`
+2. 在 `src/lib/platform/occt/CMakeLists.txt` 建立 `lib_platform_occt` STATIC 目标（含 OCCT 链接）+ `lib::platform::occt` ALIAS
+3. 在 `src/geometry/CMakeLists.txt` 建立向后兼容别名 `geometry → lib_platform_occt`
+4. 确保编译通过，41/41 测试全部通过
 
-T59（迁移 geometry）、T60（拆分 visualization）、T61（迁移 app/command）亦均为 ready，可并行推进。
+T60（拆分 visualization）、T61（迁移 app/command）、T63（lib/base 模块接口单元）亦为 ready，可并行推进。
 
 推荐模型：**GPT-5.4 Codex**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/m2-directory-migration.md`（T58 规格）
-2. `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md`（最终目标关系图 §3.4）
-3. `src/foundation/CMakeLists.txt`（当前 foundation 构建文件）
-4. `src/lib/base/CMakeLists.txt`（当前占位文件）
-5. `src/CMakeLists.txt`（顶层 CMake，了解 pipecad_lib 链接关系）
-6. `docs/tasks/status.md`（确认 T58 状态为 ready）
+1. `docs/tasks/phase4-lib-app-refactor/m2-directory-migration.md`（T59 规格）
+2. `src/geometry/CMakeLists.txt`（当前 geometry 构建文件）
+3. `src/lib/platform/occt/CMakeLists.txt`（当前占位文件）
+4. `src/lib/base/CMakeLists.txt`（T58 产出，参照 lib_base 模式）
+5. `docs/tasks/status.md`（确认 T59 状态为 ready）
 
