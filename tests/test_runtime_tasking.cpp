@@ -12,6 +12,7 @@
 #include "model/Segment.h"
 #include "task/TaskQueue.h"
 #include "task/ResultChannel.h"
+#include "task/SceneUpdateAdapter.h"
 
 #include <atomic>
 #include <chrono>
@@ -344,6 +345,117 @@ TEST(ResultChannel, StaleResultsAreDiscardedAfterDocumentUpdate) {
     const std::size_t count = channel.drainFresh(kNewVersion);
     EXPECT_EQ(count, 0u);
     EXPECT_EQ(applied, 0);
+}
+
+// ─── T70: SceneUpdateAdapter 主线程场景更新适配器 ─────────────────────────────
+
+TEST(SceneUpdateAdapter, DrainAppliesFreshResultsOnly) {
+    task::ResultChannel channel;
+    app::DocumentVersion version = 5u;
+
+    task::SceneUpdateAdapter adapter(channel, [&]() { return version; });
+
+    int applied = 0;
+    channel.post(5u, [&]() { ++applied; }); // 版本匹配
+    channel.post(5u, [&]() { ++applied; }); // 版本匹配
+    channel.post(3u, [&]() { ++applied; }); // 版本过期
+
+    const std::size_t count = adapter.drain();
+    EXPECT_EQ(count, 2u);
+    EXPECT_EQ(applied, 2);
+    EXPECT_EQ(adapter.pendingCount(), 0u);
+}
+
+TEST(SceneUpdateAdapter, DrainUsesVersionProviderAtCallTime) {
+    // 验证每次 drain() 调用时才查询版本，而非构造时捕获
+    task::ResultChannel channel;
+    app::DocumentVersion version = 1u;
+
+    task::SceneUpdateAdapter adapter(channel, [&]() { return version; });
+
+    int applied = 0;
+    channel.post(1u, [&]() { ++applied; });
+
+    // 修改版本后 drain，结果应被丢弃
+    version = 2u;
+    const std::size_t count = adapter.drain();
+    EXPECT_EQ(count, 0u);
+    EXPECT_EQ(applied, 0);
+}
+
+TEST(SceneUpdateAdapter, DrainAllIgnoresVersionCheck) {
+    task::ResultChannel channel;
+    app::DocumentVersion version = 99u;
+
+    task::SceneUpdateAdapter adapter(channel, [&]() { return version; });
+
+    int applied = 0;
+    channel.post(1u, [&]() { ++applied; });
+    channel.post(2u, [&]() { ++applied; });
+    channel.post(3u, [&]() { ++applied; });
+
+    const std::size_t count = adapter.drainAll();
+    EXPECT_EQ(count, 3u);
+    EXPECT_EQ(applied, 3);
+}
+
+TEST(SceneUpdateAdapter, DiscardEmptiesQueueWithoutExecuting) {
+    task::ResultChannel channel;
+    app::DocumentVersion version = 5u;
+
+    task::SceneUpdateAdapter adapter(channel, [&]() { return version; });
+
+    int applied = 0;
+    channel.post(5u, [&]() { ++applied; });
+    channel.post(5u, [&]() { ++applied; });
+
+    EXPECT_EQ(adapter.pendingCount(), 2u);
+    adapter.discard();
+    EXPECT_EQ(adapter.pendingCount(), 0u);
+    EXPECT_EQ(applied, 0);
+}
+
+TEST(SceneUpdateAdapter, WorkerGroupPostsThroughAdapterToMainThread) {
+    task::WorkerGroup workers(2);
+    task::ResultChannel channel;
+    app::DocumentVersion version = 10u;
+
+    task::SceneUpdateAdapter adapter(channel, [&]() { return version; });
+
+    std::atomic<int> computed{0};
+    int applied = 0;
+
+    for (int i = 0; i < 4; ++i) {
+        workers.submit([&channel, &computed](const task::CancellationToken& token) {
+            if (!token.isCancellationRequested()) {
+                computed.fetch_add(1);
+                channel.post(10u, [&computed]() {
+                    (void)computed; // 模拟场景更新
+                });
+            }
+        }, "compute");
+    }
+
+    workers.waitForIdle();
+    workers.shutdown(false);
+
+    // 版本匹配，全部成功应用
+    const std::size_t count = adapter.drain();
+    EXPECT_EQ(computed.load(), 4);
+    EXPECT_EQ(count, 4u);
+}
+
+TEST(SceneUpdateAdapter, PendingCountReflectsChannelState) {
+    task::ResultChannel channel;
+    task::SceneUpdateAdapter adapter(channel, []() { return app::DocumentVersion{1u}; });
+
+    EXPECT_EQ(adapter.pendingCount(), 0u);
+    channel.post(1u, []() {});
+    channel.post(1u, []() {});
+    EXPECT_EQ(adapter.pendingCount(), 2u);
+
+    adapter.drain();
+    EXPECT_EQ(adapter.pendingCount(), 0u);
 }
 
 } // namespace

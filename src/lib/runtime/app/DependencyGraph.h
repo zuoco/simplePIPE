@@ -39,16 +39,28 @@ public:
     // ---- 脏标记 ----
 
     /// 标记对象为脏，并沿依赖边传播（依赖它的对象也被标脏）
+    ///
+    /// **[主线程独占]** 仅允许在主线程（Qt 事件线程）调用。
+    /// 命令执行完成后由 RecomputeEngine 或 CommandStack 触发。
     void markDirty(const foundation::UUID& id);
 
     /// 清除所有脏标记
+    ///
+    /// **[主线程独占]** 必须与 collectDirty() 在同一主线程调用序列中执行。
+    /// 典型模式：collectDirty() → makeDocumentSnapshot() → clearDirty() →
+    /// 向后台线程提交任务（T70 同步策略）。
     void clearDirty();
 
     /// 查询对象是否为脏
+    ///
+    /// **[主线程独占]** dirty_ 集合非线程安全，仅允许在主线程读取。
     bool isDirty(const foundation::UUID& id) const;
 
     /// 返回当前所有脏对象（拓扑排序：被依赖的先）
-    /// 调用后不清除脏标记（由 RecomputeEngine 决定何时清除）
+    ///
+    /// **[主线程独占]** 调用后不清除脏标记（由 RecomputeEngine 决定何时清除）。
+    /// **原子序列要求**：collectDirty() 与 clearDirty() 必须在同一主线程帧内
+    /// 不被其他写操作打断，以确保快照与脏集合一致性（T70 同步策略）。
     std::vector<foundation::UUID> collectDirty() const;
 
     /// 查询对象直接依赖的上游节点。

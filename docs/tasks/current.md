@@ -7,45 +7,56 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T69** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T70** 已全部完成。
 
-**T69 完成摘要（2026-04-05）**：
-- 在 `src/lib/runtime/task/` 新增 `ResultChannel`，实现后台→主线程的线程安全结果回投通道
-- `ResultItem` 携带 `submittedVersion`（任务提交时的文档版本号）与 `applyFn`（主线程回投函数）
-- `drainFresh(currentVersion)` 实现版本校验与过期结果静默丢弃；`drainAll()` 用于强制刷新；`discard()` 用于丢弃全部
-- `pipecad.runtime.task` 模块边界新增 `ResultItem`、`ResultChannel` 前向声明导出
-- 在 `tests/test_runtime_tasking.cpp` 新增 7 个单测：版本匹配回投、过期丢弃、全量执行、discard、多生产者线程安全、WorkerGroup+ResultChannel 联动、过期结果场景
+**T70 完成摘要（2026-04-05）**：
+- 实现 `task::SceneUpdateAdapter`（`src/lib/runtime/task/`），封装主线程消费 ResultChannel 的协议
+- `SceneUpdateAdapter` 通过 `VersionProvider` 函数对象获取当前文档版本，调用 `drainFresh(version)` 完成版本校验
+- 在 `DependencyGraph.h` dirty 方法添加主线程独占注释，冻结 `collectDirty → clearDirty` 原子序列要求
+- 在 `DocumentSnapshot.h` 的 `makeDocumentSnapshot` 添加"快照窗口"协议注释（正确的调用顺序）
+- 在 `RecomputeEngine.h` 添加主线程独占原因注释（OCCT 非线程安全）和 T71 迁移说明
+- `pipecad.runtime.task` 模块边界新增 `SceneUpdateAdapter` 前向声明导出
+- `tests/test_runtime_tasking.cpp` 新增 6 个 SceneUpdateAdapter 单测（版本匹配、延迟查询、drainAll、discard、WorkerGroup 联动、pendingCount）
+- 同步策略冻结文档：`docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`
 
 **当前基线事实**：
 - `src/apps/pipecad/` 承载完整业务闭包（model/engine/ui/main）
-- `DocumentSnapshot`（T67）+ `WorkerGroup`（T68）+ `ResultChannel`（T69）构成异步重算的完整输入/调度/输出通道
+- `DocumentSnapshot`（T67）+ `WorkerGroup`（T68）+ `ResultChannel`（T69）+ `SceneUpdateAdapter`（T70）构成异步重算的完整输入/调度/输出/消费通道
+- T70 冻结的"快照窗口"协议（collectDirty → makeDocumentSnapshot → clearDirty → submit）是 T71 重构 RecomputeEngine 的关键规范
 - `lib_base_modules`、`lib_platform_occt_modules`、`lib_platform_vsg_modules`、`lib_platform_vtk_modules`、`lib_runtime_modules`、`lib_framework_modules` 已全部存在
 - 当前测试基线为 `42/42`
-- ready 任务：T70（为共享状态补齐同步策略）
+- ready 任务：T71（重构 RecomputeEngine 异步管线）
 - 可执行路径：`build/debug/src/apps/pipecad/pipecad`
 
 ## 下一个任务
 
-**T70 — 为共享状态补齐同步策略**
+**T71 — 重构 RecomputeEngine 异步管线**
 
 工作目标：
-1. 为文档只读访问、dirty 集合消费和场景提交建立明确的同步边界文档
-2. 识别并标注现有并发访问点（DependencyGraph dirty 列表、DocumentSnapshot 构建入口、SceneManager 场景提交）的锁边界
-3. 不引入跨线程数据竞争（重点是在代码注释或策略文件中冻结协议，让 T71 实现时有明确规范）
-4. 确保继续编译通过，测试基线保持 `42/42`
+1. 将 `RecomputeEngine::recompute()` 改造为异步管线：
+   - 主线程：`collectDirty` → `makeDocumentSnapshot` → `clearDirty` → 提交后台任务
+   - 后台线程：基于 `DocumentSnapshot` 推导几何（调用 OCCT 计算函数）
+   - 后台线程：计算完成后通过 `ResultChannel::post(version, applyFn)` 回投
+   - 主线程（事件循环）：通过 `SceneUpdateAdapter::drain()` 消费结果并更新 SceneManager
+2. 维持现有 `recomputeAll()` 路径作为同步全量刷新的降级模式
+3. 确保编译通过，`42/42` 测试基线不退步（可添加新并发测试）
 
-与后续任务关系：
-- T71 依赖 T70 的同步策略冻结后才能正式重构 RecomputeEngine 异步管线
+核心挑战：
+- `RecomputeEngine` 目前持有 `Document&` 和 `DependencyGraph&` 可变引用；异步化后需改为在提交任务前构建快照，后台只访问快照
+- `SceneUpdateCallback` 目前是同步回调；异步化后需改为通过 `ResultChannel` 传递，主线程调用时触发场景更新
+- 需要在 `WorkerGroup` 上持有 `SceneUpdateAdapter` 引用，并在主线程事件循环（或定时器）中驱动 `drain()`
 
 推荐模型：**Claude Sonnet 4.6**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
-2. `docs/tasks/phase4-lib-app-refactor/m4-concurrency-foundation.md`
-3. `src/lib/runtime/app/DocumentSnapshot.h`
-4. `src/lib/runtime/task/ResultChannel.h`
-5. `src/lib/runtime/task/TaskQueue.h`
-6. `src/apps/pipecad/engine/RecomputeEngine.h`
-7. `src/lib/runtime/app/DependencyGraph.h`
-8. `docs/tasks/status.md`
+1. `docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`（T70 冻结的同步策略，必读）
+2. `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`（T52 线程边界规则）
+3. `src/apps/pipecad/engine/RecomputeEngine.h`（当前接口）
+4. `src/apps/pipecad/engine/RecomputeEngine.cpp`（当前实现）
+5. `src/lib/runtime/app/DocumentSnapshot.h`（快照契约）
+6. `src/lib/runtime/task/ResultChannel.h`（结果回投通道）
+7. `src/lib/runtime/task/SceneUpdateAdapter.h`（主线程消费适配器）
+8. `src/lib/runtime/task/TaskQueue.h`（WorkerGroup 接口）
+9. `src/apps/pipecad/engine/GeometryDeriver.h`（当前几何推导接口）
+10. `docs/tasks/status.md`

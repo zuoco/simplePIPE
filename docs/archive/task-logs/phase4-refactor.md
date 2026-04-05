@@ -327,3 +327,22 @@
 
 **已知限制**:
 - `ResultChannel` 目前为通用回调通道，具体回投到哪个场景对象由调用方（T71 中的 RecomputeEngine）决定，本任务不约束
+
+### T70 — 为共享状态补齐同步策略 (2026-04-05)
+
+**产出文件**: `src/lib/runtime/task/SceneUpdateAdapter.h` · `src/lib/runtime/task/SceneUpdateAdapter.cpp` · `src/lib/runtime/CMakeLists.txt` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `src/lib/runtime/app/DependencyGraph.h`（注释增强）· `src/lib/runtime/app/DocumentSnapshot.h`（注释增强）· `src/apps/pipecad/engine/RecomputeEngine.h`（注释增强）· `tests/test_runtime_tasking.cpp`（新增 6 个测试）· `docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`
+
+**接口**: → `src/lib/runtime/task/SceneUpdateAdapter.h`
+
+**设计决策**:
+- 实现 `task::SceneUpdateAdapter`，封装主线程消费 ResultChannel 的协议（drain/drainAll/discard/pendingCount）
+- 采用 VersionProvider 函数对象而非直接持有 Document 引用，提高可测试性并避免不必要的头文件依赖
+- 在 DependencyGraph.h dirty 方法注释中冻结"主线程独占"规则，并明确 collectDirty/clearDirty 必须在同一主线程帧内原子执行
+- 在 DocumentSnapshot.h 的 makeDocumentSnapshot 注释中冻结"快照窗口"协议：collectDirty → makeDocumentSnapshot → clearDirty → submit task 的顺序约束
+- 在 RecomputeEngine.h 注释中说明主线程独占原因（OCCT 非线程安全）和 T71 计划的异步化路径
+- `pipecad.runtime.task` 模块边界新增 `SceneUpdateAdapter` 前向声明导出
+- 在 tests/test_runtime_tasking.cpp 新增 6 个 SceneUpdateAdapter 单测：版本匹配执行、版本延迟查询（versionProvider 调用时机验证）、drainAll 跳过版本校验、discard 不执行 applyFn、WorkerGroup 联动、pendingCount 状态追踪
+
+**已知限制**:
+- SceneUpdateAdapter 目前未接入实际的 RecomputeEngine 异步调用路径，这部分留给 T71 完成
+- 当前系统仍为主线程串行执行，本任务的同步策略注释在 T71 真正引入后台线程时才发挥约束作用

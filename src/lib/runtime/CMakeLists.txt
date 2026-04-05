@@ -10,6 +10,7 @@ add_library(lib_runtime STATIC
     # 并发基础设施
     task/TaskQueue.cpp
     task/ResultChannel.cpp
+    task/SceneUpdateAdapter.cpp
     # 命令层
     command/MacroCommand.cpp
     command/CommandStack.cpp

@@ -74,6 +74,16 @@ struct DocumentSnapshot {
 };
 
 /// 在主线程同步构建只读快照，作为后台任务的唯一输入面。
+///
+/// **[主线程独占]** 必须在主线程调用，且需在 DependencyGraph::collectDirty()
+/// 与 DependencyGraph::clearDirty() 之间完成（原子序列，T70 同步策略）：
+///
+///   1. dirtyIds = graph.collectDirty()       // 主线程
+///   2. snap = makeDocumentSnapshot(doc, graph) // 主线程（捕获 dirtyIds）
+///   3. graph.clearDirty()                    // 主线程
+///   4. workers.submit(snap, ...)             // 提交后台任务
+///
+/// 快照完成后，后台线程持有只读副本，主线程不再需要锁保护文档对象。
 DocumentSnapshot makeDocumentSnapshot(const Document& document,
                                       const DependencyGraph& dependencyGraph);
 

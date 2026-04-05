@@ -19,6 +19,7 @@ class TaskQueue;
 class WorkerGroup;
 struct ResultItem;
 class ResultChannel;
+class SceneUpdateAdapter;
 }
 
 export namespace pipecad::runtime::task {
@@ -31,6 +32,7 @@ using TaskQueue = ::task::TaskQueue;
 using WorkerGroup = ::task::WorkerGroup;
 using ResultItem = ::task::ResultItem;
 using ResultChannel = ::task::ResultChannel;
+using SceneUpdateAdapter = ::task::SceneUpdateAdapter;
 
 // T69: 结果回投与版本控制边界已建立
 // 后台任务完成后调用 ResultChannel::post(submittedVersion, applyFn)

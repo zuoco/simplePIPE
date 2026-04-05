@@ -23,6 +23,21 @@ namespace engine {
 ///   setSceneUpdateCallback([&](const std::string& uuid, const TopoDS_Shape& shape) {
 ///       sceneMgr.updateNode(uuid, ...);
 ///   });
+///
+/// ## 线程所有权（T70 同步策略）
+///
+/// **[主线程独占]** 本类所有公共方法仅允许在主线程调用。
+///
+/// 原因：
+/// - OCCT 几何运算（BRepAlgo、BRep_Builder 等）非线程安全，
+///   不同线程不得共享 OCCT 上下文句柄。
+/// - doc_ 与 graph_ 引用的对象由主线程独占写入，RecomputeEngine
+///   在主线程读取这些引用时无需额外同步。
+/// - SceneUpdateCallback 通常持有 SceneManager 的引用，
+///   SceneManager 的 addNode/updateNode/removeNode 也仅主线程调用。
+///
+/// T71 将把几何推导部分移入后台任务（基于 DocumentSnapshot），
+/// 届时 RecomputeEngine 负责快照构建、任务调度和结果回投协调。
 class RecomputeEngine {
 public:
     /// 场景更新回调类型：(对象UUID字符串, 新几何体)
