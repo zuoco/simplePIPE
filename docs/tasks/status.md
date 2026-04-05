@@ -94,11 +94,11 @@
 | T50 | 冻结目录与目标命名规则 | `done` | — | GPT-5.4 | 2026-04-05 |
 | T51 | 冻结 include/import 规则 | `done` | T50 | GPT-5.4 | 2026-04-05 |
 | T52 | 冻结线程安全边界 | `done` | T50 | GPT-5.4 | 2026-04-05 |
-| T53 | 设计 lib/apps 顶层 CMake 拓扑 | `ready` | T50, T51, T52 | GPT-5.4 | — |
-| T54 | 解除 RecomputeEngine 源文件级拼接 | `pending` | T53 | GPT-5.4 | — |
-| T55 | 设计过渡兼容层 | `pending` | T53 | GPT-5.4 | — |
-| T56 | 建立 src/lib 目录骨架 | `pending` | T53 | GPT-5.4 | — |
-| T57 | 建立 src/apps/pipecad 目录骨架 | `pending` | T53 | GPT-5.4 | — |
+| T53 | 设计 lib/apps 顶层 CMake 拓扑 | `done` | T50, T51, T52 | GPT-5.4 | 2026-04-05 |
+| T54 | 解除 RecomputeEngine 源文件级拼接 | `ready` | T53 | GPT-5.4 | — |
+| T55 | 设计过渡兼容层 | `ready` | T53 | GPT-5.4 | — |
+| T56 | 建立 src/lib 目录骨架 | `ready` | T53 | GPT-5.4 | — |
+| T57 | 建立 src/apps/pipecad 目录骨架 | `ready` | T53 | GPT-5.4 | — |
 | T58 | 迁移 foundation 到 src/lib/base | `pending` | T56 | GPT-5.4 | — |
 | T59 | 迁移 geometry 到 src/lib/platform/occt | `pending` | T56 | GPT-5.4 | — |
 | T60 | 拆分 visualization 与 vtk-visualization | `pending` | T56, T57 | GPT-5.4 | — |

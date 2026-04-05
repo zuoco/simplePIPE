@@ -56,3 +56,21 @@
 
 **已知限制**:
 - 当前系统全程单线程执行，本文档的并发规则在 T68-T71 才实际落地；本任务仅冻结设计约束
+
+### T53 — 设计 lib/apps 顶层 CMake 拓扑 (2026-04-05)
+
+**产出文件**: `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md` · `src/CMakeLists.txt`
+
+**接口**: → `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md`
+
+**设计决策**:
+- 在 `src/CMakeLists.txt` 新增 `pipecad_lib`（INTERFACE，M1 过渡版），通过 `app` 传递引入全部 6 个旧架构子库（foundation/geometry/model/engine/vtk_visualization/visualization）及 command 源码和 RecomputeEngine.cpp
+- 所有旧 target 名（foundation、geometry、model、engine、visualization、vtk_visualization、app、command、ui）保持不变，零破坏
+- 可执行 `pipecad_app` 暂不改名（T55 负责，届时 `pipecad_app` 名释放给业务静态库，可执行改为 `pipecad`）
+- 冻结三大核心目标职责：`pipecad_lib`（架构聚合，不含 ui）、`pipecad_app`（业务库，T55 后 = ui 层）、`pipecad`（可执行入口，T55 后正式命名）
+- 冻结 T54-T62 实施前置约束（详见设计文档各节 "后续任务前置约束"）
+- M1 使用 INTERFACE 避免实际编译单元：M2 目录迁移完成后升级为 STATIC
+
+**已知限制**:
+- `pipecad_lib` 当前为 INTERFACE 转发层，M2（T56-T62）目录物理迁移后才升级为真正的 STATIC 聚合库
+- `model` 与 `engine` 按最终架构应归 apps 域，M1 期间仍暂留 lib 层平级目录（T62 物理迁移时解决）
