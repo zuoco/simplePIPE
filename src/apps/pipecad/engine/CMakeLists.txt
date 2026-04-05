@@ -25,10 +25,9 @@ target_include_directories(pipecad_app_engine
 	PUBLIC
 		${CMAKE_SOURCE_DIR}/src/apps/pipecad
 		${CMAKE_SOURCE_DIR}/src
+		${CMAKE_SOURCE_DIR}/src/lib/runtime
 		${OpenCASCADE_INCLUDE_DIR}
 )
-
-target_compile_features(pipecad_app_engine PUBLIC cxx_std_17)
 
 target_link_libraries(pipecad_app_engine
 	PUBLIC

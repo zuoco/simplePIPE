@@ -85,9 +85,9 @@
 
 ### 四期任务 (Phase 4 — lib/apps 架构重构)
 
-> **实施计划书**: `docs/lib-app-refactor-plan.md`
+> **实施计划书**: `docs/archive/task-specs/phase4-lib-app-refactor-plan.md`
 >  
-> **任务卡目录**: `docs/tasks/phase4-lib-app-refactor/`
+> **任务卡目录**: `docs/archive/task-specs/phase4-lib-app-refactor/`
 
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
@@ -118,7 +118,7 @@
 | T74 | 建立并发回归测试 | `done` | T71, T72, T73 | GPT-5.4 | 2026-04-06 |
 | T75 | 清理旧目录兼容层 | `done` | T62, T64, T65, T66, T74 | GPT-5.4 | 2026-04-06 |
 | T76 | 固化 pipecad app 模板 | `done` | T62, T75 | GPT-5.4 | 2026-04-06 |
-| T77 | 更新文档与开发规范 | `ready` | T75 | GPT-5.4 | — |
+| T77 | 更新文档与开发规范 | `done` | T75 | GPT-5.4 | 2026-04-06 |
 
 ---
 

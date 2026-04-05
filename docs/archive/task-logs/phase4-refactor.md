@@ -1,16 +1,16 @@
 # Phase 4 完成记录 — lib/apps 架构重构 (T50–T77)
 
-> **实施计划书**: `docs/lib-app-refactor-plan.md`
-> **任务卡目录**: `docs/tasks/phase4-lib-app-refactor/`
+> **实施计划书**: `docs/archive/task-specs/phase4-lib-app-refactor-plan.md`
+> **任务卡目录**: `docs/archive/task-specs/phase4-lib-app-refactor/`
 > **任务状态**: `docs/tasks/status.md`
 
 ---
 
 ### T50 — 冻结目录与目标命名规则 (2026-04-05)
 
-**产出文件**: `docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md` · `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md` · `docs/lib-app-refactor-plan.md` · `src/CMakeLists.txt`
+**产出文件**: `docs/archive/task-specs/phase4-lib-app-refactor/t50-directory-target-freeze.md` · `docs/archive/task-specs/phase4-lib-app-refactor/m0-rule-freeze.md` · `docs/archive/task-specs/phase4-lib-app-refactor-plan.md` · `src/CMakeLists.txt`
 
-**接口**: → `docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`
+**接口**: → `docs/archive/task-specs/phase4-lib-app-refactor/t50-directory-target-freeze.md`
 
 **设计决策**:
 - 确立 `src/lib` 与 `src/apps` 为唯一长期代码根目录
@@ -25,9 +25,9 @@
 
 ### T51 — 冻结 include/import 规则 (2026-04-05)
 
-**产出文件**: `docs/tasks/phase4-lib-app-refactor/t51-include-import-freeze.md` · `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md` · `docs/lib-app-refactor-plan.md`
+**产出文件**: `docs/archive/task-specs/phase4-lib-app-refactor/t51-include-import-freeze.md` · `docs/archive/task-specs/phase4-lib-app-refactor/m0-rule-freeze.md` · `docs/archive/task-specs/phase4-lib-app-refactor-plan.md`
 
-**接口**: → `docs/tasks/phase4-lib-app-refactor/t51-include-import-freeze.md`
+**接口**: → `docs/archive/task-specs/phase4-lib-app-refactor/t51-include-import-freeze.md`
 
 **设计决策**:
 - 冻结 include/import/CMake 依赖三类统一约束，规则同时覆盖 `#include`、`import`、`target_link_libraries`
@@ -41,9 +41,9 @@
 
 ### T52 — 冻结线程安全边界 (2026-04-05)
 
-**产出文件**: `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md` · `docs/tasks/phase4-lib-app-refactor/m0-rule-freeze.md`
+**产出文件**: `docs/archive/task-specs/phase4-lib-app-refactor/t52-thread-boundary-freeze.md` · `docs/archive/task-specs/phase4-lib-app-refactor/m0-rule-freeze.md`
 
-**接口**: → `docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
+**接口**: → `docs/archive/task-specs/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
 
 **设计决策**:
 - 冻结单一可变状态线程原则：所有写操作（Document/CommandStack/SceneManager/Qt对象）主线程独占
@@ -59,9 +59,9 @@
 
 ### T53 — 设计 lib/apps 顶层 CMake 拓扑 (2026-04-05)
 
-**产出文件**: `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md` · `src/CMakeLists.txt`
+**产出文件**: `docs/archive/task-specs/phase4-lib-app-refactor/t53-cmake-topology.md` · `src/CMakeLists.txt`
 
-**接口**: → `docs/tasks/phase4-lib-app-refactor/t53-cmake-topology.md`
+**接口**: → `docs/archive/task-specs/phase4-lib-app-refactor/t53-cmake-topology.md`
 
 **设计决策**:
 - 在 `src/CMakeLists.txt` 新增 `pipecad_lib`（INTERFACE，M1 过渡版），通过 `app` 传递引入全部 6 个旧架构子库（foundation/geometry/model/engine/vtk_visualization/visualization）及 command 源码和 RecomputeEngine.cpp
@@ -330,7 +330,7 @@
 
 ### T70 — 为共享状态补齐同步策略 (2026-04-05)
 
-**产出文件**: `src/lib/runtime/task/SceneUpdateAdapter.h` · `src/lib/runtime/task/SceneUpdateAdapter.cpp` · `src/lib/runtime/CMakeLists.txt` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `src/lib/runtime/app/DependencyGraph.h`（注释增强）· `src/lib/runtime/app/DocumentSnapshot.h`（注释增强）· `src/apps/pipecad/engine/RecomputeEngine.h`（注释增强）· `tests/test_runtime_tasking.cpp`（新增 6 个测试）· `docs/tasks/phase4-lib-app-refactor/t70-sync-policy.md`
+**产出文件**: `src/lib/runtime/task/SceneUpdateAdapter.h` · `src/lib/runtime/task/SceneUpdateAdapter.cpp` · `src/lib/runtime/CMakeLists.txt` · `src/lib/runtime/runtimeMod/pipecad.runtime.task.cppm` · `src/lib/runtime/app/DependencyGraph.h`（注释增强）· `src/lib/runtime/app/DocumentSnapshot.h`（注释增强）· `src/apps/pipecad/engine/RecomputeEngine.h`（注释增强）· `tests/test_runtime_tasking.cpp`（新增 6 个测试）· `docs/archive/task-specs/phase4-lib-app-refactor/t70-sync-policy.md`
 
 **接口**: → `src/lib/runtime/task/SceneUpdateAdapter.h`
 
@@ -437,9 +437,9 @@
 
 ### T76 — 固化 pipecad app 模板 (2026-04-06)
 
-**产出文件**: `src/apps/CMakeLists.txt` · `src/apps/pipecad/CMakeLists.txt` · `src/apps/pipecad/workbench/CMakeLists.txt` · `src/apps/pipecad/workbench/placeholder.cpp` · `src/apps/pipecad/resources/CMakeLists.txt` · `src/apps/pipecad/resources/README.md` · `docs/tasks/phase4-lib-app-refactor/t76-pipecad-app-template.md`
+**产出文件**: `src/apps/CMakeLists.txt` · `src/apps/pipecad/CMakeLists.txt` · `src/apps/pipecad/workbench/CMakeLists.txt` · `src/apps/pipecad/workbench/placeholder.cpp` · `src/apps/pipecad/resources/CMakeLists.txt` · `src/apps/pipecad/resources/README.md` · `docs/archive/task-specs/phase4-lib-app-refactor/t76-pipecad-app-template.md`
 
-**接口**: → `src/apps/CMakeLists.txt`, `src/apps/pipecad/CMakeLists.txt`, `docs/tasks/phase4-lib-app-refactor/t76-pipecad-app-template.md`
+**接口**: → `src/apps/CMakeLists.txt`, `src/apps/pipecad/CMakeLists.txt`, `docs/archive/task-specs/phase4-lib-app-refactor/t76-pipecad-app-template.md`
 
 **设计决策**:
 - 在 `src/apps/CMakeLists.txt` 引入 `PIPECAD_APP_LIST` 与 `pipecad_register_app()`，统一多 app 注册入口并校验模板骨架（model/engine/workbench/ui/resources/main.cpp）
@@ -451,3 +451,18 @@
 
 **已知限制**:
 - 当前默认入口 QML 仍指向仓库根目录 `ui/main.qml`，后续新增 app 需按模板显式覆盖 `PIPECAD_QML_MAIN_FILE`
+
+### T77 — 更新文档与开发规范 (2026-04-06)
+
+**产出文件**: `docs/architecture.md` · `README.md` · `AGENTS.md` · `CLAUDE.md` · `docs/tasks/status.md` · `docs/tasks/current.md`
+
+**接口**: → `docs/architecture.md`, `AGENTS.md`, `CLAUDE.md`
+
+**设计决策**:
+- 将架构文档与代理规范统一到 T76/T77 基线：`src/lib` + `src/apps` 为唯一构建入口，旧目录仅作为迁移期历史镜像（非构建入口）
+- 将可执行路径统一为 `build/<type>/src/apps/pipecad/pipecad`，同步修正 README 与代理文档中的运行指引
+- 将测试基线统一更新为 46/46，并补充 Phase 4 已完成状态说明，避免新会话继续按“迁移进行中”执行
+- 按任务流程完成构建与全量测试验证：`pixi run build-debug`、`pixi run test`（日志重定向后读取，结果通过）
+
+**已知限制**:
+- `scripts/build.sh` 内部仍使用旧可执行路径探测逻辑；本任务聚焦文档与规范收口，脚本行为改造留待后续独立任务

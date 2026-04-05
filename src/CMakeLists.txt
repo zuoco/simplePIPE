@@ -29,13 +29,14 @@ add_library(command INTERFACE)
 target_link_libraries(command INTERFACE app)
 
 # vtk_visualization: VtkViewport Qt 集成层（算法层已在 lib_platform_vtk）
-# 源文件物理上仍位于 src/vtk-visualization/，头文件路径 vtk-visualization/Xxx.h 可用
+# T75+: 源文件已迁入 src/lib/platform/vtk/vtk-visualization/
 add_library(vtk_visualization STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/vtk-visualization/VtkViewport.cpp
+    ${CMAKE_SOURCE_DIR}/src/lib/platform/vtk/vtk-visualization/VtkViewport.cpp
 )
 target_include_directories(vtk_visualization
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src/lib/platform/vtk
+        ${CMAKE_SOURCE_DIR}/src
         ${OpenCASCADE_INCLUDE_DIR}
 )
 target_compile_features(vtk_visualization PUBLIC cxx_std_17)

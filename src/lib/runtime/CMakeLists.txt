@@ -47,6 +47,7 @@ target_compile_features(lib_runtime_modules PUBLIC cxx_std_20)
 
 target_link_libraries(lib_runtime_modules
     PUBLIC
+        lib_base
         nlohmann_json::nlohmann_json
 )
 

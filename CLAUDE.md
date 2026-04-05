@@ -59,7 +59,7 @@ PIPECAD_TEST_JOBS=2 pixi run test
 
 ## Architecture
 
-The codebase is mid-migration from a flat 8-layer structure to a `lib/` + `apps/` topology (Phase 4, T50–T77). Both coexist — old directories retain only a `CMakeLists.txt` creating ALIAS targets pointing to the new locations.
+Phase 4 (T50–T77) is complete. The build now uses `src/lib/` + `src/apps/` as the only real CMake entry roots. Legacy directories (`src/foundation/`, `src/geometry/`, etc.) are still present as migration-era source mirrors but are not build entry points.
 
 ### Current directory structure (post-Phase 4 migration)
 
@@ -84,28 +84,23 @@ src/
       main.cpp                 # Application entry point
 ```
 
-Old directories (`src/foundation/`, `src/geometry/`, `src/model/`, `src/engine/`, `src/visualization/`, `src/vtk-visualization/`, `src/app/`, `src/command/`, `src/ui/`) still exist but only contain a `CMakeLists.txt` with `add_library(<old_name> ALIAS <new_target>)`. **Do not add source files to these old directories.**
+Old directories (`src/foundation/`, `src/geometry/`, `src/model/`, `src/engine/`, `src/visualization/`, `src/vtk-visualization/`, `src/app/`, `src/command/`, `src/ui/`) still exist as migration mirrors. **Do not treat them as build roots; add new implementation under `src/lib/` or `src/apps/`.**
 
 ### Dependency chain (new targets)
 
 ```
-lib_base (INTERFACE)
-  ├─ lib_platform_occt (STATIC)
-  │    ├─ pipecad_app_model (STATIC)
-  │    │    └─ pipecad_app_engine (STATIC)
-  │    └─ lib_platform_vtk (STATIC)
-  └─ lib_platform_vsg (STATIC, depends on lib_platform_vtk)
-lib_runtime (STATIC, depends on pipecad_app_engine + lib_platform_vsg)
-lib_framework (STATIC, depends on lib_runtime + lib_platform_vsg)
-pipecad_app (STATIC, aggregates all above + pipecad_app_ui)
-pipecad (executable)
+lib_base -> lib_platform_occt
+pipecad_app_model -> pipecad_app_engine
+lib_platform_vtk + vtk_visualization -> lib_platform_vsg
+lib_runtime -> lib_framework -> app(alias) -> pipecad_lib(interface)
+pipecad_lib + pipecad_app_{model,engine,workbench,ui,resources} -> pipecad_app -> pipecad
 ```
 
 ### Key Domain Concepts
 
 - **PipePoint**: Core typed document object with coordinates. All pipeline geometry derives from PipePoint sequences and PipeSpec properties.
-- **Application singleton**: `app::Application::init()` creates the central singleton holding Document, DependencyGraph, TransactionManager, SelectionManager, WorkbenchManager.
-- **Command system**: CommandStack + CommandRegistry + typed commands (PropertyCommands, StructuralCommands, InsertComponent). TransactionManager was cleaned up in Phase 3 (T10).
+- **Application singleton**: `app::Application::init()` creates the central singleton holding Document, DependencyGraph, SelectionManager, WorkbenchManager, CommandStack, and CommandRegistry.
+- **Command system**: CommandStack + CommandRegistry + typed commands (PropertyCommands, StructuralCommands, InsertComponent). TransactionManager was removed in Phase 3 (T10).
 - **Recompute flow**: Command execution → RecomputeEngine → SceneManager callback. Changing a PipePoint triggers recompute of dependent geometry and VSG scene node updates.
 - **Workbench system**: CadWorkbench, DesignWorkbench, SpecWorkbench, AnalysisWorkbench — switchable via WorkbenchManager. Each workbench defines its own toolbar actions, tree structure, and panels.
 - **Dual rendering**: VSG (Vulkan) for 3D design view via `VsgQuickItem` + VTK for stress analysis via `VtkViewport`. Both are QML-exposed types registered as `PipeCAD` module.
@@ -114,7 +109,7 @@ pipecad (executable)
 
 ### Test Organization
 
-Tests in `tests/` follow a per-task naming pattern (`test_<name>.cpp` linked to specific library layer(s) via `tests/CMakeLists.txt`). Tests link to old ALIAS target names which resolve to new targets. Current test baseline: **42 tests, all passing**. Tests using Qt depend on `Qt6::Test`; all others use `GTest::Main`.
+Tests in `tests/` follow a per-task naming pattern (`test_<name>.cpp` linked to specific library layer(s) via `tests/CMakeLists.txt`). Tests link to old ALIAS target names which resolve to new targets. Current test baseline: **46 tests, all passing**. Tests using Qt depend on `Qt6::Test`; all others use `GTest::Main`.
 
 ### UI Structure
 
@@ -139,7 +134,7 @@ QML files in `ui/`: `main.qml` entry, `components/` (reusable widgets), `panels/
 The project uses a task-driven workflow tracked in `docs/tasks/`. When asked to "完成任务 TXX":
 1. Read `docs/tasks/current.md` for handoff context
 2. Check `docs/tasks/status.md` status table (before "完成记录索引" section) for task status
-3. Read task details from `docs/tasks/phase4-lib-app-refactor/` (Phase 4), `docs/archive/task-specs/development-plan.md` (Phase 1-2), or `docs/archive/task-specs/command-pattern-design.md` (Phase 3)
+3. Read task details from `docs/archive/task-specs/phase4-lib-app-refactor/` (Phase 4, archived), `docs/archive/task-specs/development-plan.md` (Phase 1-2), or `docs/archive/task-specs/command-pattern-design.md` (Phase 3)
 4. Implement, then verify by redirecting build/test output into temporary files, waiting for the commands to finish, and reading the log files to determine whether they succeeded
 5. Update status.md, archived log file (`docs/archive/task-logs/`), current.md, and commit with `feat: TXX — description`
 
@@ -175,5 +170,5 @@ Build toolchain: pixi + CMake >=3.24 + Ninja, Clang, C++17.
 - `docs/tasks/current.md` — Current task handoff (AI-maintained, read this first)
 - `docs/archive/task-specs/development-plan.md` — Phase 1-2 task specs
 - `docs/archive/task-specs/command-pattern-design.md` — Phase 3 command pattern specification
-- `docs/tasks/phase4-lib-app-refactor/` — Phase 4 task cards
+- `docs/archive/task-specs/phase4-lib-app-refactor/` — Phase 4 task cards (archived)
 - `lib/occt/AGENTS.md`, `lib/vsg/AGENTS.md`, `lib/vtk/AGENTS.md` — Library-specific API guides
