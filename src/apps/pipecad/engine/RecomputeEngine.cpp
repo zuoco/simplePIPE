@@ -72,6 +72,25 @@ void RecomputeEngine::recomputeAll() {
     }
 }
 
+void RecomputeEngine::asyncRecomputeAll() {
+    // 若异步模式未启用，退化为同步全量重算
+    if (!asyncFn_) {
+        recomputeAll();
+        return;
+    }
+
+    // 将所有 PipePoint 标记为脏（主线程执行，T70 快照窗口协议前置步骤）
+    auto segments = doc_.allSegments();
+    for (auto* seg : segments) {
+        for (auto& pp : seg->points()) {
+            graph_.markDirty(pp->id());
+        }
+    }
+
+    // 触发异步重算管线（快照构建 → 后台提交 → 结果回投）
+    asyncRecompute();
+}
+
 RecomputeEngine::Neighbors RecomputeEngine::findNeighbors(
     const model::PipePoint* pp) const {
     Neighbors nb;

@@ -383,3 +383,20 @@
 **已知限制**:
 - 后台 `createComponentNode()` 创建 VSG 对象在 Clang+VSG 下经测试安全；如换平台需重新确认 VSG 原子引用计数线程安全性
 - `workers` 与 `resultChannel` 声明顺序导致 workers 析构晚于 resultChannel（pre-existing T71 issue），正常退出场景下不影响
+
+### T73 — 后台化加载恢复与保存前准备 (2026-04-06)
+
+**产出文件**: `src/apps/pipecad/engine/RecomputeEngine.h` · `src/apps/pipecad/engine/RecomputeEngine.cpp` · `src/engine/RecomputeEngine.h`（兼容 shim 同步）· `tests/test_load_save_async.cpp` · `tests/CMakeLists.txt`
+
+**接口**: → `src/apps/pipecad/engine/RecomputeEngine.h`（新增 `asyncRecomputeAll()`）
+
+**设计决策**:
+- 在 `RecomputeEngine` 新增 `asyncRecomputeAll()` 方法：遍历 `doc_.allSegments()` 标记所有 PipePoint 脏 → 调用 `asyncRecompute()`，实现加载恢复阶段后台化
+- 无异步模式时退化为 `recomputeAll()`（同步降级路径保持不变）
+- 同步更新兼容 shim 文件 `src/engine/RecomputeEngine.h`，避免因 include 路径优先级导致编译器选中旧版本声明
+- 保存前准备通过 `drainResults()` 实现：调用者可在保存前轮询直到结果队列清空，无需新增额外接口
+- 测试（`test_load_save_async`）覆盖 4 场景：同步降级 / 异步模式标脏 / 加载恢复模拟（多路由多段 PipePoint 全量提交）/ 保存前排空 drain
+- 注意：`buildRoute()` 必须将 Segment 也注册到 Document（`doc.addObject(seg)`），否则 `allSegments()` 无法发现段内 PipePoint
+
+**已知限制**:
+- `asyncRecomputeAll()` 标脏时不区分已有 dirty 状态，存在重复标脏的冗余操作（对正确性无影响）

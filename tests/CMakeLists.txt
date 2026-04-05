@@ -529,3 +529,16 @@ target_link_libraries(test_batch_mesh
 target_include_directories(test_batch_mesh PRIVATE ${OpenCASCADE_INCLUDE_DIR})
 target_compile_features(test_batch_mesh PRIVATE cxx_std_17)
 add_test(NAME BatchMesh COMMAND test_batch_mesh)
+
+# 后台化加载恢复与保存前准备测试 — T73
+add_executable(test_load_save_async test_load_save_async.cpp)
+target_link_libraries(test_load_save_async
+    PRIVATE
+        app
+        engine
+        GTest::GTest
+        GTest::Main
+)
+target_include_directories(test_load_save_async PRIVATE ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(test_load_save_async PRIVATE cxx_std_17)
+add_test(NAME LoadSaveAsync COMMAND test_load_save_async)

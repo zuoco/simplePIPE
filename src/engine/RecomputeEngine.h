@@ -65,6 +65,12 @@ public:
     /// 重算文档中所有 PipePoint（全量刷新，同步降级模式）
     void recomputeAll();
 
+    /// 后台化全量重算（加载恢复阶段使用，T73）
+    ///
+    /// 将所有 PipePoint 标记为脏，然后调用 asyncRecompute()。
+    /// 若异步模式未启用，退化为同步 recomputeAll()。
+    void asyncRecomputeAll();
+
 private:
     app::Document&        doc_;
     app::DependencyGraph& graph_;
