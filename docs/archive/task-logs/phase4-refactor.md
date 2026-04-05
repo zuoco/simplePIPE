@@ -108,3 +108,33 @@
 
 **已知限制**:
 - `pipecad_app` 当前为 INTERFACE，T57 后物理迁移 ui 源文件时才升级为 STATIC
+
+### T56 — 建立 src/lib 目录骨架 (2026-04-05)
+
+**产出文件**: `src/lib/CMakeLists.txt` · `src/lib/base/CMakeLists.txt` · `src/lib/platform/CMakeLists.txt` · `src/lib/platform/occt/CMakeLists.txt` · `src/lib/platform/vsg/CMakeLists.txt` · `src/lib/platform/vtk/CMakeLists.txt` · `src/lib/runtime/CMakeLists.txt` · `src/lib/framework/CMakeLists.txt` · `src/CMakeLists.txt`（新增 add_subdirectory(lib)）
+
+**接口**: → `src/lib/CMakeLists.txt`（含 base/platform/runtime/framework 四子域）
+
+**设计决策**:
+- 严格按 t53-cmake-topology.md §3.4 最终拓扑创建目录：base / platform/{occt,vsg,vtk} / runtime / framework
+- 各 CMakeLists.txt 均为空占位，注明最终迁入时间线（T58-T61）
+- `src/CMakeLists.txt` 在 add_subdirectory(ui) 之后追加 add_subdirectory(lib)（物理内容尚未迁入，占位编译无误）
+- platform 下分三子域（occt/vsg/vtk）与 t53 §3.4 保持一致，便于 T59/T60 独立推进
+
+**已知限制**:
+- 所有 lib 子目录当前均无源文件，CMakeLists.txt 仅为命名空间占位
+
+### T57 — 建立 src/apps/pipecad 目录骨架 (2026-04-05)
+
+**产出文件**: `src/apps/CMakeLists.txt` · `src/apps/pipecad/CMakeLists.txt` · `src/apps/pipecad/model/CMakeLists.txt` · `src/apps/pipecad/engine/CMakeLists.txt` · `src/apps/pipecad/workbench/CMakeLists.txt` · `src/apps/pipecad/ui/CMakeLists.txt` · `src/CMakeLists.txt`（新增 add_subdirectory(apps)）
+
+**接口**: → `src/apps/CMakeLists.txt`（含 pipecad 子目录）；`src/apps/pipecad/CMakeLists.txt`（含 model/engine/workbench/ui 四子域）
+
+**设计决策**:
+- 严格按 t53 §3.4 与 t50 目录模板创建：model / engine / workbench / ui 四子域
+- 各 CMakeLists.txt 均为空占位，注明最终迁入时间线（T62）并附注子域来源
+- `src/CMakeLists.txt` 追加 add_subdirectory(apps)，与 add_subdirectory(lib) 并列
+- 新增 app 时可直接复制 pipecad/ 目录模板并修改，验收标准已满足
+
+**已知限制**:
+- 所有 apps/pipecad 子目录当前均无源文件，CMakeLists.txt 仅为命名空间占位

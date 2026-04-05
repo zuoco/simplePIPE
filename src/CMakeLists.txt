@@ -15,6 +15,12 @@ add_subdirectory(app)
 add_subdirectory(command)  # INTERFACE 别名，必须在 app 之后
 add_subdirectory(ui)
 
+# T56: 统一架构库目录骨架（物理内容待 T58-T61 迁入）
+add_subdirectory(lib)
+
+# T57: 应用目录骨架（物理内容待 T62 迁入）
+add_subdirectory(apps)
+
 # T53: pipecad_lib 聚合架构目标（INTERFACE，M1 过渡版）
 # 汇聚全部架构子库，供未来 apps/pipecad 业务库统一链接。
 # 通过 app 传递引入：foundation, geometry, model, engine,
