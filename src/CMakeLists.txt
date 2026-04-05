@@ -1,35 +1,69 @@
-# Phase 4 / T50 规则冻结说明（仅设计约束，不改变当前构建行为）：
+# Phase 4 / T50 规则冻结说明：
 # 1) 统一架构库目标名固定为 pipecad_lib
 # 2) 当前 app 业务库目标名固定为 pipecad_app
 # 3) 当前 app 可执行目标名固定为 pipecad
 # 4) 新增 app 采用 <name>_app + <name> 命名对
-# 5) 本文件当前仍维持旧拓扑，命名规则将在 T53 起逐步落地
 
-# T58: lib 必须先于 foundation 处理，因为 foundation 现为 lib_base 的别名
+# T75: 旧目录兼容层已清理——所有旧目录的 CMakeLists.txt 已删除，
+#       别名定义统一迁移至此处。src/lib 与 src/apps 为唯一真实结构。
+
+# Step 1: 加载统一架构库（lib_base, lib_platform_*, lib_runtime, lib_framework）
 add_subdirectory(lib)
 
-add_subdirectory(foundation)
-add_subdirectory(geometry)
-add_subdirectory(visualization)
-add_subdirectory(vtk-visualization)
-add_subdirectory(app)
-add_subdirectory(command)  # INTERFACE 别名，必须在 app 之后
+# ── 旧目录兼容别名（T75: 从各旧目录 CMakeLists.txt 迁移至此）──────────────────
 
-# T53: pipecad_lib 聚合架构目标（INTERFACE，M1 过渡版）
-# 汇聚全部架构子库，供未来 apps/pipecad 业务库统一链接。
-# 通过 app 传递引入：foundation, geometry, model, engine,
-#   vtk_visualization, visualization, command 源码, RecomputeEngine.cpp
-# T54 后 app 不再吞并 RecomputeEngine.cpp，但 pipecad_lib 拓扑无需修改。
-# T55 后引入 pipecad_app（业务库）与 pipecad（可执行）两个正式目标。
-# T75 后清理旧兼容别名（foundation, geometry, model, engine 等旧 target 名）。
+# T58: foundation → lib_base
+add_library(foundation ALIAS lib_base)
+
+# T59: geometry → lib_platform_occt
+add_library(geometry ALIAS lib_platform_occt)
+
+# T60: visualization → lib_platform_vsg
+add_library(visualization ALIAS lib_platform_vsg)
+
+# T61: app → lib_framework
+add_library(app ALIAS lib_framework)
+
+# command: INTERFACE 目标，透传 app 依赖（保持向后兼容）
+add_library(command INTERFACE)
+target_link_libraries(command INTERFACE app)
+
+# vtk_visualization: VtkViewport Qt 集成层（算法层已在 lib_platform_vtk）
+# 源文件物理上仍位于 src/vtk-visualization/，头文件路径 vtk-visualization/Xxx.h 可用
+add_library(vtk_visualization STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/vtk-visualization/VtkViewport.cpp
+)
+target_include_directories(vtk_visualization
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${OpenCASCADE_INCLUDE_DIR}
+)
+target_compile_features(vtk_visualization PUBLIC cxx_std_17)
+target_link_libraries(vtk_visualization
+    PUBLIC
+        lib_platform_vtk
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Quick
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+# T53: pipecad_lib 聚合架构目标（INTERFACE）
 # pipecad_lib 必须在 apps 之前定义，因为 apps/pipecad/ui 依赖它
 add_library(pipecad_lib INTERFACE)
 target_link_libraries(pipecad_lib INTERFACE app)
 
-# T57: apps 目录必须在 pipecad_lib 之后处理
+# Step 2: 加载业务应用目录
 add_subdirectory(apps)
 
-# 旧目录别名（指向 apps/ 中的新目标，必须在 apps 之后）
-add_subdirectory(model)
-add_subdirectory(engine)
-add_subdirectory(ui)
+# ── 业务层旧目录兼容别名（需在 apps 加载后定义）─────────────────────────────
+
+# T62: model → pipecad_app_model
+add_library(model ALIAS pipecad_app_model)
+
+# T62: engine → pipecad_app_engine
+add_library(engine ALIAS pipecad_app_engine)
+
+# T62: ui → pipecad_app_ui
+add_library(ui ALIAS pipecad_app_ui)

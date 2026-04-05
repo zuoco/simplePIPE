@@ -7,36 +7,41 @@
 
 ## 当前状态
 
-Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T74** 已全部完成。
+Phase 1（T01-T25）、Phase 2（T30-T45）、Phase 3（T0-T10）以及 Phase 4 的 **T50–T75** 已完成。
 
-**T74 完成摘要（2026-04-06）**：
-- 新增 `tests/test_concurrent_recompute.cpp`（5 个并发回归测试）
-- 覆盖：批量编辑 / 撤销重做版本丢弃 / 工作台切换 discard / 应用退出安全回收 / drainFresh 精确版本匹配
-- 测试基线提升到 **46/46**（新增 ConcurrentRecompute 套件，耗时 0.11s）
+**T75 完成摘要（2026-04-06）**：
+- 将旧兼容别名与 `vtk_visualization` 目标定义统一迁移到 `src/CMakeLists.txt`
+- 删除旧目录兼容层中的 `CMakeLists.txt`：`src/foundation/`、`src/geometry/`、`src/visualization/`、`src/vtk-visualization/`、`src/app/`、`src/command/`、`src/model/`、`src/engine/`、`src/ui/`
+- 验证通过：Debug 构建成功，测试 **46/46** 全部通过
 
 **当前基线事实**：
 - 测试基线 46/46 全部通过
-- T75（清理旧目录兼容层）所有前置（T62/T64/T65/T66/T74）已 done，状态 `ready`
+- `src/lib` 与 `src/apps` 已成为唯一 CMake 构建入口目录
+- T76（固化 pipecad app 模板）前置依赖（T62/T75）均已完成，状态 `ready`
 
 ## 下一个任务
 
-**T75 — 清理旧目录兼容层**
+**T76 — 固化 pipecad app 模板**
 
 工作目标：
-删除 `src/foundation/`、`src/geometry/`、`src/model/`、`src/engine/`、`src/visualization/`、`src/vtk-visualization/`、`src/app/`、`src/command/`、`src/ui/` 等旧目录中仅含 ALIAS CMakeLists，将所有旧目标别名迁移到顶层 `src/CMakeLists.txt` 或各 lib/apps 子目录，使项目目录结构与新架构保持一致。清理后需保证：
-1. 全部构建目标仍然存在（ALIAS 别名不删除，只是搬移到合适位置）
-2. 所有测试 46/46 继续通过
-3. 旧目录下不再有 `CMakeLists.txt`
+将当前 `src/apps/pipecad/` 的目录与 CMake 组织提炼为可复用模板，明确未来新增 app 时的最小复制路径与必须改动点，确保新增 app 不需要重新设计 lib 边界。
 
-参考任务卡：`docs/tasks/phase4-lib-app-refactor/` 中 T75 章节。
+建议聚焦：
+1. 固化 `src/apps/CMakeLists.txt` 与 `src/apps/pipecad/CMakeLists.txt` 的模板化结构
+2. 明确 app 子目录（model/engine/workbench/ui/main）的职责边界与最小骨架
+3. 补充模板化说明并保持现有构建与测试基线稳定
 
-推荐模型：**Claude Sonnet 4.6**
+参考任务卡：`docs/tasks/phase4-lib-app-refactor/m6-closure.md` 中 T76 章节。
+
+推荐模型：**GPT-5.3 Codex**
 
 ## 需要读取的文件
 
-1. `docs/tasks/phase4-lib-app-refactor/` 目录下 T75 任务卡（如有）
-2. `src/CMakeLists.txt`（顶层 CMake，了解当前 add_subdirectory 结构）
-3. `src/foundation/CMakeLists.txt`、`src/geometry/CMakeLists.txt` 等旧目录（了解 ALIAS 内容）
-4. `src/lib/base/CMakeLists.txt`、`src/apps/pipecad/CMakeLists.txt`（了解新结构）
-5. `docs/tasks/status.md`（确认 T75 前置依赖）
+1. `docs/tasks/phase4-lib-app-refactor/m6-closure.md`（T76 验收标准）
+2. `docs/tasks/phase4-lib-app-refactor/t50-directory-target-freeze.md`（app 模板命名规则）
+3. `src/apps/CMakeLists.txt`
+4. `src/apps/pipecad/CMakeLists.txt`
+5. `src/apps/pipecad/main.cpp`
+6. `docs/lib-app-refactor-plan.md`（M6 收口要求）
+7. `docs/tasks/status.md`
 

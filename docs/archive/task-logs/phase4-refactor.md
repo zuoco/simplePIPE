@@ -419,3 +419,18 @@
 
 **已知限制**:
 - T74-1 中批量编辑后 drainResults() 只调用一次，只断言 `applied >= 1`（实际等于 1，因同步 asyncFn 保证版本一致），未累计所有批次（可接受：回归侧重无崩溃与不遗漏，而非精确计数）
+
+### T75 — 清理旧目录兼容层 (2026-04-06)
+
+**产出文件**: `src/CMakeLists.txt` · `src/app/CMakeLists.txt`（删除）· `src/command/CMakeLists.txt`（删除）· `src/engine/CMakeLists.txt`（删除）· `src/foundation/CMakeLists.txt`（删除）· `src/geometry/CMakeLists.txt`（删除）· `src/model/CMakeLists.txt`（删除）· `src/ui/CMakeLists.txt`（删除）· `src/visualization/CMakeLists.txt`（删除）· `src/vtk-visualization/CMakeLists.txt`（删除）
+
+**接口**: → `src/CMakeLists.txt`
+
+**设计决策**:
+- 将旧目标兼容层统一上移到 `src/CMakeLists.txt`：`foundation`、`geometry`、`visualization`、`app`、`command`、`model`、`engine`、`ui`
+- 将 `vtk_visualization`（Qt 集成层）目标定义迁移到 `src/CMakeLists.txt`，算法层继续由 `lib_platform_vtk` 提供
+- 删除 9 个旧目录中的 `CMakeLists.txt`，旧目录不再作为构建入口，`src/lib` 与 `src/apps` 成为唯一真实结构
+- 保持依赖顺序：`pipecad_lib` 仍在 `add_subdirectory(apps)` 之前定义，`model/engine/ui` 兼容别名保持在 apps 之后定义
+
+**已知限制**:
+- `src/vtk-visualization/` 仍保留 `VtkViewport` 与兼容头文件路径，后续任务再决定是否继续物理收敛
