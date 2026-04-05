@@ -92,9 +92,9 @@
 | ID | 任务名 | 状态 | 依赖 | 推荐模型 | 完成日期 |
 |----|--------|------|------|---------|---------|
 | T50 | 冻结目录与目标命名规则 | `done` | — | GPT-5.4 | 2026-04-05 |
-| T51 | 冻结 include/import 规则 | `ready` | T50 | GPT-5.4 | — |
-| T52 | 冻结线程安全边界 | `ready` | T50 | GPT-5.4 | — |
-| T53 | 设计 lib/apps 顶层 CMake 拓扑 | `pending` | T50, T51, T52 | GPT-5.4 | — |
+| T51 | 冻结 include/import 规则 | `done` | T50 | GPT-5.4 | 2026-04-05 |
+| T52 | 冻结线程安全边界 | `done` | T50 | GPT-5.4 | 2026-04-05 |
+| T53 | 设计 lib/apps 顶层 CMake 拓扑 | `ready` | T50, T51, T52 | GPT-5.4 | — |
 | T54 | 解除 RecomputeEngine 源文件级拼接 | `pending` | T53 | GPT-5.4 | — |
 | T55 | 设计过渡兼容层 | `pending` | T53 | GPT-5.4 | — |
 | T56 | 建立 src/lib 目录骨架 | `pending` | T53 | GPT-5.4 | — |

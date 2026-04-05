@@ -59,6 +59,12 @@
 - `lib::runtime` 不允许反向依赖 `lib::framework`
 - 不允许跨 app 直接依赖
 
+**当前进展（2026-04-05）**
+- 已创建冻结文档：`docs/tasks/phase4-lib-app-refactor/t51-include-import-freeze.md`
+- 已冻结 lib/apps 依赖白名单与黑名单规则（含 include/import/CMake 依赖三类约束）
+- 已明确 apps 通过 `lib` 接口访问第三方能力，禁止直接 include OCCT/VSG/VTK
+- 已冻结 `lib::runtime` 禁止反向依赖 `lib::framework` 与跨 app 直接依赖规则
+
 ## T52 冻结线程安全边界
 
 **目标**
@@ -83,3 +89,11 @@
 **验收标准**
 - `CommandStack`、`Document` 写接口、`SceneManager` 写操作的主线程所有权明确
 - 后台线程只允许消费快照和只读接口
+
+**当前进展（2026-04-05）**
+- 已创建冻结文档：`docs/tasks/phase4-lib-app-refactor/t52-thread-boundary-freeze.md`
+- 已冻结主线程专属对象清单：CommandStack、Document 写接口、DependencyGraph 写接口、RecomputeEngine、SceneManager 写操作、SelectionManager 写接口、WorkbenchManager、所有 Qt/QML 对象
+- 已冻结后台线程允许行为：只读快照消费、const 方法调用、独立几何推导计算、通过 Qt::QueuedConnection 发射结果信号
+- 已冻结快照边界：包含版本令牌、PipePoint 值拷贝、PipeSpec 参数、依赖拓扑只读视图
+- 已冻结结果回投协议：唯一合法通道为 Qt::QueuedConnection，回投时校验版本令牌，版本不匹配则静默丢弃
+- 已明确迁移期约束：T68 之前保持单线程串行执行，T68-T71 搭建并发框架，M4 后方可启用后台重算

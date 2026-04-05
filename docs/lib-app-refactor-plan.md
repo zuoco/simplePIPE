@@ -114,6 +114,11 @@
 - lib::runtime 不允许反向依赖 lib::framework。
 - 业务层不能跨 app 直接依赖。
 
+当前进展（2026-04-05）：
+- 已完成冻结文档：`docs/tasks/phase4-lib-app-refactor/t51-include-import-freeze.md`
+- 已冻结 include/import/CMake 依赖边界：`lib::base -> lib::platform -> lib::runtime -> lib::framework -> apps/<name>`
+- 已明确第三方平台库（OCCT/VSG/VTK）访问统一经 `lib::platform` 收口
+
 #### M0-T03 冻结线程安全边界
 目标：定义主线程对象、后台线程对象和快照边界。
 
